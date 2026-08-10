@@ -20,6 +20,9 @@ export default function RecordPage() {
   // ★ 修正機能
   const [lastRecordIndex, setLastRecordIndex] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [mode, setMode] = useState("cm"); // cm入力かg入力か
+const [gram, setGram] = useState("");   // g入力用
+
 
   useEffect(() => {
     const data = JSON.parse(localStorage.getItem("currentStaff"));
@@ -36,41 +39,58 @@ export default function RecordPage() {
   }, []);
 
   // ★ 記録処理
-  const handleRecord = () => {
-    if (!cm) {
-      setMessage("量を入力してください");
-      return;
-    }
+ const handleRecord = () => {
+  const value = mode === "cm" ? cm : gram;
 
-    const usedMl = (cm * ML_PER_CM).toFixed(1);
-    const now = new Date().toLocaleString();
+  if (!value) {
+    setMessage("量を入力してください");
+    return;
+  }
 
-    const history = JSON.parse(localStorage.getItem("history") || "[]");
+  // g → mL の換算（250mL = 216g）
+  const mlFromGram = mode === "g" ? (gram / 0.864) : 0;
 
-    history.push({
-      time: now,
-      staffId: staff.staffId,
-      name: staff.name,
-      department: staff.department,
-      cm: cm,
-      ml: usedMl
-    });
+  const usedMl =
+    mode === "cm"
+      ? (cm * ML_PER_CM).toFixed(1)
+      : mlFromGram.toFixed(1);
 
-    // ★ 直前の記録の index を保存
-    setLastRecordIndex(history.length - 1);
+  const now = new Date().toLocaleString();   // ← ★必須！
 
-    localStorage.setItem("history", JSON.stringify(history));
+  const history = JSON.parse(localStorage.getItem("history") || "[]");
 
-    // ミントポイント加算
-    const newPoint = mintPoint + 1;
-    localStorage.setItem("mintPoint", newPoint);
-    setMintPoint(newPoint);
+  history.push({
+    time: now,
+    staffId: staff.staffId,
+    name: staff.name,
+    department: staff.department,
+    cm: mode === "cm" ? cm : null,   // ← cm入力時だけ保存
+    gram: mode === "g" ? gram : null, // ← g入力時だけ保存
+    ml: usedMl
+  });
 
-    setMessage(`記録しました：${cm}cm → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`);
-    setCm("");
+  setLastRecordIndex(history.length - 1);
+  localStorage.setItem("history", JSON.stringify(history));
 
-    setTimeout(() => setMessage(""), 6000);
-  };
+  const newPoint = mintPoint + 1;
+  localStorage.setItem("mintPoint", newPoint);
+  setMintPoint(newPoint);
+
+  // 表示メッセージも cm/g に合わせる
+  setMessage(
+    mode === "cm"
+      ? `記録しました：${cm}cm → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
+      : `記録しました：${gram}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
+  );
+
+  setCm("");
+  setGram("");
+
+  setTimeout(() => setMessage(""), 6000);
+};
+ 
+
+
 
   // ★ 修正保存処理
   const saveEdit = () => {
@@ -120,31 +140,84 @@ export default function RecordPage() {
         </p>
       </div>
 
-      {/* cm入力欄 */}
-      <div
-        style={{
-          background: "#ffffff",
-          padding: "16px",
-          borderRadius: "16px",
-          marginBottom: "20px",
-          border: "1px solid #cfeeee"
-        }}
-      >
-        <label style={{ color: "#006b5f" }}>今日使った量（cm）</label>
-        <input
-          type="number"
-          value={cm}
-          onChange={(e) => setCm(e.target.value)}
-          placeholder="例：2.3"
-          style={{
-            width: "100%",
-            padding: "12px",
-            borderRadius: "12px",
-            border: "1px solid #cfeeee",
-            marginTop: "8px"
-          }}
-        />
-      </div>
+  {/* cm / g 切り替えボタン */}
+<div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+  <button
+    onClick={() => setMode("cm")}
+    style={{
+      background: mode === "cm" ? "#cfeeee" : "#e8f6f6",
+      color: "#006b5f",
+      padding: "10px 16px",
+      borderRadius: "12px",
+      border: "none",
+      cursor: "pointer",
+      flex: 1
+    }}
+  >
+    cm入力
+  </button>
+
+  <button
+    onClick={() => setMode("g")}
+    style={{
+      background: mode === "g" ? "#cfeeee" : "#e8f6f6",
+      color: "#006b5f",
+      padding: "10px 16px",
+      borderRadius: "12px",
+      border: "none",
+      cursor: "pointer",
+      flex: 1
+    }}
+  >
+    g入力
+  </button>
+</div>
+
+      {/* 入力欄（cm / g 切り替え） */}
+<div
+  style={{
+    background: "#ffffff",
+    padding: "16px",
+    borderRadius: "16px",
+    marginBottom: "20px",
+    border: "1px solid #cfeeee"
+  }}
+>
+  <label style={{ color: "#006b5f" }}>
+    今日使った量（{mode === "cm" ? "cm" : "g"}）
+  </label>
+
+  {mode === "cm" ? (
+    <input
+      type="number"
+      value={cm}
+      onChange={(e) => setCm(e.target.value)}
+      placeholder="例：2.3（cm）"
+      style={{
+        width: "100%",
+        padding: "12px",
+        borderRadius: "12px",
+        border: "1px solid #cfeeee",
+        marginTop: "8px"
+      }}
+    />
+  ) : (
+    <input
+      type="number"
+      value={gram}
+      onChange={(e) => setGram(e.target.value)}
+      placeholder="例：50（g）"
+      style={{
+        width: "100%",
+        padding: "12px",
+        borderRadius: "12px",
+        border: "1px solid #cfeeee",
+        marginTop: "8px"
+      }}
+    />
+  )}
+</div>
+
 
       {/* メッセージ */}
       {message && (
