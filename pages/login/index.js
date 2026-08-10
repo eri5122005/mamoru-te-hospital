@@ -68,18 +68,14 @@ export default function Login() {
         staffId,
         name: `${adminIds[staffId]} 管理者`,
         wardId: ward ? ward.id : null,
-        wardName: adminIds[staffId],
+        wardName: ward ? ward.name : adminIds[staffId],
+
         isAdmin: true,
         isSuperAdmin: false,
       };
 
-      const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-      const exists = staffList.some((s) => s.staffId === staffId);
-
-      if (!exists) {
-        staffList.push(adminUser);
-        localStorage.setItem("staffList", JSON.stringify(staffList));
-      }
+      
+      
 
       localStorage.setItem("loginUser", JSON.stringify(adminUser));
       router.push(`/admin/ward/${adminUser.wardId}`);
