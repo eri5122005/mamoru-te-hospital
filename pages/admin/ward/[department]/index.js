@@ -40,41 +40,40 @@ export default function AdminHome() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-        <div
-          onClick={() => router.push(`/admin/ward/${department}/stats`)}
-          style={cardStyle}
-        >
-          📊 入力率（今日・今月）
-        </div>
+       <div
+  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/stats`)}
+  style={cardStyle}
+>
+  📊 入力率（今日・今月）
+</div>
 
-        <div
-          onClick={() => router.push(`/admin/ward/${department}/unrecorded`)}
+<div
+  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/unrecorded`)}
+  style={cardStyle}
+>
+  ⚠️ 未入力者リスト
+</div>
 
-          style={cardStyle}
-        >
-          ⚠️ 未入力者リスト
-        </div>
+<div
+  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/ranking`)}
+  style={cardStyle}
+>
+  🏅 個人ランキング
+</div>
 
-        <div
-          onClick={() => router.push(`/admin/ward/${department}/ranking`)}
-          style={cardStyle}
-        >
-          🏅 個人ランキング
-        </div>
+<div
+  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/graph`)}
+  style={cardStyle}
+>
+  📈 使用量推移グラフ
+</div>
 
-        <div
-          onClick={() => router.push(`/admin/ward/${department}/graph`)}
-          style={cardStyle}
-        >
-          📈 使用量推移グラフ
-        </div>
-
-        <div
-          onClick={() => router.push(`/admin/ward/${department}/staff`)}
-          style={cardStyle}
-        >
-          👥 スタッフ一覧
-        </div>
+<div
+  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/staff`)}
+  style={cardStyle}
+>
+  👥 スタッフ一覧
+</div>
 
        <div
   onClick={() => router.push("/login")}
