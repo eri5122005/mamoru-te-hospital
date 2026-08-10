@@ -45,7 +45,11 @@ export default function StaffList() {
   const wardName = wardNameMap[department] || department;
 
   // ★ 履歴データを取得
-  const history = JSON.parse(localStorage.getItem("history") || "[]");
+  // ★ 履歴データを取得
+  const history = typeof window !== "undefined"
+    ? JSON.parse(localStorage.getItem("history") || "[]")
+    : [];
+
 
   // ★ 部署の履歴だけ抽出
   const deptHistory = history.filter(item => item.department === department);
