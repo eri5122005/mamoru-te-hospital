@@ -1,17 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AddStaff() {
   const router = useRouter();
 
   const [name, setName] = useState("");
-  const [department, setDepartment] = useState("");
+  const [wardId, setWardId] = useState("");
+  const [wards, setWards] = useState([]);
+
+  // 病棟一覧を読み込む
+  useEffect(() => {
+    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
+    setWards(savedWards);
+  }, []);
 
   const handleAdd = () => {
-    if (!name || !department) {
-      alert("スタッフ名と部署を入力してください");
+    if (!name || !wardId) {
+      alert("スタッフ名と病棟を選択してください");
       return;
     }
 
@@ -20,14 +27,14 @@ export default function AddStaff() {
     staffList.push({
       staffId: Date.now(),
       name,
-      department
+      wardId: Number(wardId),   // ★ wardId を保存（ズレゼロ）
     });
 
     localStorage.setItem("staffList", JSON.stringify(staffList));
 
     alert("スタッフを追加しました！");
     setName("");
-    setDepartment("");
+    setWardId("");
   };
 
   return (
@@ -35,6 +42,7 @@ export default function AddStaff() {
       <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>スタッフの追加</h1>
 
       <div style={{ background: "white", padding: "20px", borderRadius: "12px" }}>
+        {/* スタッフ名 */}
         <label>スタッフ名：</label>
         <input
           value={name}
@@ -42,12 +50,20 @@ export default function AddStaff() {
           style={{ display: "block", marginBottom: "12px", width: "100%" }}
         />
 
-        <label>部署名：</label>
-        <input
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
+        {/* 病棟選択（wardId） */}
+        <label>所属病棟：</label>
+        <select
+          value={wardId}
+          onChange={(e) => setWardId(e.target.value)}
           style={{ display: "block", marginBottom: "12px", width: "100%" }}
-        />
+        >
+          <option value="">選択してください</option>
+          {wards.map((ward) => (
+            <option key={ward.id} value={ward.id}>
+              {ward.name}
+            </option>
+          ))}
+        </select>
 
         <button
           onClick={handleAdd}
@@ -73,7 +89,7 @@ export default function AddStaff() {
           borderRadius: "8px",
           border: "none",
           color: "#006b5f",
-          cursor: "pointer"
+          cursor: "pointer",
         }}
       >
         ← 設定ページへ戻る
