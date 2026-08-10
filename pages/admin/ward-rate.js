@@ -1,77 +1,121 @@
 "use client";
 
-import AdminLayout from "@/components/AdminLayout";
+import { useEffect, useState } from "react";
 
-export default function WardRate() {
-  const cardStyle = {
-    background: "#e8f6f6", // ミント背景
-    borderRadius: "20px",
-    padding: "24px",
-    marginBottom: "20px",
-    border: "2px solid #aeece4", // ミント枠
-    boxSizing: "border-box",
-  };
+export default function WardRatePage() {
+  const [wards, setWards] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [recordList, setRecordList] = useState([]);
+  const [todayStats, setTodayStats] = useState([]);
+  const [monthStats, setMonthStats] = useState([]);
 
-  const titleStyle = {
-    color: "#00a68c", // ミントタイトル
-    marginBottom: "12px",
-    fontSize: "20px",
-    fontWeight: "bold",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  };
+  useEffect(() => {
+    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
+    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
+    const savedRecords = JSON.parse(localStorage.getItem("recordList") || "[]");
 
-  const iconStyle = {
-    fontSize: "28px",
+    setWards(savedWards);
+    setStaffList(savedStaff);
+    setRecordList(savedRecords);
+
+    calculateRates(savedWards, savedStaff, savedRecords);
+  }, []);
+
+  const calculateRates = (wards, staffList, recordList) => {
+    const today = new Date().toISOString().split("T")[0];
+    const month = today.slice(0, 7); // YYYY-MM
+
+    const todayRecords = recordList.filter((r) => r.date === today);
+    const monthRecords = recordList.filter((r) => r.date.startsWith(month));
+
+    // ★ wardId で比較する（ズレゼロ）
+    const todayResult = wards.map((ward) => {
+      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
+      const staffIds = staffInWard.map((s) => s.staffId);
+
+      const inputToday = todayRecords.filter((r) =>
+        staffIds.includes(r.staffId)
+      );
+
+      return {
+        wardName: ward.name,
+        totalStaff: staffInWard.length,
+        inputCount: inputToday.length,
+        rate:
+          staffInWard.length === 0
+            ? 0
+            : Math.round((inputToday.length / staffInWard.length) * 100),
+      };
+    });
+
+    const monthResult = wards.map((ward) => {
+      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
+      const staffIds = staffInWard.map((s) => s.staffId);
+
+      const inputMonth = monthRecords.filter((r) =>
+        staffIds.includes(r.staffId)
+      );
+
+      return {
+        wardName: ward.name,
+        totalStaff: staffInWard.length,
+        inputCount: inputMonth.length,
+        rate:
+          staffInWard.length === 0
+            ? 0
+            : Math.round((inputMonth.length / staffInWard.length) * 100),
+      };
+    });
+
+    setTodayStats(todayResult);
+    setMonthStats(monthResult);
   };
 
   return (
-    <AdminLayout>
-      <h1
-        style={{
-          marginBottom: "24px",
-          color: "#00a68c",
-          textAlign: "center",
-        }}
-      >
-        今日・今月の入力率
+    <main style={{ padding: "24px", background: "#F9F9F9", minHeight: "100vh" }}>
+      <h1 style={{ color: "#00a68c", textAlign: "center", marginBottom: "24px" }}>
+        📈 今日・今月の入力率
       </h1>
 
-      {/* 今日の入力率カード */}
-      <div style={cardStyle}>
-        <h2 style={titleStyle}>
-          <span style={iconStyle}>📅</span> 今日の入力率
-        </h2>
+      <h2 style={{ color: "#006b5f", marginBottom: "12px" }}>今日の入力率</h2>
+      {todayStats.map((w) => (
+        <div
+          key={w.wardName}
+          style={{
+            background: "#ffffff",
+            border: "1px solid #cfeeee",
+            borderRadius: "12px",
+            padding: "16px",
+            marginBottom: "12px",
+          }}
+        >
+          <p>{w.wardName}</p>
+          <p>
+            {w.inputCount} / {w.totalStaff}（{w.rate}%）
+          </p>
+        </div>
+      ))}
 
-        <p>入力率：0%</p>
-        <p>入力したスタッフ：0人</p>
-        <p>全スタッフ数：0人</p>
-      </div>
-
-      {/* 今月の入力率カード */}
-      <div style={cardStyle}>
-        <h2 style={titleStyle}>
-          <span style={iconStyle}>📆</span> 今月の入力率
-        </h2>
-
-        <p>入力率：0%</p>
-        <p>入力したスタッフ：0人</p>
-        <p>全スタッフ数：0人</p>
-      </div>
-
-      {/* 病棟別入力率リスト */}
-      <div style={cardStyle}>
-        <h2 style={titleStyle}>
-          <span style={iconStyle}>🏥</span> 病棟別入力率
-        </h2>
-
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          <li style={{ marginBottom: "10px" }}>6階病棟：入力率 0%</li>
-          <li style={{ marginBottom: "10px" }}>5階病棟：入力率 0%</li>
-          <li style={{ marginBottom: "10px" }}>外来：入力率 0%</li>
-        </ul>
-      </div>
-    </AdminLayout>
+      <h2 style={{ color: "#006b5f", marginTop: "24px", marginBottom: "12px" }}>
+        今月の入力率
+      </h2>
+      {monthStats.map((w) => (
+        <div
+          key={w.wardName}
+          style={{
+            background: "#ffffff",
+            border: "1px solid #cfeeee",
+            borderRadius: "12px",
+            padding: "16px",
+            marginBottom: "12px",
+          }}
+        >
+          <p>{w.wardName}</p>
+          <p>
+            {w.inputCount} / {w.totalStaff}（{w.rate}%）
+          </p>
+        </div>
+      ))}
+    </main>
   );
 }

@@ -8,6 +8,7 @@ export default function AllWardsStats() {
   useEffect(() => {
     const wardData = JSON.parse(localStorage.getItem("wards") || "[]");
     const history = JSON.parse(localStorage.getItem("history") || "[]");
+    const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
 
     const now = new Date();
 
@@ -29,11 +30,16 @@ export default function AllWardsStats() {
       date.getMonth() === now.getMonth();
 
     const wardStats = wardData.map((ward) => {
-      const staffList = JSON.parse(localStorage.getItem(`staff_${ward.id}`) || "[]");
+      // ★ wardId でスタッフを取得
+      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
+      const staffIds = staffInWard.map((s) => s.staffId);
 
-      const wardHistory = history.filter((h) => h.department === ward.name);
+      // ★ wardId で記録を取得
+      const wardHistory = history.filter((h) => h.wardId === ward.id);
 
-      let today = 0, week = 0, month = 0;
+      let today = 0,
+        week = 0,
+        month = 0;
 
       wardHistory.forEach((item) => {
         const d = new Date(item.time);
@@ -44,15 +50,17 @@ export default function AllWardsStats() {
         if (isThisMonth(d)) month += ml;
       });
 
+      // ★ 今日入力したスタッフ数
       const todayStaff = new Set(
         wardHistory
           .filter((h) => isToday(new Date(h.time)))
           .map((h) => h.staffId)
       ).size;
 
-      const rate = staffList.length > 0
-        ? Math.round((todayStaff / staffList.length) * 100)
-        : 0;
+      const rate =
+        staffInWard.length > 0
+          ? Math.round((todayStaff / staffInWard.length) * 100)
+          : 0;
 
       return {
         name: ward.name,
@@ -69,22 +77,20 @@ export default function AllWardsStats() {
   return (
     <main style={{ background: "#F9F9F9", minHeight: "100vh", padding: "24px" }}>
       <button
-  onClick={() => window.history.back()}
-  style={{
-    background: "#006b5f",
-    color: "white",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "none",
-    marginBottom: "20px"
-  }}
->
-  戻る
-</button>
+        onClick={() => window.history.back()}
+        style={{
+          background: "#006b5f",
+          color: "white",
+          padding: "10px 20px",
+          borderRadius: "8px",
+          border: "none",
+          marginBottom: "20px",
+        }}
+      >
+        戻る
+      </button>
 
-      <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>
-        全病棟の統計
-      </h1>
+      <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>全病棟の統計</h1>
 
       {wards.map((ward, index) => (
         <div

@@ -4,35 +4,33 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
 export default function WardStaffPage() {
- const router = useRouter();
-const { department } = router.query;
+  const router = useRouter();
+  const { wardId } = router.query;   // ★ department → wardId に変更
 
-if (!department) return <p>読み込み中…</p>;
-
-
+  if (!wardId) return <p>読み込み中…</p>;
 
   const [staffList, setStaffList] = useState([]);
+  const [wardName, setWardName] = useState("");
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("staffList") || "[]");
+    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
+    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
 
-    // この部署のスタッフだけ表示
-    const filtered = saved.filter((s) => s.department === department);
+    // ★ wardId に一致する病棟名を取得
+    const ward = savedWards.find((w) => w.id === Number(wardId));
+    setWardName(ward ? ward.name : "不明な病棟");
 
+    // ★ wardId でスタッフを絞り込む
+    const filtered = savedStaff.filter((s) => s.wardId === Number(wardId));
     setStaffList(filtered);
-  }, [department]);
+  }, [wardId]);
 
-  // ★ 退職（削除）処理
+  // ★ 退職（削除）
   const deleteStaff = (staffId) => {
     const saved = JSON.parse(localStorage.getItem("staffList") || "[]");
-
-    // staffList から該当スタッフだけ除外（history は消さない）
     const updated = saved.filter((s) => s.staffId !== staffId);
 
-    // 保存
     localStorage.setItem("staffList", JSON.stringify(updated));
-
-    // 画面更新
     setStaffList(updated);
   };
 
@@ -56,7 +54,7 @@ if (!department) return <p>読み込み中…</p>;
           paddingBottom: "6px",
         }}
       >
-        👥 {department} スタッフ一覧
+        👥 {wardName} スタッフ一覧
       </h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -74,11 +72,8 @@ if (!department) return <p>読み込み中…</p>;
               color: "#006b5f",
             }}
           >
-            <span>
-              {staff.name}（{staff.department}）
-            </span>
+            <span>{staff.name}</span>
 
-            {/* ★ 退職ボタン（部署管理者が使える） */}
             <button
               onClick={() => deleteStaff(staff.staffId)}
               style={{
@@ -97,7 +92,7 @@ if (!department) return <p>読み込み中…</p>;
       </div>
 
       <div
-        onClick={() => router.push(`/admin/ward/${department}`)}
+        onClick={() => router.push(`/admin/ward/${wardId}`)}
         style={{
           marginTop: "24px",
           background: "#ffffff",
@@ -114,5 +109,6 @@ if (!department) return <p>読み込み中…</p>;
     </main>
   );
 }
+
 
 
