@@ -11,25 +11,29 @@ export default function StaffList() {
   const [selectedStaffId, setSelectedStaffId] = useState(null);
 
   useEffect(() => {
-    if (!department) return;
+  if (!department) return;
+  if (typeof window === "undefined") return;  // ← 追加
 
-    const allStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const filtered = allStaff.filter((s) => s.department === department);
-    setStaffInDepartment(filtered);
-  }, [department]);
+  const allStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
+  const filtered = allStaff.filter((s) => s.department === department);
+  setStaffInDepartment(filtered);
+}, [department]);
+
 
   // 削除処理
   const deleteStaff = () => {
-    if (!selectedStaffId) return;
+  if (!selectedStaffId) return;
+  if (typeof window === "undefined") return;  // ← 追加
 
-    const allStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const updated = allStaff.filter((s) => s.staffId !== selectedStaffId);
+  const allStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
+  const updated = allStaff.filter((s) => s.staffId !== selectedStaffId);
 
-    localStorage.setItem("staffList", JSON.stringify(updated));
+  localStorage.setItem("staffList", JSON.stringify(updated));
 
-    setStaffInDepartment(updated.filter((s) => s.department === department));
-    setSelectedStaffId(null);
-  };
+  setStaffInDepartment(updated.filter((s) => s.department === department));
+  setSelectedStaffId(null);
+};
+
 
   const wardNameMap = {
     "6F": "6階病棟",
