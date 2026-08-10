@@ -109,25 +109,49 @@ export default function AdminSettings() {
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {staffList.map((staff) => (
-            <div
-              key={staff.staffId}
-              onClick={() => setSelectedStaff(staff.staffId)}
-              style={{
-                background:
-                  selectedStaff === staff.staffId ? "#e8f6f6" : "#ffffff",
-                border: "1px solid #cfeeee",
-                borderRadius: "16px",
-                padding: "16px",
-                fontSize: "18px",
-                color: "#006b5f",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-                cursor: "pointer",
-              }}
-            >
-              {staff.name}（{staff.department}）
-            </div>
-          ))}
+          {wards.map((ward) => (
+  <div
+    key={ward.id}
+    onClick={() => setSelectedWard(ward.id)}   // ★追加
+    style={{
+      background: selectedWard === ward.id ? "#e8f6f6" : "#ffffff",
+      border: "1px solid #cfeeee",
+      borderRadius: "16px",
+      padding: "16px",
+      fontSize: "18px",
+      color: "#006b5f",
+      cursor: "pointer"
+    }}
+  >
+    {ward.name}（ID: {ward.id}）
+  </div>
+))}
+{selectedWard && (
+  <button
+    style={{
+      marginTop: "16px",
+      background: "#ffdddd",
+      color: "#a30000",
+      padding: "14px 20px",
+      borderRadius: "12px",
+      border: "none",
+      fontSize: "18px",
+      cursor: "pointer",
+      width: "100%"
+    }}
+    onClick={() => {
+      const saved = JSON.parse(localStorage.getItem("wards") || "[]");
+      const updated = saved.filter((w) => w.id !== selectedWard);
+
+      localStorage.setItem("wards", JSON.stringify(updated));
+      setWards(updated);
+      setSelectedWard(null);
+    }}
+  >
+    選択した病棟を削除する
+  </button>
+)}
+
         </div>
 
         {selectedStaff && (
