@@ -93,13 +93,19 @@ if (adminIds[staffId]) {
 
 
 
- const loginUser = {
+// ★ 一般職員ログイン
+const wards = JSON.parse(localStorage.getItem("wards") || "[]");
+const ward = wards.find((w) => w.name === department);
+
+const loginUser = {
   staffId,
   name,
-  department,
+  wardId: ward ? ward.id : null,
+  wardName: ward ? ward.name : department,
   isAdmin: false,
   isSuperAdmin: false,
 };
+
 
 // ★ 職員番号をキーにして保存（これが重要）
 localStorage.setItem(staffId, JSON.stringify(loginUser));
@@ -109,15 +115,16 @@ localStorage.setItem("loginUser", JSON.stringify(loginUser));
 localStorage.setItem("currentStaff", JSON.stringify(loginUser));
 
 
-  const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-  const exists = staffList.some((s) => s.staffId === staffId);
+ const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+const exists = staffList.some((s) => s.staffId === staffId);
 
-  if (exists) {
-    router.push("/home");
-  } else {
-    router.push("/register");
-  }
-};
+if (!exists) {
+  staffList.push(loginUser);
+  localStorage.setItem("staffList", JSON.stringify(staffList));
+}
+
+router.push("/home");
+
 
 
   // ★ ここが本来の return（画面部分）
