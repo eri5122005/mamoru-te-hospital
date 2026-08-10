@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AdminLayout from "@/components/AdminLayout";
 
 export default function WardRatePage() {
   const [wards, setWards] = useState([]);
@@ -23,12 +24,11 @@ export default function WardRatePage() {
 
   const calculateRates = (wards, staffList, recordList) => {
     const today = new Date().toISOString().split("T")[0];
-    const month = today.slice(0, 7); // YYYY-MM
+    const month = today.slice(0, 7);
 
     const todayRecords = recordList.filter((r) => r.date === today);
     const monthRecords = recordList.filter((r) => r.date.startsWith(month));
 
-    // ★ wardId で比較する（ズレゼロ）
     const todayResult = wards.map((ward) => {
       const staffInWard = staffList.filter((s) => s.wardId === ward.id);
       const staffIds = staffInWard.map((s) => s.staffId);
@@ -71,51 +71,66 @@ export default function WardRatePage() {
     setMonthStats(monthResult);
   };
 
+  const cardStyle = {
+    background: "#e8f6f6",
+    borderRadius: "20px",
+    padding: "20px",
+    marginBottom: "20px",
+    border: "2px solid #aeece4",
+  };
+
+  const titleStyle = {
+    color: "#00a68c",
+    marginBottom: "12px",
+    fontSize: "20px",
+    fontWeight: "bold",
+  };
+
   return (
-    <main style={{ padding: "24px", background: "#F9F9F9", minHeight: "100vh" }}>
-      <h1 style={{ color: "#00a68c", textAlign: "center", marginBottom: "24px" }}>
+    <AdminLayout>
+      <button
+        onClick={() => window.history.back()}
+        style={{
+          background: "#00a68c",
+          color: "white",
+          padding: "10px 20px",
+          borderRadius: "10px",
+          border: "none",
+          marginBottom: "20px",
+        }}
+      >
+        ← 戻る
+      </button>
+
+      <h1
+        style={{
+          color: "#00a68c",
+          marginBottom: "24px",
+          textAlign: "center",
+        }}
+      >
         📈 今日・今月の入力率
       </h1>
 
-      <h2 style={{ color: "#006b5f", marginBottom: "12px" }}>今日の入力率</h2>
-      {todayStats.map((w) => (
-        <div
-          key={w.wardName}
-          style={{
-            background: "#ffffff",
-            border: "1px solid #cfeeee",
-            borderRadius: "12px",
-            padding: "16px",
-            marginBottom: "12px",
-          }}
-        >
-          <p>{w.wardName}</p>
-          <p>
-            {w.inputCount} / {w.totalStaff}（{w.rate}%）
+      {/* 今日の入力率 */}
+      <div style={cardStyle}>
+        <h2 style={titleStyle}>今日の入力率</h2>
+        {todayStats.map((w) => (
+          <p key={w.wardName}>
+            {w.wardName}：{w.inputCount} / {w.totalStaff}（{w.rate}%）
           </p>
-        </div>
-      ))}
+        ))}
+      </div>
 
-      <h2 style={{ color: "#006b5f", marginTop: "24px", marginBottom: "12px" }}>
-        今月の入力率
-      </h2>
-      {monthStats.map((w) => (
-        <div
-          key={w.wardName}
-          style={{
-            background: "#ffffff",
-            border: "1px solid #cfeeee",
-            borderRadius: "12px",
-            padding: "16px",
-            marginBottom: "12px",
-          }}
-        >
-          <p>{w.wardName}</p>
-          <p>
-            {w.inputCount} / {w.totalStaff}（{w.rate}%）
+      {/* 今月の入力率 */}
+      <div style={cardStyle}>
+        <h2 style={titleStyle}>今月の入力率</h2>
+        {monthStats.map((w) => (
+          <p key={w.wardName}>
+            {w.wardName}：{w.inputCount} / {w.totalStaff}（{w.rate}%）
           </p>
-        </div>
-      ))}
-    </main>
+        ))}
+      </div>
+    </AdminLayout>
   );
 }
