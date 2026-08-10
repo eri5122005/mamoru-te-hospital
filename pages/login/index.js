@@ -60,7 +60,7 @@ export default function Login() {
     return;
   }
 
- // ★ 部署管理者（2400〜2700）
+// ★ 部署管理者（2400〜2700）
 if (adminIds[staffId]) {
 
   const wards = JSON.parse(localStorage.getItem("wards") || "[]");
@@ -69,16 +69,26 @@ if (adminIds[staffId]) {
   const adminUser = {
     staffId,
     name: `${adminIds[staffId]} 管理者`,
-    wardId: ward ? ward.id : null,      // ★ 病棟IDを保存
-    wardName: adminIds[staffId],        // ★ 病棟名を保存
+    wardId: ward ? ward.id : null,
+    wardName: adminIds[staffId],
     isAdmin: true,
     isSuperAdmin: false,
   };
 
+  // ★ staffList に追加（ここが重要）
+  const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+  const exists = staffList.some((s) => s.staffId === staffId);
+
+  if (!exists) {
+    staffList.push(adminUser);
+    localStorage.setItem("staffList", JSON.stringify(staffList));
+  }
+
   localStorage.setItem("loginUser", JSON.stringify(adminUser));
-  router.push(`/admin/ward/${adminUser.wardId}`); // ★ wardId で遷移
+  router.push(`/admin/ward/${adminUser.wardId}`);
   return;
 }
+
 
 
 
