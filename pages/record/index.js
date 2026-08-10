@@ -1,6 +1,6 @@
 "use client";
 
-import { messages } from "./messages";
+import { messages } from "../../data/messages";
 import NavBar from "../../components/NavBar";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
