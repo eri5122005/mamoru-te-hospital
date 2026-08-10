@@ -12,7 +12,7 @@ export default function AdminSettings() {
   const [wards, setWards] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
-
+const [selectedWard, setSelectedWard] = useState(null);
   useEffect(() => {
     const savedLogin = JSON.parse(localStorage.getItem("loginUser") || "{}");
     const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
