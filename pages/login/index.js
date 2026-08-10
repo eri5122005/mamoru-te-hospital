@@ -69,13 +69,13 @@ if (adminIds[staffId]) {
   const adminUser = {
     staffId,
     name: `${adminIds[staffId]} 管理者`,
-    wardId: ward ? ward.id : null,
-    wardName: adminIds[staffId],
+    wardId: ward ? ward.id : null,      // ★ 病棟ID
+    wardName: adminIds[staffId],        // ★ 病棟名
     isAdmin: true,
     isSuperAdmin: false,
   };
 
-  // ★ staffList に追加（ここが重要）
+  // ★ staffList に追加（総合管理者ページの反映に必要）
   const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
   const exists = staffList.some((s) => s.staffId === staffId);
 
@@ -88,6 +88,7 @@ if (adminIds[staffId]) {
   router.push(`/admin/ward/${adminUser.wardId}`);
   return;
 }
+
 
 
 
