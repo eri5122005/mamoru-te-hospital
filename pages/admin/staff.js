@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export default function WardStaffPage() {
-  const router = useRouter();
+ const router = useRouter();
 const { department } = router.query;
 
 if (!department) return <p>読み込み中…</p>;
+
 
 
   const [staffList, setStaffList] = useState([]);
