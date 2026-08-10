@@ -81,16 +81,21 @@ export default function Login() {
     return;
   }
 
-  const loginUser = {
-    staffId,
-    name,
-    department,
-    isAdmin: false,
-    isSuperAdmin: false,
-  };
+ const loginUser = {
+  staffId,
+  name,
+  department,
+  isAdmin: false,
+  isSuperAdmin: false,
+};
 
-  localStorage.setItem("loginUser", JSON.stringify(loginUser));
-  localStorage.setItem("currentStaff", JSON.stringify(loginUser));
+// ★ 職員番号をキーにして保存（これが重要）
+localStorage.setItem(staffId, JSON.stringify(loginUser));
+
+// ★ 現在ログイン中のユーザーとしても保存
+localStorage.setItem("loginUser", JSON.stringify(loginUser));
+localStorage.setItem("currentStaff", JSON.stringify(loginUser));
+
 
   const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
   const exists = staffList.some((s) => s.staffId === staffId);

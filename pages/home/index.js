@@ -21,13 +21,16 @@ export default function Home() {
 
   return (
     <main
-      style={{
-        background: "#F9F9F9",
-        minHeight: "100vh",
-        padding: "24px",
-        fontFamily: "sans-serif",
-      }}
-    >
+  style={{
+    background: "#F9F9F9",
+    minHeight: "100vh",
+    padding: "16px",
+    fontFamily: "sans-serif",
+    maxWidth: "480px",
+    margin: "0 auto",
+  }}
+>
+
       {/* タイトル */}
       <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>
         MAMORU-TE ホーム
