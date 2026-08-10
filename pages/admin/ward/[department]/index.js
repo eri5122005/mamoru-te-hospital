@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -13,8 +12,9 @@ export default function AdminHome() {
     setLoginUser(saved);
   }, []);
 
-  const isSuperAdmin = loginUser.isSuperAdmin;
-  const department = loginUser.department;
+  const wardId = loginUser.wardId;
+  const wardName = loginUser.wardName;
+
   return (
     <main
       style={{
@@ -35,53 +35,33 @@ export default function AdminHome() {
           paddingBottom: "6px",
         }}
       >
-        🌱 {department} の管理ページ
+        🌱 {wardName} の管理ページ
       </h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div onClick={() => router.push(`/admin/ward/${wardId}/stats`)} style={cardStyle}>
+          📊 入力率（今日・今月）
+        </div>
 
-       <div
-  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/stats`)}
-  style={cardStyle}
->
-  📊 入力率（今日・今月）
-</div>
+        <div onClick={() => router.push(`/admin/ward/${wardId}/unrecorded`)} style={cardStyle}>
+          ⚠️ 未入力者リスト
+        </div>
 
-<div
-  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/unrecorded`)}
-  style={cardStyle}
->
-  ⚠️ 未入力者リスト
-</div>
+        <div onClick={() => router.push(`/admin/ward/${wardId}/ranking`)} style={cardStyle}>
+          🏅 個人ランキング
+        </div>
 
-<div
-  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/ranking`)}
-  style={cardStyle}
->
-  🏅 個人ランキング
-</div>
+        <div onClick={() => router.push(`/admin/ward/${wardId}/graph`)} style={cardStyle}>
+          📈 使用量推移グラフ
+        </div>
 
-<div
-  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/graph`)}
-  style={cardStyle}
->
-  📈 使用量推移グラフ
-</div>
+        <div onClick={() => router.push(`/admin/ward/${wardId}/staff`)} style={cardStyle}>
+          👥 スタッフ一覧
+        </div>
 
-<div
-  onClick={() => router.push(`/admin/ward/${loginUser.wardId}/staff`)}
-  style={cardStyle}
->
-  👥 スタッフ一覧
-</div>
-
-       <div
-  onClick={() => router.push("/login")}
-  style={cardStyle}
->
-  ← ログインページへ戻る
-</div>
-
+        <div onClick={() => router.push("/login")} style={cardStyle}>
+          ← ログインページへ戻る
+        </div>
       </div>
     </main>
   );
@@ -97,5 +77,3 @@ const cardStyle = {
   cursor: "pointer",
   boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
 };
-
-
