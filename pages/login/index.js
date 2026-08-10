@@ -61,25 +61,24 @@ export default function Login() {
   }
 
   // ★ 部署管理者（2400〜2700）
-  if (adminIds[staffId]) {
-    const adminUser = {
-      staffId,
-      name: `${adminIds[staffId]} 管理者`,
-      department: adminIds[staffId],
-      isAdmin: true,
-      isSuperAdmin: false,
-    };
+if (adminIds[staffId]) {
+  const wards = JSON.parse(localStorage.getItem("wards") || "[]");
+  const ward = wards.find((w) => w.name === adminIds[staffId]);
 
-    localStorage.setItem("loginUser", JSON.stringify(adminUser));
-    router.push(`/admin/ward/${adminIds[staffId]}`);// ← 部署管理者ページへ
-    return;
-  }
+  const adminUser = {
+    staffId,
+    name: `${adminIds[staffId]} 管理者`,
+    wardId: ward ? ward.id : null,      // ★ これが必要
+    wardName: adminIds[staffId],        // ★ これがタイトルに使われる
+    isAdmin: true,
+    isSuperAdmin: false,
+  };
 
-  // ★ 一般職員（初回は氏名・部署が必要）
-  if (!savedStaff && (!name || !department)) {
-    alert("名前と病棟を入力してください");
-    return;
-  }
+  localStorage.setItem("loginUser", JSON.stringify(adminUser));
+  router.push(`/admin/ward/${adminUser.wardId}`); // ★ wardId で遷移
+  return;
+}
+
 
  const loginUser = {
   staffId,
