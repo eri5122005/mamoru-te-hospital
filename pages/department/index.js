@@ -4,9 +4,21 @@ import { useEffect, useState } from "react";
 
 export default function DepartmentPage() {
 
-  // ★ staffList と records を使う（history は使わない）
-  const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-  const records = JSON.parse(localStorage.getItem("records") || "[]");
+  // ★ localStorage を使う値は useState に移動
+  const [staffList, setStaffList] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [loginUser, setLoginUser] = useState({});
+  const [history, setHistory] = useState([]);
+
+  // ★ 初期ロード時に localStorage を読む（ブラウザのみ）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setStaffList(JSON.parse(localStorage.getItem("staffList") || "[]"));
+    setRecords(JSON.parse(localStorage.getItem("records") || "[]"));
+    setLoginUser(JSON.parse(localStorage.getItem("loginUser") || "{}"));
+    setHistory(JSON.parse(localStorage.getItem("history") || "[]"));
+  }, []);
 
   // ★ 今日の日付
   const today = new Date().toISOString().split("T")[0];
@@ -16,18 +28,14 @@ export default function DepartmentPage() {
     .filter(r => r.date === today)
     .map(r => r.staffId);
 
-  // ★ ログイン中の部署を取得
-  const loginUser = JSON.parse(localStorage.getItem("loginUser") || "{}");
+  // ★ ログイン中の部署
   const dept = loginUser.department;
 
   // ★ 部署のスタッフ
   const deptStaff = staffList.filter(s => s.department === dept);
 
-  // ★ 未入力者（総合管理者と完全一致する）
+  // ★ 未入力者
   const missing = deptStaff.filter(s => !todayRecordIds.includes(s.staffId));
-
-  // ★ history（部署別集計用）
-  const [history, setHistory] = useState([]);
 
   const departments = [
     "4階病棟",
@@ -37,11 +45,6 @@ export default function DepartmentPage() {
     "外来",
     "リハビリ"
   ];
-
-  useEffect(() => {
-    const h = JSON.parse(localStorage.getItem("history") || "[]");
-    setHistory(h);
-  }, []);
 
   const getDeptStats = (dept) => {
     const deptData = history.filter((h) => h.department === dept);
@@ -74,7 +77,7 @@ export default function DepartmentPage() {
     <main style={{ padding: "20px" }}>
       <h1>部署別集計</h1>
 
-      {/* ★ 未入力者リスト（正しい位置） */}
+      {/* ★ 未入力者リスト */}
       <div
         style={{
           background: "#e8f6f6",
