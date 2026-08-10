@@ -13,7 +13,6 @@ export default function Login() {
 
   // ★ 職員番号が入力されたら savedStaff をチェック
   useEffect(() => {
-    // 新しい番号を入力したらリセット
     setName("");
     setDepartment("");
 
@@ -40,94 +39,81 @@ export default function Login() {
   };
 
   const handleLogin = () => {
-  if (!staffId) {
-    alert("職員番号を入力してください");
-    return;
-  }
+    if (!staffId) {
+      alert("職員番号を入力してください");
+      return;
+    }
 
-  // ★ マスター管理者（総合管理者）
-  if (staffId === "9999") {
-    const adminUser = {
+    // ★ マスター管理者（総合管理者）
+    if (staffId === "9999") {
+      const adminUser = {
+        staffId,
+        name: "マスター管理者",
+        department: "管理部",
+        isAdmin: true,
+        isSuperAdmin: true,
+      };
+
+      localStorage.setItem("loginUser", JSON.stringify(adminUser));
+      router.push("/admin");
+      return;
+    }
+
+    // ★ 部署管理者（2400〜2700）
+    if (adminIds[staffId]) {
+      const wards = JSON.parse(localStorage.getItem("wards") || "[]");
+      const ward = wards.find((w) => w.name === adminIds[staffId]);
+
+      const adminUser = {
+        staffId,
+        name: `${adminIds[staffId]} 管理者`,
+        wardId: ward ? ward.id : null,
+        wardName: adminIds[staffId],
+        isAdmin: true,
+        isSuperAdmin: false,
+      };
+
+      const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+      const exists = staffList.some((s) => s.staffId === staffId);
+
+      if (!exists) {
+        staffList.push(adminUser);
+        localStorage.setItem("staffList", JSON.stringify(staffList));
+      }
+
+      localStorage.setItem("loginUser", JSON.stringify(adminUser));
+      router.push(`/admin/ward/${adminUser.wardId}`);
+      return;
+    }
+
+    // ★ 一般職員ログイン
+    const wards = JSON.parse(localStorage.getItem("wards") || "[]");
+    const ward = wards.find((w) => w.name === department);
+
+    const loginUser = {
       staffId,
-      name: "マスター管理者",
-      department: "管理部",
-      isAdmin: true,
-      isSuperAdmin: true,
+      name,
+      wardId: ward ? ward.id : null,
+      wardName: ward ? ward.name : department,
+      isAdmin: false,
+      isSuperAdmin: false,
     };
 
-    localStorage.setItem("loginUser", JSON.stringify(adminUser));
-    router.push("/admin");   // ← 総合管理者トップへ
-    return;
-  }
+    localStorage.setItem(staffId, JSON.stringify(loginUser));
+    localStorage.setItem("loginUser", JSON.stringify(loginUser));
+    localStorage.setItem("currentStaff", JSON.stringify(loginUser));
 
-// ★ 部署管理者（2400〜2700）
-if (adminIds[staffId]) {
+    const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+    const exists = staffList.some((s) => s.staffId === staffId);
 
-  const wards = JSON.parse(localStorage.getItem("wards") || "[]");
-  const ward = wards.find((w) => w.name === adminIds[staffId]);
+    if (!exists) {
+      staffList.push(loginUser);
+      localStorage.setItem("staffList", JSON.stringify(staffList));
+    }
 
-  const adminUser = {
-    staffId,
-    name: `${adminIds[staffId]} 管理者`,
-    wardId: ward ? ward.id : null,      // ★ 病棟ID
-    wardName: adminIds[staffId],        // ★ 病棟名
-    isAdmin: true,
-    isSuperAdmin: false,
-  };
+    router.push("/home");
+  }; // ← ← ← ★★★ ここが抜けていた閉じカッコ ★★★
 
-  // ★ staffList に追加（総合管理者ページの反映に必要）
-  const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-  const exists = staffList.some((s) => s.staffId === staffId);
-
-  if (!exists) {
-    staffList.push(adminUser);
-    localStorage.setItem("staffList", JSON.stringify(staffList));
-  }
-
-  localStorage.setItem("loginUser", JSON.stringify(adminUser));
-  router.push(`/admin/ward/${adminUser.wardId}`);
-  return;
-}
-
-
-
-
-
-// ★ 一般職員ログイン
-const wards = JSON.parse(localStorage.getItem("wards") || "[]");
-const ward = wards.find((w) => w.name === department);
-
-const loginUser = {
-  staffId,
-  name,
-  wardId: ward ? ward.id : null,
-  wardName: ward ? ward.name : department,
-  isAdmin: false,
-  isSuperAdmin: false,
-};
-
-
-// ★ 職員番号をキーにして保存（これが重要）
-localStorage.setItem(staffId, JSON.stringify(loginUser));
-
-// ★ 現在ログイン中のユーザーとしても保存
-localStorage.setItem("loginUser", JSON.stringify(loginUser));
-localStorage.setItem("currentStaff", JSON.stringify(loginUser));
-
-
- const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-const exists = staffList.some((s) => s.staffId === staffId);
-
-if (!exists) {
-  staffList.push(loginUser);
-  localStorage.setItem("staffList", JSON.stringify(staffList));
-}
-
-router.push("/home");
-
-
-
-  // ★ ここが本来の return（画面部分）
   return (
     <main
       style={{
@@ -175,7 +161,6 @@ router.push("/home");
           style={inputStyle}
         />
 
-        {/* ★ savedStaff がない時だけ氏名・部署入力欄を表示 */}
         {!savedStaff && staffId && !adminIds[staffId] && (
           <>
             <input
