@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import NavBar from "../../components/NavBar";
 
 export default function HistoryPage() {
-  const loginUser = JSON.parse(localStorage.getItem("loginUser") || "{}");
-
+  const [loginUser, setLoginUser] = useState({});
   const router = useRouter();
 
   const [history, setHistory] = useState([]);
-
-  // ★ 修正機能の state（ここに置く）
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // ★ 期間別の合計
   const [totalAll, setTotalAll] = useState(0);
   const [totalToday, setTotalToday] = useState(0);
   const [totalWeek, setTotalWeek] = useState(0);
@@ -22,8 +18,13 @@ export default function HistoryPage() {
   const [totalYear, setTotalYear] = useState(0);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setLoginUser(JSON.parse(localStorage.getItem("loginUser") || "{}"));
+
     const data = JSON.parse(localStorage.getItem("history") || "[]");
-    setHistory(data.reverse()); // 新しい順に表示
+    setHistory(data.reverse());
+
 
     const now = new Date();
 
