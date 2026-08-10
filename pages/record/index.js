@@ -199,7 +199,7 @@ const [gram, setGram] = useState("");   // g入力用
         borderRadius: "12px",
         border: "1px solid #cfeeee",
         marginTop: "8px"
-        fontSize: "16px"   // ← 追加
+        fontSize: "16px"  
       }}
     />
   ) : (
@@ -214,7 +214,7 @@ const [gram, setGram] = useState("");   // g入力用
         borderRadius: "12px",
         border: "1px solid #cfeeee",
         marginTop: "8px"
-        fontSize: "16px"   // ← 追加
+        fontSize: "16px"  
       }}
     />
   )}
