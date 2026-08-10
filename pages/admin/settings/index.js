@@ -36,21 +36,46 @@ export default function AdminSettings() {
         </h2>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {wards.map((ward) => (
-            <div
-              key={ward.id}
-              style={{
-                background: "#ffffff",
-                border: "1px solid #cfeeee",
-                borderRadius: "16px",
-                padding: "16px",
-                fontSize: "18px",
-                color: "#006b5f",
-              }}
-            >
-              {ward.name}（ID: {ward.id}）
-            </div>
-          ))}
+         {wards.map((ward) => (
+  <div
+    key={ward.id}
+    style={{
+      background: "#ffffff",
+      border: "1px solid #cfeeee",
+      borderRadius: "16px",
+      padding: "16px",
+      fontSize: "18px",
+      color: "#006b5f",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }}
+  >
+    {ward.name}（ID: {ward.id}）
+
+    <button
+      style={{
+        background: "#ffdddd",
+        color: "#a30000",
+        padding: "6px 12px",
+        borderRadius: "8px",
+        border: "none",
+        cursor: "pointer"
+      }}
+      onClick={() => {
+        const saved = JSON.parse(localStorage.getItem("wards") || "[]");
+        const updated = saved.filter((w) => w.id !== ward.id);
+
+        localStorage.setItem("wards", JSON.stringify(updated));
+        setWards(updated);
+      }}
+    >
+      削除
+    </button>
+  </div>
+))}
+
+
         </div>
 
         {loginUser.isSuperAdmin && (
