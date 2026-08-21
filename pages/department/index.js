@@ -11,14 +11,20 @@ export default function DepartmentPage() {
   const [history, setHistory] = useState([]);
 
   // ★ 初期ロード時に localStorage を読む（ブラウザのみ）
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+ useEffect(() => {
+  if (typeof window === "undefined") return;
 
-    setStaffList(JSON.parse(localStorage.getItem("staffList") || "[]"));
-    setRecords(JSON.parse(localStorage.getItem("records") || "[]"));
-    setLoginUser(JSON.parse(localStorage.getItem("loginUser") || "{}"));
-    setHistory(JSON.parse(localStorage.getItem("history") || "[]"));
-  }, []);
+  const allHistory = JSON.parse(localStorage.getItem("history") || "[]");
+  const current = JSON.parse(localStorage.getItem("currentStaff") || "{}");
+
+  // ★ ログイン中の部署だけ抽出
+  const deptHistory = allHistory.filter(
+    (h) => h.department === current.department
+  );
+
+  setHistory(deptHistory);
+}, []);
+
 
   // ★ 今日の日付
   const today = new Date().toISOString().split("T")[0];

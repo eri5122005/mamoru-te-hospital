@@ -9,7 +9,7 @@ export default function App({ Component, pageProps }) {
         padding: "16px",
         fontFamily: "sans-serif",
         maxWidth: "480px",
-        margin: "0 auto",
+        margin: "0 auto"
       }}
     >
       <Component {...pageProps} />

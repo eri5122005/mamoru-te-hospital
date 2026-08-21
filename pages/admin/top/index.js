@@ -4,98 +4,27 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 
 export default function AdminTop() {
-  const [wards, setWards] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [recordList, setRecordList] = useState([]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const [todayStats, setTodayStats] = useState({});
-  const [monthStats, setMonthStats] = useState({});
-  const [wardStats, setWardStats] = useState([]);
+  const wardId = "ward01"; // ★ あなたの病棟IDに変更
 
   useEffect(() => {
-    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
-    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const savedRecords = JSON.parse(localStorage.getItem("recordList") || "[]");
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/admin/ward?id=${wardId}`);
+        const json = await res.json();
+        setData(json);
+        setLoading(false);
+      } catch (e) {
+        alert("管理者データの取得に失敗しました");
+      }
+    };
 
-    setWards(savedWards);
-    setStaffList(savedStaff);
-    setRecordList(savedRecords);
-
-    calculateAll(savedWards, savedStaff, savedRecords);
+    load();
   }, []);
 
-  const calculateAll = (wards, staffList, recordList) => {
-    const today = new Date().toISOString().split("T")[0];
-    const month = today.slice(0, 7);
-
-    const todayRecords = recordList.filter((r) => r.date === today);
-    const monthRecords = recordList.filter((r) => r.date.startsWith(month));
-
-    // 今日の集計
-    const todayInputCount = todayRecords.length;
-    const todayTotalAmount = todayRecords.reduce((sum, r) => sum + r.amount, 0);
-
-    const todayMissing = staffList.filter(
-      (s) => !todayRecords.some((r) => r.staffId === s.staffId)
-    );
-
-    const todayRate =
-      staffList.length === 0
-        ? 0
-        : Math.round((todayInputCount / staffList.length) * 100);
-
-    setTodayStats({
-      rate: todayRate,
-      totalAmount: todayTotalAmount,
-      count: todayInputCount,
-      missing: todayMissing.length,
-    });
-
-    // 今月の集計
-    const monthInputCount = monthRecords.length;
-    const monthTotalAmount = monthRecords.reduce((sum, r) => sum + r.amount, 0);
-
-    const monthMissing = staffList.filter(
-      (s) => !monthRecords.some((r) => r.staffId === s.staffId)
-    );
-
-    const monthRate =
-      staffList.length === 0
-        ? 0
-        : Math.round((monthInputCount / staffList.length) * 100);
-
-    setMonthStats({
-      rate: monthRate,
-      totalAmount: monthTotalAmount,
-      count: monthInputCount,
-      missing: monthMissing.length,
-    });
-
-    // 病棟別状況（wardId で比較）
-    const wardResult = wards.map((ward) => {
-      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
-      const staffIds = staffInWard.map((s) => s.staffId);
-
-      const inputToday = todayRecords.filter((r) =>
-        staffIds.includes(r.staffId)
-      );
-
-      const missingToday = staffInWard.filter(
-        (s) => !inputToday.some((r) => r.staffId === s.staffId)
-      );
-
-      return {
-        wardName: ward.name,
-        rate:
-          staffInWard.length === 0
-            ? 0
-            : Math.round((inputToday.length / staffInWard.length) * 100),
-        missing: missingToday.length,
-      };
-    });
-
-    setWardStats(wardResult);
-  };
+  if (loading) return <div>読み込み中...</div>;
 
   const cardStyle = {
     background: "#ffffff",
@@ -128,28 +57,28 @@ export default function AdminTop() {
           textAlign: "center",
         }}
       >
-        管理者トップ
+        管理者トップ（クラウド版）
       </h1>
 
       {/* 今日の状況 */}
       <div style={cardStyle}>
         <div style={iconStyle}>📅</div>
         <h2 style={titleStyle}>今日の状況</h2>
-        <p>入力率：{todayStats.rate}%</p>
-        <p>総使用量：{todayStats.totalAmount} mL</p>
-        <p>記録件数：{todayStats.count} 回</p>
-        <p>未入力者：{todayStats.missing} 人</p>
+        <p>
+  入力率：
+  {Math.round(
+    ((data.records?.length || 0) / (data.staff?.length || 1)) * 100
+  )}
+  %
+</p>
+
+        <p>総使用量：{data.totalMl} mL</p>
+       <p>記録件数：{data.records?.length || 0} 回</p>
+<p>未入力者：{data.notEntered?.length || 0} 人</p>
+
       </div>
 
-      {/* 今月の状況 */}
-      <div style={cardStyle}>
-        <div style={iconStyle}>📆</div>
-        <h2 style={titleStyle}>今月の状況</h2>
-        <p>入力率：{monthStats.rate}%</p>
-        <p>総使用量：{monthStats.totalAmount} mL</p>
-        <p>記録件数：{monthStats.count} 回</p>
-        <p>未入力者：{monthStats.missing} 人</p>
-      </div>
+      {/* 今月の状況（必要なら後で追加） */}
 
       {/* 病棟別状況 */}
       <div style={cardStyle}>
@@ -157,11 +86,12 @@ export default function AdminTop() {
         <h2 style={titleStyle}>病棟別状況</h2>
 
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {wardStats.map((w) => (
-            <li key={w.wardName} style={{ marginBottom: "10px" }}>
-              {w.wardName}：入力率 {w.rate}% ／ 未入力者 {w.missing}人
-            </li>
-          ))}
+          <li style={{ marginBottom: "10px" }}>
+            {wardId}：
+入力率 {Math.round(((data.records?.length || 0) / (data.staff?.length || 1)) * 100)}%
+／ 未入力者 {data.notEntered?.length || 0}人
+
+          </li>
         </ul>
       </div>
     </AdminLayout>

@@ -2,39 +2,34 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import LogoutButton from "@/components/LogoutButton";
 
-export default function AdminHome() {
+export default function WardHome() {
   const router = useRouter();
+  const [wards, setWards] = useState([]);
 
-  const [loginUser, setLoginUser] = useState({});
-  const [isReady, setIsReady] = useState(false);
+  // ★ 病棟一覧の初期データ（透析室を含む）
+  const defaultWards = [
+    { id: "4f", name: "4階病棟" },
+    { id: "5f", name: "5階病棟" },
+    { id: "6f", name: "6階病棟" },
+    { id: "78f", name: "7.8階病棟" },
+    { id: "gairai", name: "外来" },
+    { id: "riha", name: "リハビリ" },
+    { id: "ikyoku", name: "医局" },
+    { id: "touseki", name: "透析室" }, // ★ 追加
+  ];
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("loginUser") || "{}");
-    setLoginUser(saved);
-    setIsReady(true);
+    const stored = JSON.parse(localStorage.getItem("wards") || "null");
+
+    // ★ 初回だけ wards を保存する
+    if (!stored || stored.length === 0) {
+      localStorage.setItem("wards", JSON.stringify(defaultWards));
+      setWards(defaultWards);
+    } else {
+      setWards(stored);
+    }
   }, []);
-
-  if (!isReady) {
-    return <div>読み込み中...</div>;
-  }
-
-  const cardStyle = {
-    background: "#e8f6f6", // ★ ミント背景に変更
-    borderRadius: "20px",
-    padding: "24px",
-    textAlign: "center",
-    cursor: "pointer",
-    transition: "0.2s",
-    border: "2px solid #aeece4", // ★ ミント枠を追加
-  };
-
-  const iconStyle = {
-    fontSize: "40px",
-    marginBottom: "12px",
-    color: "#00a68c", // ★ ミントアイコン
-  };
 
   return (
     <main
@@ -47,12 +42,12 @@ export default function AdminHome() {
     >
       <h1
         style={{
-          color: "#00a68c", // ★ タイトルもミントに
+          color: "#00a68c",
           marginBottom: "20px",
           textAlign: "center",
         }}
       >
-        総合管理メニュー
+        病棟一覧
       </h1>
 
       <div
@@ -62,61 +57,26 @@ export default function AdminHome() {
           gap: "20px",
         }}
       >
-        <div style={cardStyle} onClick={() => router.push("/admin/top")}>
-          <div style={iconStyle}>📊</div>
-          <p>管理者トップ</p>
-        </div>
-
-        <div style={cardStyle} onClick={() => router.push("/admin/ward-rate")}>
-          <div style={iconStyle}>📈</div>
-          <p>今日・今月の入力率</p>
-        </div>
-
-        <div
-          style={cardStyle}
-          onClick={() => router.push("/admin/ward-missing")}
-        >
-          <div style={iconStyle}>🔍</div>
-          <p>未入力者一覧</p>
-        </div>
-
-        <div
-          style={cardStyle}
-          onClick={() => router.push("/admin/staff-list")}
-        >
-          <div style={iconStyle}>👥</div>
-          <p>スタッフ一覧</p>
-        </div>
-
-        <div style={cardStyle} onClick={() => router.push("/admin/ranking")}>
-          <div style={iconStyle}>🏅</div>
-          <p>個人ランキング</p>
-        </div>
-
-        <div
-          style={cardStyle}
-          onClick={() => router.push("/admin/usage-graph")}
-        >
-          <div style={iconStyle}>📉</div>
-          <p>使用量グラフ</p>
-        </div>
-
-        <div style={cardStyle} onClick={() => router.push("/admin/settings")}>
-          <div style={iconStyle}>⚙</div>
-          <p>設定ページへ</p>
-        </div>
-
-        <div style={cardStyle} onClick={() => router.push("/login")}>
-          <div style={iconStyle}>🚪</div>
-          <p>ログインページへ戻る</p>
-        </div>
-      </div>
-
-      <div style={{ marginTop: "24px" }}>
-        <LogoutButton />
+        {wards.map((ward) => (
+          <div
+            key={ward.id}
+            onClick={() => router.push(`/admin/ward/${ward.id}`)}
+            style={{
+              background: "#e8f6f6",
+              borderRadius: "20px",
+              padding: "24px",
+              textAlign: "center",
+              cursor: "pointer",
+              border: "2px solid #aeece4",
+            }}
+          >
+            <div style={{ fontSize: "40px", marginBottom: "12px", color: "#00a68c" }}>
+              🏥
+            </div>
+            <p>{ward.name}</p>
+          </div>
+        ))}
       </div>
     </main>
   );
 }
-
-

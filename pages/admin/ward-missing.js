@@ -5,23 +5,28 @@ import AdminLayout from "@/components/AdminLayout";
 
 export default function WardMissing() {
   const [missing, setMissing] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const wardId = "ward01"; // ★ あなたの病棟IDに変更
 
   useEffect(() => {
-    const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const savedRecords = JSON.parse(localStorage.getItem("records") || "[]");
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/admin/ward?id=${wardId}`);
+        const data = await res.json();
 
-    const today = new Date().toISOString().split("T")[0];
+        // ★ API の notEntered をそのまま使う
+        setMissing(data.notEntered);
+        setLoading(false);
+      } catch (error) {
+        alert("未入力者データの取得に失敗しました");
+      }
+    };
 
-    const todayRecordIds = savedRecords
-      .filter((r) => r.date === today)
-      .map((r) => r.staffId);
-
-    const missingList = staffList.filter(
-      (s) => !todayRecordIds.includes(s.staffId)
-    );
-
-    setMissing(missingList);
+    load();
   }, []);
+
+  if (loading) return <div>読み込み中...</div>;
 
   const cardStyle = {
     background: "#e8f6f6",
@@ -54,7 +59,7 @@ export default function WardMissing() {
           textAlign: "center",
         }}
       >
-        未入力者一覧
+        未入力者一覧（クラウド版）
       </h1>
 
       <div style={cardStyle}>
@@ -68,7 +73,7 @@ export default function WardMissing() {
           <ul style={{ listStyle: "none", padding: 0 }}>
             {missing.map((s) => (
               <li key={s.staffId} style={{ marginBottom: "10px" }}>
-                {s.name}（{s.department}）
+                {s.name}（{s.wardId}）
               </li>
             ))}
           </ul>
@@ -77,5 +82,4 @@ export default function WardMissing() {
     </AdminLayout>
   );
 }
-
 

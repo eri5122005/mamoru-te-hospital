@@ -1,80 +1,84 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/router";
 
-export default function UsageRanking() {
+export default function DepartmentRanking() {
   const router = useRouter();
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      const staff = JSON.parse(localStorage.getItem("currentStaff"));
-      if (!staff) return;
+    const loadRanking = async () => {
+      try {
+        const q = query(collection(db, "records"));
+        const snapshot = await getDocs(q);
+        const list = snapshot.docs.map((doc) => doc.data());
 
-      const q = query(
-        collection(db, "records"),
-        where("wardId", "==", staff.wardId)
-      );
+        const now = new Date();
 
-      const snap = await getDocs(q);
-      const records = snap.docs.map(doc => doc.data());
+        const filtered = list.filter((item) => {
+          const t = item.date.toDate();
 
-      const now = new Date();
+          const jst =
+            t.getTimezoneOffset() === 0
+              ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
+              : t;
 
-      const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
+          if (period === "today") {
+            return (
+              jst.getFullYear() === now.getFullYear() &&
+              jst.getMonth() === now.getMonth() &&
+              jst.getDate() === now.getDate()
+            );
+          }
 
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
+          if (period === "month") {
+            return (
+              jst.getFullYear() === now.getFullYear() &&
+              jst.getMonth() === now.getMonth()
+            );
+          }
 
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
+          if (period === "year") {
+            return jst.getFullYear() === now.getFullYear();
+          }
 
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
+          return true;
+        });
 
-        return true;
-      });
+        const totals = {};
 
-      const totals = {};
-      filtered.forEach(item => {
-        if (!totals[item.staffId]) {
-          totals[item.staffId] = {
-            staffId: item.staffId,
-            name: item.name || "名前未登録",
-            totalMl: 0
-          };
-        }
-        totals[item.staffId].totalMl += item.ml;
-      });
+        filtered.forEach((item) => {
+          const dept = item.department || "不明";
+          const ml = Number(item.ml) || 0;
 
-      const sorted = Object.values(totals).sort(
-        (a, b) => b.totalMl - a.totalMl
-      );
+          if (!totals[dept]) totals[dept] = 0;
+          totals[dept] += ml;
+        });
 
-      setRanking(sorted);
+        const rankingList = Object.entries(totals)
+          .map(([dept, total]) => ({
+            department: dept,
+            total: Number(total.toFixed(1)),
+          }))
+          .sort((a, b) => b.total - a.total);
+
+        setRanking(rankingList);
+      } catch (error) {
+        console.error("ランキング取得エラー:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load();
+    loadRanking();
   }, [period]);
+
+  if (loading) return <p>読み込み中です…</p>;
 
   const tabStyle = (active) => ({
     flex: 1,
@@ -115,15 +119,15 @@ export default function UsageRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🧴"; // 4位以下は通常アイコン
+    return "🏥"; // 4位以下は通常アイコン
   };
 
   return (
-    <main
+    <div
       style={{
-        padding: "20px",
         background: "#F9F9F9",
         minHeight: "100vh",
+        padding: "20px",
         fontFamily: "sans-serif",
         maxWidth: "480px",
         margin: "0 auto",
@@ -137,6 +141,7 @@ export default function UsageRanking() {
           border: "none",
           padding: "10px 16px",
           borderRadius: "12px",
+          fontSize: "16px",
           cursor: "pointer",
           marginBottom: "20px",
           width: "100%",
@@ -147,14 +152,14 @@ export default function UsageRanking() {
 
       <h1
         style={{
+          color: "#006b5f",
+          marginBottom: "24px",
           textAlign: "center",
           fontSize: "26px",
           fontWeight: "600",
-          marginBottom: "20px",
-          color: "#006b5f",
         }}
       >
-        🧴 使用量ランキング
+        🏥 院内部署ランキング
       </h1>
 
       {/* タブ */}
@@ -165,21 +170,31 @@ export default function UsageRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード（順位アイコン入り） */}
+      {/* ランキングカード（🥇🥈🥉入り） */}
       {ranking.map((item, index) => (
-        <div key={item.staffId} style={cardStyle}>
+        <div key={index} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
 
           <div>
             <p style={{ margin: 0, fontWeight: "bold", fontSize: "18px" }}>
-              {index + 1} 位：{item.name}
+              {index + 1} 位：{item.department}
             </p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              {item.totalMl.toFixed(1)} mL
+              {item.total} mL
             </p>
           </div>
         </div>
       ))}
-    </main>
+    </div>
   );
 }
+
+const periodButtonStyle = {
+  background: "#cfeeee",
+  color: "#006b5f",
+  border: "none",
+  padding: "10px 16px",
+  borderRadius: "12px",
+  fontSize: "16px",
+  cursor: "pointer",
+};

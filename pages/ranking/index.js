@@ -1,94 +1,79 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import NavBar from "../../components/NavBar";
 
 export default function RankingMenu() {
   const router = useRouter();
 
   return (
-    <main
-      style={{
-        padding: "24px",
-        background: "#F9F9F9",
-        minHeight: "100vh",
-        fontFamily: "sans-serif",
-        
-      }}
-    >
-      {/* タイトル */}
-     <h1
-  style={{
-    color: "#006b5f",
-    textAlign: "center",
-    marginBottom: "24px",
-    fontSize: "26px",
-    fontWeight: "600",
-    letterSpacing: "1px",
-    padding: "10px 0",
-    borderBottom: "3px solid #cfeeee",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "8px"
-  }}
->
-  🌱 ランキングメニュー
-</h1>
-
-
-
-
-      {/* ホームに戻る */}
-      <div
-        onClick={() => router.push("/home")}
+    <>
+      <main
         style={{
-          background: "#cfeeee",
-          color: "#006b5f",
-          padding: "12px 16px",
-          borderRadius: "12px",
-          cursor: "pointer",
-          fontSize: "16px",
-          marginBottom: "20px",
-          textAlign: "center"
+          padding: "24px",
+          background: "#F9F9F9",
+          minHeight: "100vh",
+          fontFamily: "sans-serif",
         }}
       >
-        ← ホームに戻る
-      </div>
+        {/* タイトル */}
+        <h1
+          style={{
+            color: "#006b5f",
+            textAlign: "center",
+            marginBottom: "24px",
+            fontSize: "26px",
+            fontWeight: "600",
+            letterSpacing: "1px",
+            padding: "10px 0",
+            borderBottom: "3px solid #cfeeee",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          🌱 ランキングメニュー
+        </h1>
 
-      {/* ランキング一覧 */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px"
-        }}
-      >
-        <div onClick={() => router.push("/ranking/usage")} style={mintCard}>
-          <span style={iconStyle}>🧴</span>
-          使用量ランキング（mL）
-        </div>
+        {/* ランキング一覧 */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}
+        >
+          <div onClick={() => router.push("/ranking/usage")} style={mintCard}>
+            <span style={iconStyle}>🧴</span>
+            使用量ランキング（mL）
+          </div>
 
-        <div onClick={() => router.push("/ranking/count")} style={mintCard}>
-          <span style={iconStyle}>📝</span>
-          記録回数ランキング
-        </div>
+          <div onClick={() => router.push("/ranking/count")} style={mintCard}>
+            <span style={iconStyle}>📝</span>
+            記録回数ランキング
+          </div>
 
-        <div onClick={() => router.push("/ranking/mint")} style={mintCard}>
-          <span style={iconStyle}>🌿</span>
-          ミントポイントランキング
-        </div>
+          <div onClick={() => router.push("/ranking/mint")} style={mintCard}>
+            <span style={iconStyle}>🌿</span>
+            ミントポイントランキング
+          </div>
 
-        <div onClick={() => router.push("/ranking/ward")} style={mintCard}>
-          <span style={iconStyle}>🏥</span>
-          病棟別ランキング
-        </div>
+          <div onClick={() => router.push("/ranking/department")} style={mintCard}>
+  <span style={iconStyle}>🏢</span>
+  院内部署ランキング
+</div>
 
-        <div onClick={() => router.push("/ranking/avg")} style={mintCard}>
-          <span style={iconStyle}>⏱️</span>
-          勤務日数を考慮した平均使用量ランキング
+          <div onClick={() => router.push("/ranking/avg")} style={mintCard}>
+            <span style={iconStyle}>⏱️</span>
+            勤務日数を考慮した平均使用量ランキング
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+
+      {/* ⭐ かわいいナビバーを追加 */}
+      <NavBar />
+    </>
   );
 }
 
@@ -106,10 +91,10 @@ const mintCard = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  gap: "8px"
+  gap: "8px",
 };
 
 /* アイコンのスタイル */
 const iconStyle = {
-  fontSize: "22px"
+  fontSize: "22px",
 };

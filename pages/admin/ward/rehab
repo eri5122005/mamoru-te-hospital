@@ -1,0 +1,3 @@
+export default function WardPage() {
+  return <div>このリハ部の管理ページです</div>;
+}

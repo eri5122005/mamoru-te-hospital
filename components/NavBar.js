@@ -10,8 +10,10 @@ export default function NavBar() {
       style={{
         position: "fixed",
         bottom: 0,
-        left: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
         width: "100%",
+        maxWidth: "480px",
         background: "#cfeeee",
         borderTop: "1px solid #b7e3e3",
         display: "flex",
@@ -20,10 +22,10 @@ export default function NavBar() {
         zIndex: 100,
       }}
     >
-      <button onClick={() => router.push("/home")} style={btnStyle}>ホーム</button>
-      <button onClick={() => router.push("/record")} style={btnStyle}>記録</button>
-      <button onClick={() => router.push("/history")} style={btnStyle}>履歴</button>
-      <button onClick={() => router.push("/ranking")} style={btnStyle}>ランキング</button>
+      <button onClick={() => router.push("/home")} style={btnStyle}>🏠 ホーム</button>
+      <button onClick={() => router.push("/record")} style={btnStyle}>🧴 記録</button>
+      <button onClick={() => router.push("/history")} style={btnStyle}>📚 履歴</button>
+      <button onClick={() => router.push("/ranking")} style={btnStyle}>🏆 ランキング</button>
     </nav>
   );
 }

@@ -4,72 +4,27 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 
 export default function WardRatePage() {
-  const [wards, setWards] = useState([]);
-  const [staffList, setStaffList] = useState([]);
-  const [recordList, setRecordList] = useState([]);
-  const [todayStats, setTodayStats] = useState([]);
-  const [monthStats, setMonthStats] = useState([]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const wardId = "ward01"; // ★ あなたの病棟IDに変更
 
   useEffect(() => {
-    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
-    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const savedRecords = JSON.parse(localStorage.getItem("recordList") || "[]");
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/admin/ward?id=${wardId}`);
+        const json = await res.json();
+        setData(json);
+        setLoading(false);
+      } catch (e) {
+        alert("入力率データの取得に失敗しました");
+      }
+    };
 
-    setWards(savedWards);
-    setStaffList(savedStaff);
-    setRecordList(savedRecords);
-
-    calculateRates(savedWards, savedStaff, savedRecords);
+    load();
   }, []);
 
-  const calculateRates = (wards, staffList, recordList) => {
-    const today = new Date().toISOString().split("T")[0];
-    const month = today.slice(0, 7);
-
-    const todayRecords = recordList.filter((r) => r.date === today);
-    const monthRecords = recordList.filter((r) => r.date.startsWith(month));
-
-    const todayResult = wards.map((ward) => {
-      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
-      const staffIds = staffInWard.map((s) => s.staffId);
-
-      const inputToday = todayRecords.filter((r) =>
-        staffIds.includes(r.staffId)
-      );
-
-      return {
-        wardName: ward.name,
-        totalStaff: staffInWard.length,
-        inputCount: inputToday.length,
-        rate:
-          staffInWard.length === 0
-            ? 0
-            : Math.round((inputToday.length / staffInWard.length) * 100),
-      };
-    });
-
-    const monthResult = wards.map((ward) => {
-      const staffInWard = staffList.filter((s) => s.wardId === ward.id);
-      const staffIds = staffInWard.map((s) => s.staffId);
-
-      const inputMonth = monthRecords.filter((r) =>
-        staffIds.includes(r.staffId)
-      );
-
-      return {
-        wardName: ward.name,
-        totalStaff: staffInWard.length,
-        inputCount: inputMonth.length,
-        rate:
-          staffInWard.length === 0
-            ? 0
-            : Math.round((inputMonth.length / staffInWard.length) * 100),
-      };
-    });
-
-    setTodayStats(todayResult);
-    setMonthStats(monthResult);
-  };
+  if (loading) return <div>読み込み中...</div>;
 
   const cardStyle = {
     background: "#e8f6f6",
@@ -85,6 +40,12 @@ export default function WardRatePage() {
     fontSize: "20px",
     fontWeight: "bold",
   };
+
+  // ★ 今日の入力率（クラウド版）
+  const totalStaff = data.staff.length;
+  const todayCount = data.records.length;
+  const todayRate =
+    totalStaff === 0 ? 0 : Math.round((todayCount / totalStaff) * 100);
 
   return (
     <AdminLayout>
@@ -109,28 +70,20 @@ export default function WardRatePage() {
           textAlign: "center",
         }}
       >
-        📈 今日・今月の入力率
+        📈 今日・今月の入力率（クラウド版）
       </h1>
 
       {/* 今日の入力率 */}
       <div style={cardStyle}>
         <h2 style={titleStyle}>今日の入力率</h2>
-        {todayStats.map((w) => (
-          <p key={w.wardName}>
-            {w.wardName}：{w.inputCount} / {w.totalStaff}（{w.rate}%）
-          </p>
-        ))}
+        <p>
+          今日：{todayCount} / {totalStaff}（{todayRate}%）
+        </p>
+        <p>未入力者：{data.notEntered.length} 人</p>
+        <p>総使用量：{data.totalMl} mL</p>
       </div>
 
-      {/* 今月の入力率 */}
-      <div style={cardStyle}>
-        <h2 style={titleStyle}>今月の入力率</h2>
-        {monthStats.map((w) => (
-          <p key={w.wardName}>
-            {w.wardName}：{w.inputCount} / {w.totalStaff}（{w.rate}%）
-          </p>
-        ))}
-      </div>
+      {/* 今月の入力率（必要なら後で追加） */}
     </AdminLayout>
   );
 }

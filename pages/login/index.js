@@ -1,223 +1,149 @@
 "use client";
 
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function Login() {
   const router = useRouter();
-
   const [staffId, setStaffId] = useState("");
-  const [savedStaff, setSavedStaff] = useState(null);
-  const [name, setName] = useState("");
-  const [department, setDepartment] = useState("");
-
-  // ★ 職員番号が入力されたら savedStaff をチェック
-  useEffect(() => {
-    setName("");
-    setDepartment("");
-
-    if (staffId) {
-      const stored = JSON.parse(localStorage.getItem(staffId) || "null");
-      setSavedStaff(stored);
-
-      if (stored) {
-        setName(stored.name);
-        setDepartment(stored.department);
-      }
-    }
-  }, [staffId]);
-
-  const adminIds = {
-    "9999": "管理部",
-    "2400": "4階病棟",
-    "2500": "5階病棟",
-    "2600": "6階病棟",
-    "2700": "7.8階病棟",
-    "2150": "外来",
-    "2200": "リハビリ",
-    "2300": "医局",
-  };
 
   const handleLogin = () => {
-    if (!staffId) {
-      alert("職員番号を入力してください");
-      return;
-    }
+    if (!staffId) return;
 
-    // ★ マスター管理者（総合管理者）
+    // ★ 総合管理者（9999）は初回登録不要
     if (staffId === "9999") {
-      const adminUser = {
-        staffId,
-        name: "マスター管理者",
-        department: "管理部",
-        isAdmin: true,
-        isSuperAdmin: true,
-      };
+      localStorage.setItem(
+        "currentStaff",
+        JSON.stringify({
+          staffId: "9999",
+          name: "総合管理者",
+          department: "super",
+          wardId: "",
+          workDays: [],
+          role: "super",
+        })
+      );
 
-      localStorage.setItem("loginUser", JSON.stringify(adminUser));
-      router.push("/admin");
+      router.replace("/admin/top");
+
       return;
     }
 
-    // ★ 部署管理者（2400〜2700）
-    if (adminIds[staffId]) {
-      const wards = JSON.parse(localStorage.getItem("wards") || "[]");
-      const ward = wards.find((w) => w.name === adminIds[staffId]);
+    // ★ staff-XXXX を読み込む（初回登録データ）
+    const raw = localStorage.getItem(`staff-${staffId}`);
 
-      const adminUser = {
-        staffId,
-        name: `${adminIds[staffId]} 管理者`,
-        wardId: ward ? ward.id : null,
-        wardName: ward ? ward.name : adminIds[staffId],
-
-        isAdmin: true,
-        isSuperAdmin: false,
-      };
-
-      
-      
-
-      localStorage.setItem("loginUser", JSON.stringify(adminUser));
-      router.push(`/admin/ward/${adminUser.wardId}`);
+    if (!raw) {
+      // 初回ログイン → first-login へ
+      router.replace(`/first-login?staffId=${staffId}`);
       return;
     }
 
-    // ★ 一般職員ログイン
-    const wards = JSON.parse(localStorage.getItem("wards") || "[]");
-    const ward = wards.find((w) => w.name === department);
+    // ★ 初回登録済み → currentStaff を保存
+    const staffData = JSON.parse(raw);
 
-    const loginUser = {
-      staffId,
-      name,
-      wardId: ward ? ward.id : null,
-      wardName: ward ? ward.name : department,
-      isAdmin: false,
-      isSuperAdmin: false,
+    localStorage.setItem(
+      "currentStaff",
+      JSON.stringify({
+        staffId: staffData.staffId,
+        name: staffData.name,
+        department: staffData.department,
+        wardId: staffData.wardId,
+        workDays: staffData.workDays,
+        role: staffData.role,
+      })
+    );
+
+    // ★ 管理者ID → 部署名の対応表
+    const departmentAdmins = {
+      2400: "4f",
+      2500: "5f",
+      2600: "6f",
+      2700: "78f",
+      2305: "touseki",
+      2150: "gairai",
+      2300: "ikyoku",
     };
 
-    localStorage.setItem(staffId, JSON.stringify(loginUser));
-    localStorage.setItem("loginUser", JSON.stringify(loginUser));
-    localStorage.setItem("currentStaff", JSON.stringify(loginUser));
+    // ★ currentStaff を読み込む
+    const current = JSON.parse(localStorage.getItem("currentStaff"));
 
-    const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const exists = staffList.some((s) => s.staffId === staffId);
-
-    if (!exists) {
-      staffList.push(loginUser);
-      localStorage.setItem("staffList", JSON.stringify(staffList));
+    // ★ 部署管理者
+    if (departmentAdmins[current.staffId]) {
+      const dept = departmentAdmins[current.staffId];
+      router.replace(`/admin/ward/${dept}`);
+      return;
     }
 
-    router.push("/home");
-  }; // ← ← ← ★★★ ここが抜けていた閉じカッコ ★★★
+    // ★ 一般スタッフ
+    router.replace("/home");
+  };
 
   return (
-    <main
+    <div
       style={{
-        background: "#F9F9F9",
         minHeight: "100vh",
-        padding: "20px",
+        background: "#ffffff",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        fontFamily: "sans-serif",
+        padding: "20px",
       }}
     >
       <div
         style={{
           background: "#ffffff",
-          padding: "28px",
-          borderRadius: "20px",
+          padding: "32px",
+          borderRadius: "16px",
           width: "100%",
-          maxWidth: "380px",
-          border: "1px solid #cfeeee",
-          textAlign: "center",
+          maxWidth: "420px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
         }}
       >
-        <h1 style={{ color: "#006b5f", marginBottom: "6px" }}>ログイン</h1>
-
-        <div
+        <h1
           style={{
-            fontSize: "40px",
+            fontSize: "24px",
             marginBottom: "20px",
-            color: "#00a68c",
+            color: "#006b5f",
+            textAlign: "center",
           }}
         >
-          🧴
-        </div>
+          🔐 ログイン
+        </h1>
 
-        <p style={{ color: "#008b75", marginBottom: "20px", fontSize: "14px" }}>
-          職員番号を入力してください
-        </p>
-
+        <label style={{ fontSize: "14px", color: "#333" }}>職員番号</label>
         <input
+          id="staffId"
           type="text"
           value={staffId}
           onChange={(e) => setStaffId(e.target.value)}
-          placeholder="職員番号（例：1001）"
-          style={inputStyle}
+          placeholder="例：123"
+          style={{
+            width: "100%",
+            padding: "12px",
+            marginTop: "6px",
+            marginBottom: "24px",
+            borderRadius: "10px",
+            border: "1px solid var(--mint-light)",
+            fontSize: "16px",
+          }}
         />
 
-        {!savedStaff && staffId && !adminIds[staffId] && (
-          <>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="名前（例：山田）"
-              style={inputStyle}
-            />
-
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "10px",
-                border: "1px solid #cfeeee",
-                marginBottom: "20px",
-                fontSize: "16px",
-                background: "#ffffff",
-              }}
-            >
-              <option value="">病棟を選択してください</option>
-              <option value="4階病棟">4階病棟</option>
-              <option value="5階病棟">5階病棟</option>
-              <option value="6階病棟">6階病棟</option>
-              <option value="7.8階病棟">7.8階病棟</option>
-              <option value="外来">外来</option>
-              <option value="リハビリ">リハビリ</option>
-              <option value="医局">医局</option>
-            </select>
-          </>
-        )}
-
-        <button style={loginButtonStyle} onClick={handleLogin}>
+        <button
+          onClick={handleLogin}
+          style={{
+            width: "100%",
+            padding: "14px",
+            background: "var(--mint-light)",
+            color: "#006b5f",
+            border: "none",
+            borderRadius: "10px",
+            fontSize: "18px",
+            cursor: "pointer",
+          }}
+        >
           ログイン →
         </button>
       </div>
-    </main>
+    </div>
   );
 }
-
-const inputStyle = {
-  width: "100%",
-  padding: "12px",
-  borderRadius: "10px",
-  border: "1px solid #cfeeee",
-  marginBottom: "16px",
-  fontSize: "16px",
-};
-
-const loginButtonStyle = {
-  padding: "14px",
-  background: "#cfeeee",
-  border: "none",
-  borderRadius: "12px",
-  fontSize: "18px",
-  color: "#006b5f",
-  cursor: "pointer",
-  width: "100%",
-  marginBottom: "16px",
-  textAlign: "center",
-};

@@ -3,72 +3,67 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NavBar from "../../components/NavBar";
+import { db } from "../../firebaseConfig";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 
 export default function HistoryPage() {
-  const [loginUser, setLoginUser] = useState({});
   const router = useRouter();
-
-  const [history, setHistory] = useState([]);
+  const [staff, setStaff] = useState(null);
+  const [records, setRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  const [totalAll, setTotalAll] = useState(0);
-  const [totalToday, setTotalToday] = useState(0);
-  const [totalWeek, setTotalWeek] = useState(0);
-  const [totalMonth, setTotalMonth] = useState(0);
-  const [totalYear, setTotalYear] = useState(0);
-
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const current = JSON.parse(localStorage.getItem("currentStaff"));
+    if (!current) {
+      router.replace("/login");
+      return;
+    }
+    setStaff(current);
 
-    setLoginUser(JSON.parse(localStorage.getItem("loginUser") || "{}"));
+    // ★ Firestore から自分の履歴だけ取得
+    const load = async () => {
+      const q = query(
+        collection(db, "records"),
+        where("staffId", "==", current.staffId)
+      );
 
-    const data = JSON.parse(localStorage.getItem("history") || "[]");
-    setHistory(data.reverse());
+      const snap = await getDocs(q);
+      const list = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
 
-
-    const now = new Date();
-
-    // ★ 判定関数
-    const isToday = (date) =>
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate();
-
-    const isThisWeek = (date) => {
-      const start = new Date(now);
-      start.setDate(now.getDate() - now.getDay() + 1); // 月曜
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6); // 日曜
-      return date >= start && date <= end;
+      setRecords(list);
     };
 
-    const isThisMonth = (date) =>
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth();
-
-    const isThisYear = (date) =>
-      date.getFullYear() === now.getFullYear();
-
-    // ★ 合計計算
-    let all = 0, today = 0, week = 0, month = 0, year = 0;
-
-    data.forEach((item) => {
-      const d = new Date(item.time);
-      const ml = Number(item.ml);
-
-      all += ml;
-      if (isToday(d)) today += ml;
-      if (isThisWeek(d)) week += ml;
-      if (isThisMonth(d)) month += ml;
-      if (isThisYear(d)) year += ml;
-    });
-
-    setTotalAll(all);
-    setTotalToday(today);
-    setTotalWeek(week);
-    setTotalMonth(month);
-    setTotalYear(year);
+    load();
   }, []);
+
+  // ★ Firestore 削除処理
+  const handleDelete = async () => {
+    if (!selectedRecord) return;
+
+    await deleteDoc(doc(db, "records", selectedRecord));
+
+    // ★ ミントポイント減らす
+    const mint = Number(localStorage.getItem("mintPoint") || 0);
+    localStorage.setItem("mintPoint", Math.max(0, mint - 1));
+
+    // ★ 記録回数減らす
+    const count = Number(localStorage.getItem("historyCount") || 0);
+    localStorage.setItem("historyCount", Math.max(0, count - 1));
+
+    // ★ 画面更新
+    setRecords(records.filter(r => r.id !== selectedRecord));
+    setSelectedRecord(null);
+  };
+
+  const handleEdit = () => {
+    if (!selectedRecord) return;
+    router.push(`/history/edit?id=${selectedRecord}`);
+  };
+
+  if (!staff) return <p>読み込み中…</p>;
 
   return (
     <main
@@ -77,53 +72,26 @@ export default function HistoryPage() {
         minHeight: "100vh",
         padding: "24px",
         fontFamily: "sans-serif",
+        maxWidth: "480px",
+        margin: "0 auto",
       }}
     >
-  <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>
-  履歴
-</h1>
+      <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>履歴</h1>
 
-<p style={{ color: "#006b5f", marginBottom: "16px", fontSize: "18px" }}>
-  👤 {loginUser.name} さんの履歴
-</p>
+      <p style={{ color: "#006b5f", marginBottom: "16px", fontSize: "18px" }}>
+        👤 {staff.name} さんの履歴
+      </p>
 
-
-
-
-
-      {/* ★ 合計カード */}
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #cfeeee",
-          borderRadius: "16px",
-          padding: "20px",
-          marginBottom: "24px",
-          boxShadow: "0 2px 6px rgba(0, 150, 130, 0.08)",
-        }}
-      >
-        <p style={{ color: "#006b5f", fontWeight: "bold", fontSize: "18px" }}>
-          💧 今日の合計：{totalToday.toFixed(1)} mL
-        </p>
-        <p>今週の合計：{totalWeek.toFixed(1)} mL</p>
-        <p>今月の合計：{totalMonth.toFixed(1)} mL</p>
-        <p>今年の合計：{totalYear.toFixed(1)} mL</p>
-        <p style={{ fontWeight: "bold", color: "#008b75", fontSize: "17px" }}>
-          合計（全期間）：{totalAll.toFixed(1)} mL
-        </p>
-      </div>
-
-      {history.length === 0 && (
+      {records.length === 0 && (
         <p style={{ color: "#006b5f" }}>まだ記録がありません。</p>
       )}
 
-      {/* 履歴カード一覧 */}
-      {history.map((item, index) => (
+      {records.map((item) => (
         <div
-          key={index}
-          onClick={() => setSelectedRecord(index)}
+          key={item.id}
+          onClick={() => setSelectedRecord(item.id)}
           style={{
-            background: selectedRecord === index ? "#e8f6f6" : "#ffffff",
+            background: selectedRecord === item.id ? "#e8f6f6" : "#ffffff",
             border: "1px solid #cfeeee",
             borderRadius: "16px",
             padding: "16px",
@@ -132,29 +100,90 @@ export default function HistoryPage() {
             color: "#006b5f",
           }}
         >
-          {item.time}  / {item.ml} mL
+          {item.date.toDate().toLocaleString()} / {item.ml} mL
         </div>
       ))}
 
-      {/* 修正ボタン */}
-      {selectedRecord !== null && (
-        <button
-          style={{
-            marginTop: "24px",
-            background: "#4BB5C1",
-            color: "white",
-            padding: "14px 20px",
-            borderRadius: "12px",
-            border: "none",
-            fontSize: "18px",
-            cursor: "pointer",
-            width: "100%",
-          }}
-          onClick={() => router.push(`/history/edit?index=${selectedRecord}`)}
-        >
-          選択した記録を修正する
-        </button>
+      {selectedRecord && (
+        <>
+          <button
+            onClick={handleEdit}
+            style={{
+              background: "#cfeeee",
+              color: "#006b5f",
+              padding: "14px",
+              borderRadius: "12px",
+              border: "none",
+              width: "100%",
+              marginTop: "10px",
+              fontSize: "18px",
+              cursor: "pointer",
+            }}
+          >
+            選択した記録を修正する
+          </button>
+
+          <button
+            onClick={handleDelete}
+            style={{
+              background: "#ffdddd",
+              color: "#a30000",
+              padding: "14px",
+              borderRadius: "12px",
+              border: "none",
+              width: "100%",
+              marginTop: "10px",
+              fontSize: "18px",
+              cursor: "pointer",
+            }}
+          >
+            選択した記録を削除する
+          </button>
+        </>
       )}
+{staff.role === "admin" && (
+  <button
+    onClick={async () => {
+      const current = JSON.parse(localStorage.getItem("currentStaff"));
+      if (!current) return;
+
+      const q = query(
+        collection(db, "records"),
+        where("wardId", "==", current.wardId)
+      );
+
+      const snap = await getDocs(q);
+
+      let deleteCount = 0;
+
+      for (const d of snap.docs) {
+        const data = d.data();
+
+        if (!data.name || data.name.trim() === "") {
+          await deleteDoc(doc(db, "records", d.id));
+          deleteCount++;
+        }
+      }
+
+      alert(`名前未登録の記録を ${deleteCount} 件削除しました`);
+
+      router.refresh();
+    }}
+    style={{
+      background: "#ffecec",
+      color: "#a30000",
+      padding: "14px",
+      borderRadius: "12px",
+      border: "none",
+      width: "100%",
+      marginTop: "20px",
+      fontSize: "18px",
+      cursor: "pointer",
+    }}
+  >
+    名前未登録の記録を削除する（総合管理者専用）
+  </button>
+)}
 
       <NavBar />
     </main>

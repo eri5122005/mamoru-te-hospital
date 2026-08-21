@@ -2,73 +2,120 @@
 
 import { useEffect, useState } from "react";
 import RankingHeader from "../../components/RankingHeader";
-import { useRouter } from "next/navigation";
+import { db } from "../../firebaseConfig";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function MintRanking() {
-  // ★ Hooks はコンポーネントの中に置く（最重要）
-  const [period, setPeriod] = useState("all");
+  const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
 
-  // ★ 期間絞り込み用 useEffect（ランキング計算もここでやる）
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem("history") || "[]");
-    const now = new Date();
+    const load = async () => {
+      const staff = JSON.parse(localStorage.getItem("currentStaff"));
+      if (!staff) return;
 
-    // 期間で絞り込み
-    const filtered = history.filter(item => {
-      const t = new Date(item.timestamp);
+      const q = query(
+        collection(db, "records"),
+        where("wardId", "==", staff.wardId)
+      );
 
-      if (period === "today") {
-        return (
-          t.getFullYear() === now.getFullYear() &&
-          t.getMonth() === now.getMonth() &&
-          t.getDate() === now.getDate()
-        );
-      }
+      const snap = await getDocs(q);
+      const records = snap.docs.map(doc => doc.data());
 
-      if (period === "month") {
-        return (
-          t.getFullYear() === now.getFullYear() &&
-          t.getMonth() === now.getMonth()
-        );
-      }
+      const now = new Date();
 
-      return true; // 累計
-    });
+      const filtered = records.filter(item => {
+        const t = item.date.toDate();
+        const jst =
+          t.getTimezoneOffset() === 0
+            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
+            : t;
 
-    // ミントポイント集計
-    const points = {};
-    filtered.forEach(item => {
-      if (!points[item.staffId]) {
-        points[item.staffId] = {
-          staffId: item.staffId,
-          name: item.name,
-          department: item.department,
-          mintPoint: 0
-        };
-      }
-      points[item.staffId].mintPoint += Number(item.mintPoint || 0);
-    });
+        if (period === "today") {
+          return (
+            jst.getFullYear() === now.getFullYear() &&
+            jst.getMonth() === now.getMonth() &&
+            jst.getDate() === now.getDate()
+          );
+        }
 
-    const sorted = Object.values(points).sort(
-      (a, b) => b.mintPoint - a.mintPoint
-    );
+        if (period === "month") {
+          return (
+            jst.getFullYear() === now.getFullYear() &&
+            jst.getMonth() === now.getMonth()
+          );
+        }
 
-    setRanking(sorted);
+        if (period === "year") {
+          return jst.getFullYear() === now.getFullYear();
+        }
+
+        return true;
+      });
+
+      const points = {};
+      filtered.forEach(item => {
+        if (!points[item.staffId]) {
+          points[item.staffId] = {
+            staffId: item.staffId,
+            name: item.name,
+            department: item.department,
+            mintPoint: 0
+          };
+        }
+        points[item.staffId].mintPoint += Number(item.mintPoint || 0);
+      });
+
+      const sorted = Object.values(points).sort(
+        (a, b) => b.mintPoint - a.mintPoint
+      );
+
+      setRanking(sorted);
+    };
+
+    load();
   }, [period]);
 
-  // ★ ランクの色
-  const getRankStyle = (index) => {
-    if (index === 0) {
-      return { background: "#E0FFF4", border: "2px solid #00C9A7" };
-    }
-    if (index === 1) {
-      return { background: "#F0FFFA", border: "2px solid #66D1C4" };
-    }
-    if (index === 2) {
-      return { background: "#F5FFFD", border: "2px solid #99D9CF" };
-    }
-    return { background: "#ffffff", border: "1px solid #cfeeee" };
+  const tabStyle = (active) => ({
+    flex: 1,
+    padding: "10px 0",
+    borderRadius: "12px",
+    border: "none",
+    cursor: "pointer",
+    background: active ? "#006b5f" : "#cfeeee",
+    color: active ? "#ffffff" : "#006b5f",
+    fontSize: "14px",
+  });
+
+  const cardStyle = {
+    background: "#ffffff",
+    padding: "16px",
+    borderRadius: "14px",
+    marginBottom: "12px",
+    border: "1px solid #cfeeee",
+    color: "#006b5f",
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  };
+
+  const iconBoxStyle = {
+    background: "#cfeeee",
+    color: "#006b5f",
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "26px",
+  };
+
+  const getRankIcon = (index) => {
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+    return "🍃"; // 4位以下は通常アイコン
   };
 
   return (
@@ -77,59 +124,40 @@ export default function MintRanking() {
         padding: "20px",
         background: "#F9F9F9",
         minHeight: "100vh",
-        fontFamily: "sans-serif"
+        fontFamily: "sans-serif",
+        maxWidth: "480px",
+        margin: "0 auto",
       }}
     >
-      <RankingHeader title="ミントポイントランキング" />
+      <RankingHeader title="ミントポイントランキング" icon="🍃" />
 
-      {/* ★ 期間切り替えボタン */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        <button onClick={() => setPeriod("today")} style={periodButtonStyle}>今日</button>
-        <button onClick={() => setPeriod("month")} style={periodButtonStyle}>今月</button>
-        <button onClick={() => setPeriod("all")} style={periodButtonStyle}>累計</button>
+      {/* タブ */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
+        <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
+        <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
+        <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
+      {/* ランキングカード（🥇🥈🥉入り） */}
       {ranking.length === 0 && (
         <p style={{ color: "#006b5f" }}>まだ記録がありません。</p>
       )}
 
       {ranking.map((item, index) => (
-        <div
-          key={item.staffId}
-          style={{
-            padding: "16px",
-            borderRadius: "16px",
-            marginBottom: "12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            ...getRankStyle(index)
-          }}
-        >
+        <div key={item.staffId} style={cardStyle}>
+          <div style={iconBoxStyle}>{getRankIcon(index)}</div>
+
           <div>
-            <p style={{ fontSize: "20px", color: "#006b5f", fontWeight: "bold" }}>
+            <p style={{ margin: 0, fontWeight: "bold", fontSize: "18px" }}>
               {index + 1} 位：{item.name}
             </p>
-            <p style={{ color: "#008b75" }}>{item.department}</p>
+            <p style={{ margin: 0, color: "#00a68c", fontWeight: "bold" }}>
+              {item.mintPoint} pt
+            </p>
           </div>
-
-          <p style={{ fontSize: "22px", color: "#00a68c", fontWeight: "bold" }}>
-            {item.mintPoint} pt
-          </p>
         </div>
       ))}
     </main>
   );
 }
-
-// ★ ボタンのデザインはファイルの一番下
-const periodButtonStyle = {
-  background: "#cfeeee",
-  color: "#006b5f",
-  border: "none",
-  padding: "10px 16px",
-  borderRadius: "12px",
-  fontSize: "16px",
-  cursor: "pointer"
-};
-

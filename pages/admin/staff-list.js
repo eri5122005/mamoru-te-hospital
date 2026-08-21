@@ -1,32 +1,45 @@
 "use client";
 
-import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 
-export default function StaffDetail() {
-  const router = useRouter();
-  const { id } = router.query;
+export default function StaffListPage() {
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const wardId = "ward01"; // ★ あなたの病棟IDに変更
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/admin/ward?id=${wardId}`);
+        const data = await res.json();
+
+        setStaff(data.staff);
+        setLoading(false);
+      } catch (error) {
+        alert("スタッフ一覧の取得に失敗しました");
+      }
+    };
+
+    load();
+  }, []);
+
+  if (loading) return <div>読み込み中...</div>;
 
   const cardStyle = {
-    background: "#e8f6f6", // ミント背景
+    background: "#e8f6f6",
     borderRadius: "20px",
     padding: "24px",
     marginBottom: "20px",
-    border: "2px solid #aeece4", // ミント枠
+    border: "2px solid #aeece4",
   };
 
   const titleStyle = {
-    color: "#00a68c", // ミントタイトル
+    color: "#00a68c",
     marginBottom: "12px",
     fontSize: "20px",
     fontWeight: "bold",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  };
-
-  const iconStyle = {
-    fontSize: "28px",
   };
 
   return (
@@ -38,18 +51,19 @@ export default function StaffDetail() {
           textAlign: "center",
         }}
       >
-        スタッフ詳細ページ
+        スタッフ一覧（クラウド版）
       </h1>
 
       <div style={cardStyle}>
-        <h2 style={titleStyle}>
-          <span style={iconStyle}>👤</span> スタッフID：{id}
-        </h2>
+        <h2 style={titleStyle}>スタッフ一覧</h2>
 
-        <p>名前：ここに名前を入れる</p>
-        <p>所属：ここに病棟を入れる</p>
-        <p>今月の使用量：0 mL</p>
-        <p>記録回数：0 回</p>
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {staff.map((s) => (
+            <li key={s.staffId} style={{ marginBottom: "10px" }}>
+              {s.name}（ID: {s.staffId} ／ 病棟: {s.wardId}）
+            </li>
+          ))}
+        </ul>
       </div>
     </AdminLayout>
   );
