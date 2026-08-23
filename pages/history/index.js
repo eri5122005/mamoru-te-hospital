@@ -28,12 +28,29 @@ export default function HistoryPage() {
       );
 
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      }));
+     const list = snap.docs.map(d => ({
+  id: d.id,
+  ...d.data()
+}));
 
-      setRecords(list);
+// ★ 新しい順に並び替え（Timestamp と文字列の両方に対応）
+list.sort((a, b) => {
+  const dateA =
+    a.date instanceof Object && typeof a.date.toDate === "function"
+      ? a.date.toDate()
+      : new Date(a.date);
+
+  const dateB =
+    b.date instanceof Object && typeof b.date.toDate === "function"
+      ? b.date.toDate()
+      : new Date(b.date);
+
+  return dateB - dateA;
+});
+
+// ★ 並び替えたデータをセット
+setRecords(list);
+
     };
 
     load();

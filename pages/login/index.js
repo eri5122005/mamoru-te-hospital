@@ -24,7 +24,7 @@ export default function Login() {
         })
       );
 
-      router.replace("/admin/top");
+      router.replace("/admin");
 
       return;
     }
