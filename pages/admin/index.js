@@ -46,9 +46,9 @@ export default function AdminTop() {
     </div>
   );
 
-  /* ★ 病棟別ランキング（横長） */
+  /* ★ 病棟別ランキング（横長カードに統一） */
   const RankingCard = ({ rank, name, total }) => (
-    <div style={rankingCardStyle}>
+    <div style={longWhiteCard}>
       <div style={innerRow}>
         <div style={{ fontSize: "28px", fontWeight: "bold", color: "#2AAE9E" }}>
           {rank}位
@@ -63,9 +63,9 @@ export default function AdminTop() {
     </div>
   );
 
-  /* ★ 病棟別入力率（横長） */
+  /* ★ 病棟別入力率（横長カードに統一） */
   const WardRateCard = ({ name, rate }) => (
-    <div style={wardRateCardStyle}>
+    <div style={longWhiteCard}>
       <div style={innerRow}>
         <div style={{ fontSize: "26px", fontWeight: "bold", color: "#2AAE9E" }}>
           {rate}%
@@ -186,18 +186,8 @@ const smallCardStyle = {
   border: "1px solid #E0E0E0",
 };
 
-const rankingCardStyle = {
-  width: "100%",
-  height: "120px",
-  background: "#FFFFFF",
-  borderRadius: "12px",
-  border: "1px solid #E0E0E0",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-};
-
-const wardRateCardStyle = {
+/* ★ 横長白カード（ランキング・入力率用） */
+const longWhiteCard = {
   width: "100%",
   height: "120px",
   background: "#FFFFFF",
@@ -220,4 +210,3 @@ const menuCard = {
   border: "1px solid #E0E0E0",
   cursor: "pointer",
 };
-
