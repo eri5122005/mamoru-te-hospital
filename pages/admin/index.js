@@ -33,29 +33,84 @@ export default function AdminTop() {
     paddingLeft: "100px",
   };
 
-  /* ★ 今日の状況・今月の状況 */
-  const SmallCard = ({ icon, title, value }) => (
-    <div style={smallCardStyle}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>{icon}</div>
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
-          <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
-        </div>
+  /* ★ スタイル定義（mintCard を先に置く） */
+  const mintCard = {
+    width: "100%",
+    height: "120px",
+    background: "#DFF7F2",
+    borderRadius: "12px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "#2AAE9E",
+    border: "1px solid #E0E0E0",
+  };
+/* ★ 今日の状況・今月の状況（SmallCard） */
+const SmallCard = ({ icon, title, value }) => (
+  <div style={smallCardStyle}>
+    <div style={innerRow}>
+      <div style={{ fontSize: "32px" }}>{icon}</div>
+      <div style={{ textAlign: "left" }}>
+        <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
+        <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
       </div>
     </div>
-  );
+  </div>
+);
 
-  /* ★ 病棟別ランキング（横長） */
+  const smallCardStyle = {
+    width: "100%",
+    height: "140px",
+    background: "#DFF7F2",
+    borderRadius: "12px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "#2AAE9E",
+    border: "1px solid #E0E0E0",
+  };
+
+  const sectionCard = {
+    background: "#FFFFFF",
+    borderRadius: "16px",
+    padding: "20px",
+    marginBottom: "24px",
+    border: "1px solid #E0E0E0",
+  };
+
+  const sectionTitle = {
+    fontSize: "22px",
+    marginBottom: "16px",
+    color: "#006b5f",
+  };
+
+  const cardColumn = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  };
+
+  const menuCard = {
+    width: "100%",
+    height: "120px",
+    background: "#DFF7F2",
+    borderRadius: "12px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "#2AAE9E",
+    border: "1px solid #E0E0E0",
+    cursor: "pointer",
+  };
+
+  /* ★ 病棟別ランキング（ミント色カード） */
   const RankingCard = ({ rank, name, total }) => (
-    <div style={rankingCardStyle}>
+    <div style={mintCard}>
       <div style={innerRow}>
-        <div style={{ fontSize: "28px", fontWeight: "bold", color: "#2AAE9E" }}>
-          {rank}位
-        </div>
+        <div style={{ fontSize: "32px" }}>🏥</div>
         <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "18px" }}>{name}</div>
-          <div style={{ fontSize: "22px", fontWeight: "bold", color: "#2AAE9E" }}>
+          <div style={{ fontSize: "18px" }}>{rank}位：{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
             {total} 回
           </div>
         </div>
@@ -63,15 +118,16 @@ export default function AdminTop() {
     </div>
   );
 
-  /* ★ 病棟別入力率（横長） */
+  /* ★ 病棟別入力率（ミント色カード） */
   const WardRateCard = ({ name, rate }) => (
-    <div style={wardRateCardStyle}>
+    <div style={mintCard}>
       <div style={innerRow}>
-        <div style={{ fontSize: "26px", fontWeight: "bold", color: "#2AAE9E" }}>
-          {rate}%
-        </div>
-        <div style={{ textAlign: "left", fontSize: "18px" }}>
-          {name}
+        <div style={{ fontSize: "32px" }}>📊</div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: "18px" }}>{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+            {rate}%
+          </div>
         </div>
       </div>
     </div>
@@ -110,7 +166,7 @@ export default function AdminTop() {
               key={index}
               rank={index + 1}
               name={ward.name}
-              total={ward.total}
+              total={ward.totalMl}
             />
           ))}
         </div>
@@ -151,73 +207,3 @@ export default function AdminTop() {
     </div>
   );
 }
-
-/* ★ スタイル定義 */
-
-const sectionCard = {
-  background: "#FFFFFF",
-  borderRadius: "16px",
-  padding: "20px",
-  marginBottom: "24px",
-  border: "1px solid #E0E0E0",
-};
-
-const sectionTitle = {
-  fontSize: "22px",
-  marginBottom: "16px",
-  color: "#006b5f",
-};
-
-const cardColumn = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-};
-
-const smallCardStyle = {
-  width: "100%",
-  height: "140px",
-  background: "#DFF7F2",
-  borderRadius: "12px",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  color: "#2AAE9E",
-  border: "1px solid #E0E0E0",
-};
-
-const rankingCardStyle = {
-  width: "100%",
-  height: "120px",
-  background: "#FFFFFF",
-  borderRadius: "12px",
-  border: "1px solid #E0E0E0",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-};
-
-const wardRateCardStyle = {
-  width: "100%",
-  height: "120px",
-  background: "#FFFFFF",
-  borderRadius: "12px",
-  border: "1px solid #E0E0E0",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-};
-
-const menuCard = {
-  width: "100%",
-  height: "120px",
-  background: "#DFF7F2",
-  borderRadius: "12px",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  color: "#2AAE9E",
-  border: "1px solid #E0E0E0",
-  cursor: "pointer",
-};
-
