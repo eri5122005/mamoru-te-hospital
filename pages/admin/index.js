@@ -58,54 +58,9 @@ const SmallCard = ({ icon, title, value }) => (
   </div>
 );
 
-  const smallCardStyle = {
-    width: "100%",
-    height: "140px",
-    background: "#DFF7F2",
-    borderRadius: "12px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    color: "#2AAE9E",
-    border: "1px solid #E0E0E0",
-  };
-
-  const sectionCard = {
-    background: "#FFFFFF",
-    borderRadius: "16px",
-    padding: "20px",
-    marginBottom: "24px",
-    border: "1px solid #E0E0E0",
-  };
-
-  const sectionTitle = {
-    fontSize: "22px",
-    marginBottom: "16px",
-    color: "#006b5f",
-  };
-
-  const cardColumn = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  };
-
-  const menuCard = {
-    width: "100%",
-    height: "120px",
-    background: "#DFF7F2",
-    borderRadius: "12px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    color: "#2AAE9E",
-    border: "1px solid #E0E0E0",
-    cursor: "pointer",
-  };
-
-  /* ★ 病棟別ランキング（ミント色カード） */
+  /* ★ 病棟別ランキング（横長カードに統一） */
   const RankingCard = ({ rank, name, total }) => (
-    <div style={mintCard}>
+    <div style={longWhiteCard}>
       <div style={innerRow}>
         <div style={{ fontSize: "32px" }}>🏥</div>
         <div style={{ textAlign: "left" }}>
@@ -118,9 +73,9 @@ const SmallCard = ({ icon, title, value }) => (
     </div>
   );
 
-  /* ★ 病棟別入力率（ミント色カード） */
+  /* ★ 病棟別入力率（横長カードに統一） */
   const WardRateCard = ({ name, rate }) => (
-    <div style={mintCard}>
+    <div style={longWhiteCard}>
       <div style={innerRow}>
         <div style={{ fontSize: "32px" }}>📊</div>
         <div style={{ textAlign: "left" }}>
@@ -207,3 +162,62 @@ const SmallCard = ({ icon, title, value }) => (
     </div>
   );
 }
+
+/* ★ スタイル定義 */
+
+const sectionCard = {
+  background: "#FFFFFF",
+  borderRadius: "16px",
+  padding: "20px",
+  marginBottom: "24px",
+  border: "1px solid #E0E0E0",
+};
+
+const sectionTitle = {
+  fontSize: "22px",
+  marginBottom: "16px",
+  color: "#006b5f",
+};
+
+const cardColumn = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "12px",
+};
+
+const smallCardStyle = {
+  width: "100%",
+  height: "140px",
+  background: "#DFF7F2",
+  borderRadius: "12px",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  color: "#2AAE9E",
+  border: "1px solid #E0E0E0",
+};
+
+/* ★ 横長白カード（ランキング・入力率用） */
+const longWhiteCard = {
+  width: "100%",
+  height: "120px",
+  background: "#FFFFFF",
+  borderRadius: "12px",
+  border: "1px solid #E0E0E0",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+};
+
+const menuCard = {
+  width: "100%",
+  height: "120px",
+  background: "#DFF7F2",
+  borderRadius: "12px",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  color: "#2AAE9E",
+  border: "1px solid #E0E0E0",
+  cursor: "pointer",
+};
