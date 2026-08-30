@@ -35,30 +35,18 @@ export default function AdminTop() {
     paddingLeft: "100px",
   };
 
-  /* ★ スタイル定義（mintCard を先に置く） */
-  const mintCard = {
-    width: "100%",
-    height: "120px",
-    background: "#DFF7F2",
-    borderRadius: "12px",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    color: "#2AAE9E",
-    border: "1px solid #E0E0E0",
-  };
-/* ★ 今日の状況・今月の状況（SmallCard） */
-const SmallCard = ({ icon, title, value }) => (
-  <div style={smallCardStyle}>
-    <div style={innerRow}>
-      <div style={{ fontSize: "32px" }}>{icon}</div>
-      <div style={{ textAlign: "left" }}>
-        <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
-        <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
+  /* ★ 今日の状況・今月の状況 */
+  const SmallCard = ({ icon, title, value }) => (
+    <div style={smallCardStyle}>
+      <div style={innerRow}>
+        <div style={{ fontSize: "32px" }}>{icon}</div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
+          <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 
   /* ★ 病棟別ランキング（横長カードに統一） */
   const RankingCard = ({ rank, name, total }) => (
