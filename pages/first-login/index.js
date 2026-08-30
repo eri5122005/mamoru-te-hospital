@@ -4,6 +4,10 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import NavBar from "../../components/NavBar";
 
+// ★ Firestore 追加
+import { db } from "../../firebaseConfig";
+import { setDoc, doc } from "firebase/firestore";
+
 export default function FirstLogin() {
   const router = useRouter();
 
@@ -22,7 +26,7 @@ export default function FirstLogin() {
   const [department, setDepartment] = useState("");
   const [workDays, setWorkDays] = useState("");
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!name || !department || !workDays) return;
 
     const wardMap = {
@@ -44,8 +48,14 @@ export default function FirstLogin() {
       department,
       wardId,
       workDays,
+      role: "staff",
+      isActive: true,   // ★ 在職フラグ（退職時は false にする）
     };
 
+    // ★ Firestore に登録
+    await setDoc(doc(db, "staff", realStaffId), staffData);
+
+    // ★ localStorage に保存
     localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
     localStorage.setItem("currentStaff", JSON.stringify(staffData));
 
@@ -92,18 +102,11 @@ export default function FirstLogin() {
             margin: "0 auto",
           }}
         >
-          {/* 職員番号 */}
           <label style={{ color: "#006b5f", fontSize: "14px" }}>
             職員番号（自動入力）
           </label>
-          <input
-            type="text"
-            value={realStaffId}
-            readOnly
-            style={inputStyle}
-          />
+          <input type="text" value={realStaffId} readOnly style={inputStyle} />
 
-          {/* 氏名 */}
           <label style={{ color: "#006b5f", fontSize: "14px" }}>氏名</label>
           <input
             type="text"
@@ -112,7 +115,6 @@ export default function FirstLogin() {
             style={inputStyle}
           />
 
-          {/* 部署 */}
           <label style={{ color: "#006b5f", fontSize: "14px" }}>部署</label>
           <select
             value={department}
@@ -130,7 +132,6 @@ export default function FirstLogin() {
             <option value="医局">医局</option>
           </select>
 
-          {/* 勤務日数 */}
           <label style={{ color: "#006b5f", fontSize: "14px" }}>
             月の勤務日数
           </label>
@@ -141,7 +142,6 @@ export default function FirstLogin() {
             style={inputStyle}
           />
 
-          {/* 登録ボタン */}
           <button
             onClick={handleRegister}
             style={{

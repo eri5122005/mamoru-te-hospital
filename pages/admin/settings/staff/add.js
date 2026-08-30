@@ -2,60 +2,112 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import BackButton from "@/components/BackButton";
+
+// ★ Firestore
+import { db } from "@/firebaseConfig";
+import { setDoc, doc } from "firebase/firestore";
 
 export default function AddStaff() {
   const router = useRouter();
 
   const [name, setName] = useState("");
   const [wardId, setWardId] = useState("");
+  const [workDays, setWorkDays] = useState("");
   const [wards, setWards] = useState([]);
+  const [staffList, setStaffList] = useState([]);
 
-  // 病棟一覧を読み込む
   useEffect(() => {
     const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
+    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
+
     setWards(savedWards);
+    setStaffList(savedStaff);
   }, []);
 
-  const handleAdd = () => {
-    if (!name || !wardId) {
-      alert("スタッフ名と病棟を選択してください");
+  const handleAdd = async () => {
+    if (!name || !wardId || !workDays) {
+      alert("スタッフ名・病棟・勤務日数を入力してください");
       return;
     }
 
-    const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
+    const newStaffId = Date.now(); // 職員番号として利用
 
-    staffList.push({
-      staffId: Date.now(),
+    const staffData = {
+      staffId: newStaffId,
       name,
-      wardId: Number(wardId),   // ★ wardId を保存（ズレゼロ）
-    });
+      wardId: Number(wardId),
+      workDays: `${workDays}日`,
+      role: "staff",
+      isActive: true, // ★ 在職者として登録
+    };
 
-    localStorage.setItem("staffList", JSON.stringify(staffList));
+    // ★ Firestore に登録
+    await setDoc(doc(db, "staff", String(newStaffId)), staffData);
+
+    // ★ localStorage にも登録（互換性維持）
+    const updated = [...staffList, staffData];
+    localStorage.setItem("staffList", JSON.stringify(updated));
+    setStaffList(updated);
 
     alert("スタッフを追加しました！");
     setName("");
     setWardId("");
+    setWorkDays("");
+  };
+
+  const deleteStaff = (staffId) => {
+    const updated = staffList.filter((s) => s.staffId !== staffId);
+    localStorage.setItem("staffList", JSON.stringify(updated));
+    setStaffList(updated);
   };
 
   return (
-    <main style={{ padding: "24px", background: "#F9F9F9", minHeight: "100vh" }}>
-      <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>スタッフの追加</h1>
+    <main
+      style={{
+        padding: "24px",
+        background: "#F9F9F9",
+        minHeight: "100vh",
+        fontFamily: "sans-serif",
+      }}
+    >
+      <BackButton to="/admin/settings/staff" />
 
-      <div style={{ background: "white", padding: "20px", borderRadius: "12px" }}>
-        {/* スタッフ名 */}
-        <label>スタッフ名：</label>
+      <h1
+        style={{
+          color: "#006b5f",
+          marginBottom: "24px",
+          textAlign: "center",
+          fontSize: "26px",
+          fontWeight: "600",
+          borderBottom: "3px solid #cfeeee",
+          paddingBottom: "6px",
+        }}
+      >
+        👤 スタッフの追加
+      </h1>
+
+      <div
+        style={{
+          background: "white",
+          padding: "20px",
+          borderRadius: "12px",
+          border: "1px solid #cfeeee",
+          marginBottom: "24px",
+        }}
+      >
+        <label style={{ color: "#006b5f" }}>スタッフ名：</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          style={{ display: "block", marginBottom: "12px", width: "100%" }}
+          style={inputStyle}
         />
 
-        {/* 病棟選択（wardId） */}
-        <label>所属病棟：</label>
+        <label style={{ color: "#006b5f" }}>所属病棟：</label>
         <select
           value={wardId}
           onChange={(e) => setWardId(e.target.value)}
-          style={{ display: "block", marginBottom: "12px", width: "100%" }}
+          style={inputStyle}
         >
           <option value="">選択してください</option>
           {wards.map((ward) => (
@@ -65,35 +117,40 @@ export default function AddStaff() {
           ))}
         </select>
 
+        <label style={{ color: "#006b5f" }}>勤務日数：</label>
+        <input
+          type="number"
+          value={workDays}
+          onChange={(e) => setWorkDays(e.target.value)}
+          placeholder="例：20"
+          style={inputStyle}
+        />
+
         <button
           onClick={handleAdd}
           style={{
             background: "#006b5f",
             color: "white",
-            padding: "10px 20px",
-            borderRadius: "8px",
+            padding: "12px 20px",
+            borderRadius: "10px",
             border: "none",
+            cursor: "pointer",
+            width: "100%",
+            fontSize: "16px",
           }}
         >
           追加する
         </button>
       </div>
-
-      <button
-        onClick={() => router.push("/admin/settings")}
-        style={{
-          marginTop: "24px",
-          padding: "12px",
-          width: "100%",
-          background: "#e8f6f6",
-          borderRadius: "8px",
-          border: "none",
-          color: "#006b5f",
-          cursor: "pointer",
-        }}
-      >
-        ← 設定ページへ戻る
-      </button>
     </main>
   );
 }
+
+const inputStyle = {
+  display: "block",
+  marginBottom: "12px",
+  width: "100%",
+  padding: "10px",
+  borderRadius: "8px",
+  border: "1px solid #cfeeee",
+};

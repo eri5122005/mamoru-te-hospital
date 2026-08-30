@@ -1,0 +1,23 @@
+{
+  "2444": { "staffId": "2444", "name": "病棟師長", "ward": "4F", "role": "ward-admin" },
+  "2400": { "staffId": "2400", "name": "部署管理者", "ward": "4F", "role": "ward-admin" },
+
+  "2555": { "staffId": "2555", "name": "病棟師長", "ward": "5F", "role": "ward-admin" },
+  "2500": { "staffId": "2500", "name": "部署管理者", "ward": "5F", "role": "ward-admin" },
+
+  "2666": { "staffId": "2666", "name": "病棟師長", "ward": "6F", "role": "ward-admin" },
+  "2600": { "staffId": "2600", "name": "部署管理者", "ward": "6F", "role": "ward-admin" },
+
+  "2777": { "staffId": "2777", "name": "病棟師長", "ward": "7.8F", "role": "ward-admin" },
+  "2700": { "staffId": "2700", "name": "部署管理者", "ward": "7.8F", "role": "ward-admin" },
+
+  "2150": { "staffId": "2150", "name": "部署管理者", "ward": "外来", "role": "ward-admin" },
+  "2100": { "staffId": "2100", "name": "部署管理者", "ward": "外来", "role": "ward-admin" },
+
+  "2305": { "staffId": "2305", "name": "部署管理者", "ward": "透析室", "role": "ward-admin" },
+
+  "2300": { "staffId": "2300", "name": "部署管理者", "ward": "医局", "role": "ward-admin" },
+
+  "2201": { "staffId": "2201", "name": "部署管理者", "ward": "リハビリ", "role": "ward-admin" },
+  "2200": { "staffId": "2200", "name": "部署管理者", "ward": "リハビリ", "role": "ward-admin" }
+}

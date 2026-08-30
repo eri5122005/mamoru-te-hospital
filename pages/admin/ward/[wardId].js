@@ -1,37 +1,69 @@
 "use client";
 
-import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
+import { db } from "@/firebaseConfig";
+import BackButton from "@/components/BackButton";
 
-export default function WardStaffPage() {
+export default function StaffList() {
   const router = useRouter();
-  const { wardId } = router.query;   // ★ department → wardId に変更
+  const { wardId } = router.query;
 
-  if (!wardId) return <p>読み込み中…</p>;
-
-  const [staffList, setStaffList] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [wardName, setWardName] = useState("");
 
-  useEffect(() => {
-    const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
+  // ★ Firestoreからスタッフ一覧を取得（在職者のみ）
+  const fetchStaff = async () => {
+    if (!wardId) return;
 
-    // ★ wardId に一致する病棟名を取得
-    const ward = savedWards.find((w) => w.id === Number(wardId));
+    const q = query(
+      collection(db, "staff"),
+      where("wardId", "==", wardId),
+      where("isActive", "==", true) // ★ 在職者のみ表示
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    const staffList = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setStaff(staffList);
+  };
+
+  // ★ Firestoreから病棟名を取得
+  const fetchWardName = async () => {
+    const wardsSnapshot = await getDocs(collection(db, "wards"));
+    const wards = wardsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    const ward = wards.find((w) => w.id === wardId);
     setWardName(ward ? ward.name : "不明な病棟");
+  };
 
-    // ★ wardId でスタッフを絞り込む
-    const filtered = savedStaff.filter((s) => s.wardId === Number(wardId));
-    setStaffList(filtered);
+  useEffect(() => {
+    fetchStaff();
+    fetchWardName();
   }, [wardId]);
 
-  // ★ 退職（削除）
-  const deleteStaff = (staffId) => {
-    const saved = JSON.parse(localStorage.getItem("staffList") || "[]");
-    const updated = saved.filter((s) => s.staffId !== staffId);
+  // ★ 退職処理（削除ではなく isActive:false）
+  const retireStaff = async (id) => {
+    await updateDoc(doc(db, "staff", id), {
+      isActive: false,
+    });
 
-    localStorage.setItem("staffList", JSON.stringify(updated));
-    setStaffList(updated);
+    await fetchStaff(); // 再読み込み
   };
 
   return (
@@ -43,6 +75,8 @@ export default function WardStaffPage() {
         fontFamily: "sans-serif",
       }}
     >
+      <BackButton to="/admin/ward" />
+
       <h1
         style={{
           color: "#006b5f",
@@ -58,9 +92,9 @@ export default function WardStaffPage() {
       </h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {staffList.map((staff) => (
+        {staff.map((s) => (
           <div
-            key={staff.staffId}
+            key={s.id}
             style={{
               background: "#ffffff",
               border: "1px solid #cfeeee",
@@ -72,10 +106,10 @@ export default function WardStaffPage() {
               color: "#006b5f",
             }}
           >
-            <span>{staff.name}</span>
+            <span>{s.name}</span>
 
             <button
-              onClick={() => deleteStaff(staff.staffId)}
+              onClick={() => retireStaff(s.id)}
               style={{
                 background: "#ffdddd",
                 color: "#a30000",
@@ -85,7 +119,7 @@ export default function WardStaffPage() {
                 cursor: "pointer",
               }}
             >
-              退職（削除）
+              退職
             </button>
           </div>
         ))}
@@ -109,6 +143,3 @@ export default function WardStaffPage() {
     </main>
   );
 }
-
-
-

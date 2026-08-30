@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "../../../firebaseConfig";
+import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
-export default function WardRanking() {
+
+export default function StaffAllRanking() {
   const router = useRouter();
   const [period, setPeriod] = useState("all");
   const [data, setData] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const snap = await getDocs(collection(db, "records"));
-      const records = snap.docs.map(doc => doc.data());
+      // ★ staff と records を取得
+      const staffSnap = await getDocs(collection(db, "staff"));
+      const staffList = staffSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const recordSnap = await getDocs(collection(db, "records"));
+      const records = recordSnap.docs.map(doc => doc.data());
 
       const now = new Date();
 
@@ -34,18 +39,34 @@ export default function WardRanking() {
         return t >= start && t <= end;
       });
 
-      const wardMap = {};
+      // ★ スタッフ別集計
+      const staffMap = {};
 
       filtered.forEach(item => {
-        const ward = item.department || "不明";
+        const id = item.staffId;
         const ml = Number(item.ml) || 0;
 
-        if (!wardMap[ward]) wardMap[ward] = 0;
-        wardMap[ward] += ml;
+        if (!staffMap[id]) staffMap[id] = { total: 0 };
+        staffMap[id].total += ml;
       });
 
-      const ranking = Object.entries(wardMap)
-        .map(([ward, total]) => ({ ward, total }))
+      // ★ staffList と結合して根拠データを付ける
+      const ranking = Object.entries(staffMap)
+        .map(([staffId, obj]) => {
+          const staff = staffList.find(s => s.id === staffId);
+
+          const workDays = staff?.workDays || 0;
+          const avg = workDays > 0 ? obj.total / workDays : 0;
+
+          return {
+            staffId,
+            name: staff?.name || "不明",
+            department: staff?.department || "不明",
+            total: obj.total,
+            workDays,
+            avg
+          };
+        })
         .sort((a, b) => b.total - a.total);
 
       setData(ranking);
@@ -57,7 +78,7 @@ export default function WardRanking() {
   return (
     <main style={{ padding: "20px", background: "#F9F9F9", minHeight: "100vh" }}>
       <button
-        onClick={() => router.push("/admin")}
+        onClick={() => router.push("/ranking")}
         style={{
           background: "#cfeeee",
           color: "#006b5f",
@@ -70,7 +91,7 @@ export default function WardRanking() {
           width: "100%"
         }}
       >
-        ← 管理者トップに戻る
+        ← ランキングメニューに戻る
       </button>
 
       <h1
@@ -85,39 +106,32 @@ export default function WardRanking() {
         }}
       >
         <div style={{ display: "inline-flex", flexDirection: "row", alignItems: "flex-start", textAlign: "left" }}>
-          <span style={{ fontSize: "32px", marginRight: "8px" }}>🌱</span>
+          <span style={{ fontSize: "32px", marginRight: "8px" }}>👤</span>
           <span>
-            病棟別<br />
+            スタッフ総合<br />
             手指消毒使用量ランキング
           </span>
         </div>
       </h1>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-        <button onClick={() => setPeriod("today")} style={btn}>今日</button>
-        <button onClick={() => setPeriod("month")} style={btn}>今月</button>
-        <button onClick={() => setPeriod("all")} style={btn}>累計</button>
-      </div>
-
       {data.map((item, index) => {
-        // ★ ランクごとの色設定＋メダル
-        let bg = "#e8f6f6";     // 通常
-        let border = "#cfeeee"; // 通常
-        let color = "#006b5f";  // 通常
-        let medal = "";         // メダルアイコン
+        let bg = "#e8f6f6";
+        let border = "#cfeeee";
+        let color = "#006b5f";
+        let medal = "";
 
         if (index === 0) {
-          bg = "#fff7d1";       // 金
+          bg = "#fff7d1";
           border = "#e6d28a";
           color = "#8c6b00";
           medal = "🥇";
         } else if (index === 1) {
-          bg = "#f0f4f7";       // 銀
+          bg = "#f0f4f7";
           border = "#d0d7dd";
           color = "#5f6b78";
           medal = "🥈";
         } else if (index === 2) {
-          bg = "#fbe9d9";       // 銅
+          bg = "#fbe9d9";
           border = "#e0b89b";
           color = "#8a4f2a";
           medal = "🥉";
@@ -134,29 +148,22 @@ export default function WardRanking() {
               border: `1px solid ${border}`,
               color: color,
               fontSize: "18px",
-              fontWeight: "600",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px"
+              fontWeight: "600"
             }}
           >
-            <span style={{ fontSize: "24px" }}>{medal}</span>
-            <span>
-              {index + 1}位：{item.ward}（{item.total.toFixed(2)} mL）
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "24px" }}>{medal}</span>
+              <span>{index + 1}位：{item.name}（{item.department}）</span>
+            </div>
+
+            <div style={{ marginTop: "8px", fontSize: "15px", color: "#555" }}>
+              合計：{item.total.toFixed(2)} mL<br />
+              勤務日数：{item.workDays} 日<br />
+              平均：{item.avg.toFixed(2)} mL/日
+            </div>
           </div>
         );
       })}
     </main>
   );
 }
-
-const btn = {
-  background: "#cfeeee",
-  color: "#006b5f",
-  border: "none",
-  padding: "10px 16px",
-  borderRadius: "12px",
-  fontSize: "16px",
-  cursor: "pointer"
-};
