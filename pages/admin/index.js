@@ -35,18 +35,62 @@ export default function AdminTop() {
     paddingLeft: "100px",
   };
 
-  const SmallCard = ({ icon, title, value }) => (
-    <div style={smallCardStyle}>
+  /* ★ スタイル定義（mintCard を先に置く） */
+  const mintCard = {
+    width: "100%",
+    height: "120px",
+    background: "#DFF7F2",
+    borderRadius: "12px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    color: "#2AAE9E",
+    border: "1px solid #E0E0E0",
+  };
+/* ★ 今日の状況・今月の状況（SmallCard） */
+const SmallCard = ({ icon, title, value }) => (
+  <div style={smallCardStyle}>
+    <div style={innerRow}>
+      <div style={{ fontSize: "32px" }}>{icon}</div>
+      <div style={{ textAlign: "left" }}>
+        <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
+        <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
+      </div>
+    </div>
+  </div>
+);
+
+  /* ★ 病棟別ランキング（横長カードに統一） */
+  const RankingCard = ({ rank, name, total }) => (
+    <div style={longWhiteCard}>
       <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>{icon}</div>
+        <div style={{ fontSize: "32px" }}>🏥</div>
         <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
-          <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
+          <div style={{ fontSize: "18px" }}>{rank}位：{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+            {total} 回
+          </div>
         </div>
       </div>
     </div>
   );
 
+  /* ★ 病棟別入力率（横長カードに統一） */
+  const WardRateCard = ({ name, rate }) => (
+    <div style={longWhiteCard}>
+      <div style={innerRow}>
+        <div style={{ fontSize: "32px" }}>📊</div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: "18px" }}>{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+            {rate}%
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ★ 管理メニュー */
   const MenuCard = ({ icon, label }) => (
     <div style={menuCard}>
       <div style={innerRow}>
@@ -73,9 +117,16 @@ export default function AdminTop() {
       {/* 病棟別ランキング */}
       <div style={sectionCard}>
         <h2 style={sectionTitle}>病棟別ランキング</h2>
-        <Link href="/ranking/ward">
-          <MenuCard icon="🏥" label="ランキングを見る" />
-        </Link>
+        <div style={cardColumn}>
+          {ranking.map((ward, index) => (
+            <RankingCard
+              key={index}
+              rank={index + 1}
+              name={ward.name}
+              total={ward.totalMl}
+            />
+          ))}
+        </div>
       </div>
 
       {/* 今月の状況（使用量のみ） */}
