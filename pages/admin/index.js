@@ -8,6 +8,7 @@ export default function AdminTop() {
 
   const [monthTotal, setMonthTotal] = useState(0);
   const [ranking, setRanking] = useState([]);
+const [wardRate, setWardRate] = useState([]);
 
   useEffect(() => {
     // ★ 病棟別ランキング
@@ -17,6 +18,10 @@ export default function AdminTop() {
       setRanking(data);
     };
     fetchRanking();
+  // ★ 病棟別入力率
+  fetch("/api/admin/ward-rate")
+    .then(res => res.json())
+    .then(data => setWardRate(data));
 
     // ★ 今日の使用量
     fetch("/api/admin/today-total")
@@ -75,19 +80,20 @@ export default function AdminTop() {
 
 
 
-  const WardRateCard = ({ name, rate }) => (
-    <div style={longWhiteCard}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>📊</div>
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "18px" }}>{name}</div>
-          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
-            {rate}%
-          </div>
+ const WardRateCard = ({ name, rate }) => (
+  <div style={smallCardStyle}>
+    <div style={innerRow}>
+      <div style={{ fontSize: "32px" }}>📊</div>
+      <div style={{ textAlign: "left" }}>
+        <div style={{ fontSize: "18px" }}>{name}</div>
+        <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+          {rate}%
         </div>
       </div>
     </div>
-  );
+  </div>
+);
+
 
   const MenuCard = ({ icon, label }) => (
     <div style={menuCard}>
@@ -125,10 +131,21 @@ export default function AdminTop() {
     total={ward.total}
   />
 ))}
-
-
         </div>
       </div>
+{/* 病棟別入力率 */}
+<div style={sectionCard}>
+  <h2 style={sectionTitle}>病棟別入力率</h2>
+  <div style={cardColumn}>
+    {wardRate.map((ward, index) => (
+      <WardRateCard
+        key={index}
+        name={ward.wardName}
+        rate={ward.rate}
+      />
+    ))}
+  </div>
+</div>
 
       {/* 今月の状況 */}
       <div style={sectionCard}>

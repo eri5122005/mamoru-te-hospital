@@ -55,15 +55,20 @@ export default function UsageRanking() {
       });
 
       const totals = {};
+
       filtered.forEach(item => {
-        if (!totals[item.staffId]) {
-          totals[item.staffId] = {
-            staffId: item.staffId,
-            name: item.name || "名前未登録",
+        const id = item.staffId || "unknown";   // ← ★ 修正ポイント
+        const name = item.name || "テスト患者"; // ← ★ 修正ポイント
+
+        if (!totals[id]) {
+          totals[id] = {
+            staffId: id,
+            name,
             totalMl: 0
           };
         }
-        totals[item.staffId].totalMl += item.ml;
+
+        totals[id].totalMl += Number(item.ml || 0);
       });
 
       const sorted = Object.values(totals).sort(
@@ -115,7 +120,7 @@ export default function UsageRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🧴"; // 4位以下は通常アイコン
+    return "🧴";
   };
 
   return (
@@ -157,7 +162,6 @@ export default function UsageRanking() {
         🧴 使用量ランキング
       </h1>
 
-      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
         <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
         <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
@@ -165,7 +169,6 @@ export default function UsageRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード（順位アイコン入り） */}
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>

@@ -63,15 +63,34 @@ export default function StaffManagePage() {
     location.reload();
   };
 
-  // 完全削除
-  const deleteStaff = async () => {
-    if (!selectedStaffId) return;
+  // ★ 完全削除（staff + records）
+const deleteStaff = async () => {
+  if (!selectedStaffId) return;
 
-    await deleteDoc(doc(db, "staff", String(selectedStaffId)));
+  const ok = confirm(
+    `スタッフ ID: ${selectedStaffId} を完全に削除しますか？\n（過去の記録もすべて消えます）`
+  );
+  if (!ok) return;
 
-    alert("スタッフを削除しました");
-    location.reload();
-  };
+  // ① staff ドキュメント削除
+  await deleteDoc(doc(db, "staff", String(selectedStaffId)));
+
+  // ② records の削除（staffId が一致するもの）
+  const recSnap = await getDocs(collection(db, "records"));
+  const recList = recSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  const targetRecords = recList.filter(
+    (r) => String(r.staffId) === String(selectedStaffId)
+  );
+
+  for (const r of targetRecords) {
+    await deleteDoc(doc(db, "records", r.id));
+  }
+
+  alert("スタッフとその記録を削除しました");
+  location.reload();
+};
+
 
   // 部署ごとにグループ化（wardId でグループ化）
   const grouped = staffList.reduce((acc, s) => {

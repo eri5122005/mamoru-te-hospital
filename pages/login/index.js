@@ -25,7 +25,49 @@ export default function Login() {
       );
 
       router.replace("/admin");
+      return;
+    }
 
+    // ★ 部署管理者ID → 自部署トップページへ
+    const departmentAdmins = {
+  "2400": "4f",
+  "2444": "4f",
+
+  "2500": "5f",
+  "2555": "5f",
+
+  "2600": "6f",
+  "2666": "6f",
+
+  "2700": "78f",
+  "2777": "78f",
+
+  "2150": "gairai",
+  "2100": "gairai",
+
+  "2305": "touseki",
+
+  "2300": "ikyoku",
+};
+
+
+    if (departmentAdmins[staffId]) {
+      const dept = departmentAdmins[staffId];
+
+      // currentStaff を保存（部署管理者として）
+      localStorage.setItem(
+        "currentStaff",
+        JSON.stringify({
+          staffId,
+          name: "部署管理者",
+          department: dept,
+          wardId: dept,
+          workDays: [],
+          role: "admin",
+        })
+      );
+
+      router.replace(`/admin/ward/${dept}`);
       return;
     }
 
@@ -52,27 +94,6 @@ export default function Login() {
         role: staffData.role,
       })
     );
-
-    // ★ 管理者ID → 部署名の対応表
-    const departmentAdmins = {
-      2400: "4f",
-      2500: "5f",
-      2600: "6f",
-      2700: "78f",
-      2305: "touseki",
-      2150: "gairai",
-      2300: "ikyoku",
-    };
-
-    // ★ currentStaff を読み込む
-    const current = JSON.parse(localStorage.getItem("currentStaff"));
-
-    // ★ 部署管理者
-    if (departmentAdmins[current.staffId]) {
-      const dept = departmentAdmins[current.staffId];
-      router.replace(`/admin/ward/${dept}`);
-      return;
-    }
 
     // ★ 一般スタッフ
     router.replace("/home");
