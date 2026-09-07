@@ -29,6 +29,12 @@ export default function FirstLogin() {
   const handleRegister = async () => {
     if (!name || !department || !workDays) return;
 
+    // ★ 名前を自動整形（苗字と名前の間に半角スペース1つ）
+    const formattedName = name
+      .trim()
+      .replace(/\s+/g, " ")
+      .replace(/^(\S+)\s*(\S.*)$/, "$1 $2");
+
     const wardMap = {
       "4階病棟": "4f",
       "5階病棟": "5f",
@@ -44,18 +50,16 @@ export default function FirstLogin() {
 
     const staffData = {
       staffId: realStaffId,
-      name,
+      name: formattedName, // ← ★ 整形済みの名前を保存
       department,
       wardId,
       workDays,
       role: "staff",
-      isActive: true,   // ★ 在職フラグ（退職時は false にする）
+      isActive: true,
     };
 
-    // ★ Firestore に登録
     await setDoc(doc(db, "staff", realStaffId), staffData);
 
-    // ★ localStorage に保存
     localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
     localStorage.setItem("currentStaff", JSON.stringify(staffData));
 
@@ -135,12 +139,36 @@ export default function FirstLogin() {
           <label style={{ color: "#006b5f", fontSize: "14px" }}>
             月の勤務日数
           </label>
-          <input
-            type="number"
-            value={workDays}
-            onChange={(e) => setWorkDays(e.target.value)}
-            style={inputStyle}
-          />
+
+          {/* ★ 勤務日数入力＋常勤ボタン */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <input
+              type="number"
+              value={workDays}
+              onChange={(e) => setWorkDays(e.target.value)}
+              placeholder="勤務日数"
+              style={{
+                ...inputStyle,
+                width: "120px",
+                marginBottom: 0,
+              }}
+            />
+
+            <button
+              onClick={() => setWorkDays(20)}
+              style={{
+                background: "#DFF7F2",
+                color: "#006b5f",
+                border: "1px solid #cfeeee",
+                borderRadius: "20px",
+                padding: "6px 12px",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              常勤（20日）
+            </button>
+          </div>
 
           <button
             onClick={handleRegister}

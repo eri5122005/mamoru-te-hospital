@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/firebaseConfig"; // ← あなたのパスに合わせた
-
+import { db } from "@/firebaseConfig";
 import BackButton from "@/components/BackButton";
+import Link from "next/link";
 
 export default function WardList() {
   const [wards, setWards] = useState([]);
@@ -17,9 +17,7 @@ export default function WardList() {
         ...doc.data(),
       }));
 
-      // order順に並べる（stringで保存されていてもOK）
       wardList.sort((a, b) => Number(a.order) - Number(b.order));
-
       setWards(wardList);
     };
 
@@ -48,15 +46,17 @@ export default function WardList() {
     cursor: "pointer",
   };
 
-  const WardCard = ({ name }) => (
-    <div style={mintCardStyle}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>🏥</div>
-        <div style={{ textAlign: "left", lineHeight: "1.4" }}>
-          <div style={{ fontSize: "20px", fontWeight: "bold" }}>{name}</div>
+  const WardCard = ({ id, name }) => (
+    <Link href={`/admin/ward/${id}?from=admin`}>
+      <div style={mintCardStyle}>
+        <div style={innerRow}>
+          <div style={{ fontSize: "32px" }}>🏥</div>
+          <div style={{ textAlign: "left", lineHeight: "1.4" }}>
+            <div style={{ fontSize: "20px", fontWeight: "bold" }}>{name}</div>
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 
   return (
@@ -69,10 +69,9 @@ export default function WardList() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {wards.map((ward) => (
-          <WardCard key={ward.id} name={ward.name} />
+          <WardCard key={ward.id} id={ward.id} name={ward.name} />
         ))}
       </div>
     </div>
   );
 }
-

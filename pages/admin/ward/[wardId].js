@@ -6,11 +6,12 @@ import BackButton from "@/components/BackButton";
 
 export default function WardAdminTop() {
   const router = useRouter();
-  const { wardId } = router.query;
+  const { wardId, from } = router.query;
+
+  const backTo = from === "admin" ? "/admin/ward" : "/login";
 
   if (!wardId) return null;
 
-  // ★ wardId → 表示名に変換
   const wardNameMap = {
     "4f": "4階",
     "5f": "5階",
@@ -31,8 +32,7 @@ export default function WardAdminTop() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* ★ ログイン画面に戻るボタン */}
-      <BackButton to="/login" />
+      <BackButton to={backTo} />
 
       <h1
         style={{
@@ -66,9 +66,8 @@ export default function WardAdminTop() {
         </Link>
 
         <Link href={`/admin/ward/compare`}>
-  <div style={menuStyle}>病棟比較グラフ</div>
-</Link>
-
+          <div style={menuStyle}>病棟比較グラフ</div>
+        </Link>
       </div>
     </main>
   );
