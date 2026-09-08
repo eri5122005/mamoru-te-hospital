@@ -8,6 +8,30 @@ import NavBar from "../../components/NavBar";
 import { db } from "../../firebaseConfig";
 import { setDoc, doc } from "firebase/firestore";
 
+// ★ Safariでも確実に動く名前整形ロジック
+function formatName(name) {
+  if (!name) return "";
+
+  // 全角スペース → 半角スペース
+  let cleaned = name.replace(/　/g, " ");
+
+  // 連続スペースを1つに
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+  // すでにスペースがある場合 → 1つに統一して返す
+  if (cleaned.includes(" ")) {
+    return cleaned.replace(/\s+/g, " ");
+  }
+
+  // スペースが無い場合 → 苗字と名前の間にスペースを入れる
+  // 例：宇野恵理 → 宇野 恵理（後ろ2文字を名前とみなす）
+  if (cleaned.length >= 3) {
+    return cleaned.slice(0, cleaned.length - 2) + " " + cleaned.slice(cleaned.length - 2);
+  }
+
+  return cleaned;
+}
+
 export default function FirstLogin() {
   const router = useRouter();
 
@@ -29,12 +53,8 @@ export default function FirstLogin() {
   const handleRegister = async () => {
     if (!name || !department || !workDays) return;
 
-   // ★ 名前を自動整形（苗字と名前の間に半角スペース1つ）
-const formattedName = name
-  .trim()
-  .replace(/\s+/g, " ")          // スペースを1個に
-  .replace(/^(\S+)\s+(\S+)$/, "$1 $2");  // 苗字と名前の2語だけにする
-
+    // ★ 保存直前に必ず整形（Safariでも確実に動く）
+    const formattedName = formatName(name);
 
     const wardMap = {
       "4階病棟": "4f",
@@ -141,7 +161,6 @@ const formattedName = name
             月の勤務日数
           </label>
 
-          {/* ★ 勤務日数入力＋常勤ボタン */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <input
               type="number"

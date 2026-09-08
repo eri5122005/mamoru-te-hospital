@@ -23,6 +23,13 @@ export default function WardAdminTop() {
     "reha": "リハビリ",
   };
 
+  const innerRow = {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    paddingLeft: "20px",
+  };
+
   return (
     <main
       style={{
@@ -50,23 +57,48 @@ export default function WardAdminTop() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <Link href={`/admin/ward/${wardId}/unrecorded`}>
-          <div style={menuStyle}>未入力者リスト</div>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>🫧</span>
+              <span>未入力者リスト</span>
+            </div>
+          </div>
         </Link>
 
         <Link href={`/admin/ward/${wardId}/staff`}>
-          <div style={menuStyle}>スタッフ一覧</div>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>👥</span>
+              <span>スタッフ一覧</span>
+            </div>
+          </div>
         </Link>
 
         <Link href={`/ranking/ward/${wardId}`}>
-          <div style={menuStyle}>個人ランキング</div>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>💧</span>
+              <span>個人ランキング</span>
+            </div>
+          </div>
         </Link>
 
         <Link href={`/admin/ward/${wardId}/stats`}>
-          <div style={menuStyle}>使用量の推移</div>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>📊</span>
+              <span>使用量の推移</span>
+            </div>
+          </div>
         </Link>
 
         <Link href={`/admin/ward/compare`}>
-          <div style={menuStyle}>病棟比較グラフ</div>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>✨</span>
+              <span>病棟比較グラフ</span>
+            </div>
+          </div>
         </Link>
       </div>
     </main>
@@ -74,11 +106,11 @@ export default function WardAdminTop() {
 }
 
 const menuStyle = {
-  background: "#ffffff",
+  background: "#DFF7F2",               // ★ ミント色に統一
   border: "1px solid #cfeeee",
   borderRadius: "16px",
   padding: "20px",
-  textAlign: "center",
   cursor: "pointer",
-  color: "#006b5f",
+  color: "#2AAE9E",                    // ★ 柔らかいミント系の文字色
+  boxShadow: "0 4px 12px rgba(0,0,0,0.06)", // ★ ふわっとした影
 };
