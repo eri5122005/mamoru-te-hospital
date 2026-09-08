@@ -1,25 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/router";   // ← ★ useParams を削除してこれだけ使う
 
 export default function StaffRanking() {
   const router = useRouter();
-  const { staffId } = useParams();
+  const { staffId } = router.query;        // ← ★ useParams の代わりにこれ
 
   const [staff, setStaff] = useState(null);
   const [records, setRecords] = useState([]);
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
+    if (!staffId) return;
+
     const staffList = JSON.parse(localStorage.getItem("staffList") || "[]");
     const history = JSON.parse(localStorage.getItem("history") || "[]");
 
-    const me = staffList.find(s => s.staffId === staffId);
+    const me = staffList.find((s) => s.staffId === staffId);
     setStaff(me);
 
+    if (!me) return;
+
     // ★ 自分の部署だけの記録に絞る
-    const filtered = history.filter(r => r.department === me.department);
+    const filtered = history.filter((r) => r.department === me.department);
 
     setRecords(filtered);
   }, [staffId]);
@@ -29,13 +33,13 @@ export default function StaffRanking() {
 
     const map = {};
 
-    records.forEach(item => {
+    records.forEach((item) => {
       if (!map[item.staffId]) {
         map[item.staffId] = {
           staffId: item.staffId,
           name: item.name,
           department: item.department,
-          totalMl: 0
+          totalMl: 0,
         };
       }
       map[item.staffId].totalMl += Number(item.ml);
