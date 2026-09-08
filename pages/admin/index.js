@@ -8,37 +8,32 @@ export default function AdminTop() {
 
   const [monthTotal, setMonthTotal] = useState(0);
   const [ranking, setRanking] = useState([]);
-const [wardRate, setWardRate] = useState([]);
+  const [wardRate, setWardRate] = useState([]);
 
   useEffect(() => {
-    // ★ 病棟別ランキング
     const fetchRanking = async () => {
       const res = await fetch("/api/admin/ranking");
       const data = await res.json();
       setRanking(data);
     };
     fetchRanking();
-  // ★ 病棟別入力率
-  fetch("/api/admin/ward-rate")
-    .then(res => res.json())
-    .then(data => setWardRate(data));
 
-    // ★ 今日の使用量
+    fetch("/api/admin/ward-rate")
+      .then(res => res.json())
+      .then(data => setWardRate(data));
+
     fetch("/api/admin/today-total")
       .then(res => res.json())
       .then(data => setTodayTotal(data.total));
 
-    // ★ 今日の入力率
     fetch("/api/admin/today-rate")
       .then(res => res.json())
       .then(data => setTodayRate(data.rate));
 
-    // ★ 今日の未入力者
     fetch("/api/admin/today-not-entered-count")
       .then(res => res.json())
       .then(data => setTodayNotEnteredCount(data.count));
 
-    // ★ 今月の総使用量
     fetch("/api/admin/month-total")
       .then(res => res.json())
       .then(data => setMonthTotal(data.total));
@@ -64,36 +59,33 @@ const [wardRate, setWardRate] = useState([]);
     </div>
   );
 
- const RankingCard = ({ rank, name, total }) => (
-  <div style={smallCardStyle}>
-    <div style={innerRow}>
-      <div style={{ fontSize: "32px" }}>🏥</div>
-      <div style={{ textAlign: "left" }}>
-        <div style={{ fontSize: "18px" }}>{rank}位：{name}</div>
-        <div style={{ fontSize: "22px", fontWeight: "bold" }}>
-          {Number(total).toFixed(2)} mL
+  const RankingCard = ({ rank, name, total }) => (
+    <div style={smallCardStyle}>
+      <div style={innerRow}>
+        <div style={{ fontSize: "32px" }}>🏥</div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: "18px" }}>{rank}位：{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+            {Number(total).toFixed(2)} mL
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 
-
-
- const WardRateCard = ({ name, rate }) => (
-  <div style={smallCardStyle}>
-    <div style={innerRow}>
-      <div style={{ fontSize: "32px" }}>📊</div>
-      <div style={{ textAlign: "left" }}>
-        <div style={{ fontSize: "18px" }}>{name}</div>
-        <div style={{ fontSize: "22px", fontWeight: "bold" }}>
-          {rate}%
+  const WardRateCard = ({ name, rate }) => (
+    <div style={smallCardStyle}>
+      <div style={innerRow}>
+        <div style={{ fontSize: "32px" }}>📊</div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontSize: "18px" }}>{name}</div>
+          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
+            {rate}%
+          </div>
         </div>
       </div>
     </div>
-  </div>
-);
-
+  );
 
   const MenuCard = ({ icon, label }) => (
     <div style={menuCard}>
@@ -106,17 +98,16 @@ const [wardRate, setWardRate] = useState([]);
 
   return (
     <div style={{ background: "#F9F9F9", minHeight: "100vh", padding: "20px" }}>
-     <h1
-  style={{
-    fontSize: "28px",
-    marginBottom: "20px",
-    letterSpacing: "0.5px",     // ★ 文字間隔を少しだけ広げる
-    wordBreak: "keep-all",      // ★ 日本語の途中改行を防ぐ
-  }}
->
-  総合管理者トップページ
-</h1>
- 
+      <h1
+        style={{
+          fontSize: "28px",
+          marginBottom: "20px",
+          letterSpacing: "0.5px",
+          wordBreak: "keep-all",
+        }}
+      >
+        総合管理者トップページ
+      </h1>
 
       {/* 今日の状況 */}
       <div style={sectionCard}>
@@ -132,30 +123,66 @@ const [wardRate, setWardRate] = useState([]);
       <div style={sectionCard}>
         <h2 style={sectionTitle}>病棟別ランキング</h2>
         <div style={cardColumn}>
-         
           {ranking.map((ward, index) => (
-  <RankingCard
-    key={index}
-    rank={index + 1}
-    name={ward.wardName}
-    total={ward.total}
-  />
-))}
+            <RankingCard
+              key={index}
+              rank={index + 1}
+              name={ward.wardName}
+              total={ward.total}
+            />
+          ))}
+        </div>
+
+        {/* ★ 院内個人ランキングボタン */}
+        <Link href="/admin/global-ranking">
+          <button
+            style={{
+              marginTop: "16px",
+              width: "100%",
+              padding: "14px",
+              background: "#006b5f",
+              color: "#fff",
+              border: "none",
+              borderRadius: "12px",
+              fontSize: "18px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            🧴 院内個人ランキングを見る
+          </button>
+        </Link>
+
+        {/* ★ 院内平均ランキングボタン（追加） */}
+        <Link href="/admin/global-avg-ranking">
+          <button
+            style={{
+              marginTop: "12px",
+              width: "100%",
+              padding: "14px",
+              background: "#008b75",
+              color: "#fff",
+              border: "none",
+              borderRadius: "12px",
+              fontSize: "18px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            📊 勤務日数を考慮した平均使用量ランキングを見る
+          </button>
+        </Link>
+      </div>
+
+      {/* 病棟別入力率 */}
+      <div style={sectionCard}>
+        <h2 style={sectionTitle}>病棟別入力率</h2>
+        <div style={cardColumn}>
+          {wardRate.map((ward, index) => (
+            <WardRateCard key={index} name={ward.wardName} rate={ward.rate} />
+          ))}
         </div>
       </div>
-{/* 病棟別入力率 */}
-<div style={sectionCard}>
-  <h2 style={sectionTitle}>病棟別入力率</h2>
-  <div style={cardColumn}>
-    {wardRate.map((ward, index) => (
-      <WardRateCard
-        key={index}
-        name={ward.wardName}
-        rate={ward.rate}
-      />
-    ))}
-  </div>
-</div>
 
       {/* 今月の状況 */}
       <div style={sectionCard}>
@@ -222,18 +249,6 @@ const smallCardStyle = {
   color: "#2AAE9E",
   border: "1px solid #E0E0E0",
 };
-
-const longWhiteCard = {
-  width: "100%",
-  background: "#FFFFFF",
-  borderRadius: "12px",
-  padding: "20px",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  border: "1px solid #E0E0E0",
-};
-
 
 const menuCard = {
   width: "100%",

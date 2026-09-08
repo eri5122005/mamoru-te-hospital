@@ -59,7 +59,7 @@ export default function WardAdminTop() {
         <Link href={`/admin/ward/${wardId}/unrecorded`}>
           <div style={menuStyle}>
             <div style={innerRow}>
-              <span style={{ fontSize: "28px" }}>🫧</span>
+              <span style={{ fontSize: "28px" }}>👤</span>
               <span>未入力者リスト</span>
             </div>
           </div>
@@ -79,6 +79,16 @@ export default function WardAdminTop() {
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>💧</span>
               <span>個人ランキング</span>
+            </div>
+          </div>
+        </Link>
+
+        {/* ★ 勤務日数を考慮した平均使用量ランキング */}
+        <Link href={`/admin/ward/${wardId}/avg-ranking`}>
+          <div style={menuStyle}>
+            <div style={innerRow}>
+              <span style={{ fontSize: "28px" }}>📈</span>
+              <span>平均使用量ランキング</span>
             </div>
           </div>
         </Link>
@@ -106,11 +116,11 @@ export default function WardAdminTop() {
 }
 
 const menuStyle = {
-  background: "#DFF7F2",               // ★ ミント色に統一
+  background: "#DFF7F2",
   border: "1px solid #cfeeee",
   borderRadius: "16px",
   padding: "20px",
   cursor: "pointer",
-  color: "#2AAE9E",                    // ★ 柔らかいミント系の文字色
-  boxShadow: "0 4px 12px rgba(0,0,0,0.06)", // ★ ふわっとした影
+  color: "#2AAE9E",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
 };
