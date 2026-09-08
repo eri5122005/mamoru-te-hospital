@@ -5,13 +5,14 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        {/* ★ PWA manifest を読み込む（これがないとアイコンが出ない） */}
+        {/* PWA manifest */}
         <link rel="manifest" href="/manifest.json" />
 
-        {/* ★ iOS Safari 用のアイコン指定（これがないとiPhoneは反映されない） */}
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        {/* ★ iOS Safari 用アイコン（これがないと緑背景＋Mになる） */}
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
 
-        {/* ★ iOS のステータスバー色 */}
+        {/* iOS PWA設定 */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </Head>
 
