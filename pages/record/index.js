@@ -5,6 +5,14 @@ import NavBar from "../../components/NavBar";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 
+// ★ 病棟ID → 表示名マップをここで定義
+const wardNameMap = {
+  "6f": "6階",
+  "5f": "5階",
+  "4f": "4階",
+  // 必要なら追加
+};
+
 export default function RecordPage() {
   const router = useRouter();
   const ML_PER_CM = 23.8;
@@ -16,7 +24,6 @@ export default function RecordPage() {
   const [gram, setGram] = useState("");
   const [message, setMessage] = useState("");
   const [staff, setStaff] = useState(null);
-  const [mintPoint, setMintPoint] = useState(0);
   const [mode, setMode] = useState("cm");
 
   useEffect(() => {
@@ -26,9 +33,7 @@ export default function RecordPage() {
       return;
     }
     setStaff(data);
-
-   
-  }, []);
+  }, [router]);
 
   const handleRecord = async () => {
     const value = mode === "cm" ? cm : gram;
@@ -38,55 +43,51 @@ export default function RecordPage() {
       return;
     }
 
-    const mlFromGram = mode === "g" ? (gram / 0.864) : 0;
+    const mlFromGram = mode === "g" ? gram / 0.864 : 0;
 
     const usedMl =
       mode === "cm"
         ? Number((cm * ML_PER_CM).toFixed(1))
         : Number(mlFromGram.toFixed(1));
 
-    
+    // ★ クラウド保存
+    try {
+      await fetch("/api/records", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffId: staff.staffId,
+          name: staff.name,
+          department: wardNameMap[staff.wardId] || staff.department, // ← ここを安全に
+          wardId: staff.wardId,
+          amount: Number(value),
+          unit: mode,
+          ml: usedMl,
+          mintPoint: 1,
+        }),
+      });
+    } catch (error) {
+      setMessage("クラウド保存に失敗しました");
+      return;
+    }
 
-   // ★ クラウド保存（最重要）
-try {
-  await fetch("/api/records", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-   body: JSON.stringify({
-  staffId: staff.staffId,
-  name: staff.name,
-  department: staff.department,
-  wardId: staff.wardId,
-  amount: Number(value),
-  unit: mode,
-  ml: usedMl,
-  mintPoint: 1,   // ← ★ここに追加！
-}),
+    // ★ ローカル履歴
+    const history = JSON.parse(localStorage.getItem("history") || "[]");
 
-  });
-} catch (error) {
-  setMessage("クラウド保存に失敗しました");
-  return;
-}
+    history.push({
+      staffId: staff.staffId,
+      name: staff.name,
+      department: wardNameMap[staff.wardId] || staff.department,
+      wardId: staff.wardId,
+      amount: Number(value),
+      unit: mode,
+      ml: usedMl,
+      date: new Date().toISOString(),
+    });
 
+    localStorage.setItem("history", JSON.stringify(history));
 
-// ★ ローカル履歴を保存（履歴ページ用）
-const history = JSON.parse(localStorage.getItem("history") || "[]");
-
-history.push({
-  staffId: staff.staffId,
-  name: staff.name,
-  department: staff.department,
-  wardId: staff.wardId,
-  amount: Number(value),
-  unit: mode,
-  ml: usedMl,
-  date: new Date().toISOString(),
-});
-
-localStorage.setItem("history", JSON.stringify(history));
-
-    // ★ メッセージ表示
+    // ★ メッセージ
     setMessage(
       mode === "cm"
         ? `記録しました：${cm}cm → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
@@ -121,13 +122,12 @@ localStorage.setItem("history", JSON.stringify(history));
             padding: "16px",
             borderRadius: "16px",
             marginBottom: "20px",
-            border: "1px solid #cfeeee"
+            border: "1px solid #cfeeee",
           }}
         >
           <p>職員番号：{staff.staffId}</p>
           <p>名前：{staff.name}</p>
-          <p>病棟：{staff.department}</p>
-         
+          <p>病棟：{wardNameMap[staff.wardId] || staff.department}</p>
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
@@ -140,7 +140,7 @@ localStorage.setItem("history", JSON.stringify(history));
               borderRadius: "12px",
               border: "none",
               cursor: "pointer",
-              flex: 1
+              flex: 1,
             }}
           >
             cm入力
@@ -155,7 +155,7 @@ localStorage.setItem("history", JSON.stringify(history));
               borderRadius: "12px",
               border: "none",
               cursor: "pointer",
-              flex: 1
+              flex: 1,
             }}
           >
             g入力
@@ -168,7 +168,7 @@ localStorage.setItem("history", JSON.stringify(history));
             padding: "16px",
             borderRadius: "16px",
             marginBottom: "20px",
-            border: "1px solid #cfeeee"
+            border: "1px solid #cfeeee",
           }}
         >
           <label style={{ color: "#006b5f" }}>
@@ -187,7 +187,7 @@ localStorage.setItem("history", JSON.stringify(history));
                 borderRadius: "12px",
                 border: "1px solid #cfeeee",
                 marginTop: "8px",
-                fontSize: "16px"
+                fontSize: "16px",
               }}
             />
           ) : (
@@ -202,7 +202,7 @@ localStorage.setItem("history", JSON.stringify(history));
                 borderRadius: "12px",
                 border: "1px solid #cfeeee",
                 marginTop: "8px",
-                fontSize: "16px"
+                fontSize: "16px",
               }}
             />
           )}
@@ -219,8 +219,7 @@ localStorage.setItem("history", JSON.stringify(history));
               marginBottom: "20px",
               fontSize: "18px",
               fontWeight: "bold",
-              transition: "all 0.3s ease",
-              boxShadow: "0 0 8px rgba(0, 150, 130, 0.15)"
+              boxShadow: "0 0 8px rgba(0, 150, 130, 0.15)",
             }}
           >
             {message}
@@ -237,7 +236,7 @@ localStorage.setItem("history", JSON.stringify(history));
             borderRadius: "12px",
             fontSize: "20px",
             color: "#006b5f",
-            cursor: "pointer"
+            cursor: "pointer",
           }}
         >
           ＋ 記録する
@@ -248,3 +247,4 @@ localStorage.setItem("history", JSON.stringify(history));
     </div>
   );
 }
+

@@ -107,9 +107,9 @@ export default function AvgRanking() {
   });
 
   const cardStyle = {
-    background: "#ffffff",
+    background: "#e8f6f6",
     padding: "16px",
-    borderRadius: "14px",
+    borderRadius: "16px",
     marginBottom: "12px",
     border: "1px solid #cfeeee",
     color: "#006b5f",
@@ -121,20 +121,21 @@ export default function AvgRanking() {
   const iconBoxStyle = {
     background: "#cfeeee",
     color: "#006b5f",
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
+    width: "52px",
+    height: "52px",
+    borderRadius: "14px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "26px",
+    fontSize: "28px",
+    fontWeight: "bold",
   };
 
   const getRankIcon = (index) => {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "📊"; // 4位以下は通常アイコン
+    return "🫧"; // 4位以下はミントアイコン
   };
 
   return (
@@ -148,7 +149,7 @@ export default function AvgRanking() {
         margin: "0 auto",
       }}
     >
-      <RankingHeader title="平均使用量ランキング（mL/日）" icon="📊" />
+      <RankingHeader title="平均使用量ランキング（mL/日）" icon="🫧" />
 
       {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
@@ -158,7 +159,7 @@ export default function AvgRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード（🥇🥈🥉入り） */}
+      {/* ランキングカード */}
       {ranking.map((s, i) => (
         <div key={s.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(i)}</div>
@@ -177,13 +178,3 @@ export default function AvgRanking() {
     </main>
   );
 }
-
-const periodButtonStyle = {
-  background: "#cfeeee",
-  color: "#006b5f",
-  border: "none",
-  padding: "10px 16px",
-  borderRadius: "12px",
-  fontSize: "16px",
-  cursor: "pointer",
-};

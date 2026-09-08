@@ -59,7 +59,7 @@ export default function MintRanking() {
           points[item.staffId] = {
             staffId: item.staffId,
             name: item.name,
-            department: item.department,
+            department: item.wardId,   // ← ★ 修正済み
             mintPoint: 0
           };
         }
@@ -115,7 +115,7 @@ export default function MintRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🍃"; // 4位以下は通常アイコン
+    return "🍃";
   };
 
   return (
@@ -131,7 +131,6 @@ export default function MintRanking() {
     >
       <RankingHeader title="ミントポイントランキング" icon="🍃" />
 
-      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
         <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
         <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
@@ -139,7 +138,6 @@ export default function MintRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード（🥇🥈🥉入り） */}
       {ranking.length === 0 && (
         <p style={{ color: "#006b5f" }}>まだ記録がありません。</p>
       )}

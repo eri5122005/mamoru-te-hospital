@@ -16,7 +16,6 @@ export default function WardRanking() {
       const records = snap.docs.map(doc => doc.data());
 
       const now = new Date();
-
       let start, end;
 
       if (period === "today") {
@@ -24,9 +23,10 @@ export default function WardRanking() {
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
       } else if (period === "month") {
         start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        end = new Date(now.getFullFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       }
 
+      // ★ 期間フィルタ
       const filtered = records.filter(r => {
         if (!r.date) return false;
         const t = r.date.toDate();
@@ -34,10 +34,11 @@ export default function WardRanking() {
         return t >= start && t <= end;
       });
 
+      // ★ wardId で集計（ここが最重要修正ポイント）
       const wardMap = {};
 
       filtered.forEach(item => {
-        const ward = item.department || "不明";
+        const ward = item.wardId || "不明";   // ← 修正済み
         const ml = Number(item.ml) || 0;
 
         if (!wardMap[ward]) wardMap[ward] = 0;
@@ -73,6 +74,7 @@ export default function WardRanking() {
         ← 管理者トップに戻る
       </button>
 
+      {/* タイトル */}
       <h1
         style={{
           color: "#006b5f",
@@ -85,7 +87,7 @@ export default function WardRanking() {
         }}
       >
         <div style={{ display: "inline-flex", flexDirection: "row", alignItems: "flex-start", textAlign: "left" }}>
-          <span style={{ fontSize: "32px", marginRight: "8px" }}>🌱</span>
+          <span style={{ fontSize: "32px", marginRight: "8px" }}>🫧</span>
           <span>
             病棟別<br />
             手指消毒使用量ランキング
@@ -93,31 +95,32 @@ export default function WardRanking() {
         </div>
       </h1>
 
+      {/* 期間ボタン */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
         <button onClick={() => setPeriod("today")} style={btn}>今日</button>
         <button onClick={() => setPeriod("month")} style={btn}>今月</button>
         <button onClick={() => setPeriod("all")} style={btn}>累計</button>
       </div>
 
+      {/* ランキング表示 */}
       {data.map((item, index) => {
-        // ★ ランクごとの色設定＋メダル
-        let bg = "#e8f6f6";     // 通常
-        let border = "#cfeeee"; // 通常
-        let color = "#006b5f";  // 通常
-        let medal = "";         // メダルアイコン
+        let bg = "#e8f6f6";
+        let border = "#cfeeee";
+        let color = "#006b5f";
+        let medal = "";
 
         if (index === 0) {
-          bg = "#fff7d1";       // 金
+          bg = "#fff7d1";
           border = "#e6d28a";
           color = "#8c6b00";
           medal = "🥇";
         } else if (index === 1) {
-          bg = "#f0f4f7";       // 銀
+          bg = "#f0f4f7";
           border = "#d0d7dd";
           color = "#5f6b78";
           medal = "🥈";
         } else if (index === 2) {
-          bg = "#fbe9d9";       // 銅
+          bg = "#fbe9d9";
           border = "#e0b89b";
           color = "#8a4f2a";
           medal = "🥉";

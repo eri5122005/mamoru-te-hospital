@@ -50,21 +50,26 @@ export default function DepartmentRanking() {
           return true;
         });
 
+        // ★ wardId で集計（ここが最重要修正ポイント）
         const totals = {};
 
         filtered.forEach((item) => {
-          const dept = item.department || "不明";
+          const wardKey = item.wardId || "unknown";     // 集計キー（6f）
+const deptName = item.department || "不明";    // 表示名（6階）
+
           const ml = Number(item.ml) || 0;
 
-          if (!totals[dept]) totals[dept] = 0;
-          totals[dept] += ml;
+          if (!totals[wardKey]) totals[wardKey] = { total: 0, name: deptName };
+totals[wardKey].total += ml;
+
         });
 
         const rankingList = Object.entries(totals)
-          .map(([dept, total]) => ({
-            department: dept,
-            total: Number(total.toFixed(1)),
-          }))
+         .map(([wardKey, obj]) => ({
+  department: obj.name,   // ← 表示は日本語名
+  total: Number(obj.total.toFixed(1)),
+}))
+
           .sort((a, b) => b.total - a.total);
 
         setRanking(rankingList);
@@ -119,7 +124,7 @@ export default function DepartmentRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🏥"; // 4位以下は通常アイコン
+    return "🏥";
   };
 
   return (
@@ -170,7 +175,7 @@ export default function DepartmentRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード（🥇🥈🥉入り） */}
+      {/* ランキングカード */}
       {ranking.map((item, index) => (
         <div key={index} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
@@ -188,13 +193,3 @@ export default function DepartmentRanking() {
     </div>
   );
 }
-
-const periodButtonStyle = {
-  background: "#cfeeee",
-  color: "#006b5f",
-  border: "none",
-  padding: "10px 16px",
-  borderRadius: "12px",
-  fontSize: "16px",
-  cursor: "pointer",
-};

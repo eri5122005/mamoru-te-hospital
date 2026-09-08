@@ -5,7 +5,6 @@ import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
-
 export default function StaffAllRanking() {
   const router = useRouter();
   const [period, setPeriod] = useState("all");
@@ -43,7 +42,7 @@ export default function StaffAllRanking() {
       const staffMap = {};
 
       filtered.forEach(item => {
-        const id = item.staffId;
+        const id = item.staffId || "unknown";   // ← ★ 空でも集計する
         const ml = Number(item.ml) || 0;
 
         if (!staffMap[id]) staffMap[id] = { total: 0 };
@@ -55,16 +54,13 @@ export default function StaffAllRanking() {
         .map(([staffId, obj]) => {
           const staff = staffList.find(s => s.id === staffId);
 
-          const workDays = staff?.workDays || 0;
-          const avg = workDays > 0 ? obj.total / workDays : 0;
-
           return {
             staffId,
-            name: staff?.name || "不明",
-            department: staff?.department || "不明",
+            name: staff?.name || "テスト患者",
+            department: staff?.department || staff?.wardId || "不明",
             total: obj.total,
-            workDays,
-            avg
+            workDays: staff?.workDays || 1,  // ← ★ 0日でもランキングに出るように
+            avg: staff?.workDays ? obj.total / staff.workDays : obj.total
           };
         })
         .sort((a, b) => b.total - a.total);

@@ -1,69 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
-import { db } from "@/firebaseConfig";
+import Link from "next/link";
 import BackButton from "@/components/BackButton";
 
-export default function StaffList() {
+export default function WardAdminTop() {
   const router = useRouter();
-  const { wardId } = router.query;
+  const { wardId, from } = router.query;
 
-  const [staff, setStaff] = useState([]);
-  const [wardName, setWardName] = useState("");
+  const backTo = from === "admin" ? "/admin/ward" : "/login";
 
-  // ★ Firestoreからスタッフ一覧を取得（在職者のみ）
-  const fetchStaff = async () => {
-    if (!wardId) return;
+  if (!wardId) return null;
 
-    const q = query(
-      collection(db, "staff"),
-      where("wardId", "==", wardId),
-      where("isActive", "==", true) // ★ 在職者のみ表示
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    const staffList = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    setStaff(staffList);
-  };
-
-  // ★ Firestoreから病棟名を取得
-  const fetchWardName = async () => {
-    const wardsSnapshot = await getDocs(collection(db, "wards"));
-    const wards = wardsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    const ward = wards.find((w) => w.id === wardId);
-    setWardName(ward ? ward.name : "不明な病棟");
-  };
-
-  useEffect(() => {
-    fetchStaff();
-    fetchWardName();
-  }, [wardId]);
-
-  // ★ 退職処理（削除ではなく isActive:false）
-  const retireStaff = async (id) => {
-    await updateDoc(doc(db, "staff", id), {
-      isActive: false,
-    });
-
-    await fetchStaff(); // 再読み込み
+  const wardNameMap = {
+    "4f": "4階",
+    "5f": "5階",
+    "6f": "6階",
+    "78f": "7・8階",
+    "gairai": "外来",
+    "touseki": "透析室",
+    "ikyoku": "医局",
+    "reha": "リハビリ",
   };
 
   return (
@@ -75,7 +32,7 @@ export default function StaffList() {
         fontFamily: "sans-serif",
       }}
     >
-      <BackButton to="/admin/ward" />
+      <BackButton to={backTo} />
 
       <h1
         style={{
@@ -88,58 +45,40 @@ export default function StaffList() {
           paddingBottom: "6px",
         }}
       >
-        👥 {wardName} スタッフ一覧
+        🏥 {wardNameMap[wardId]} 管理者メニュー
       </h1>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {staff.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              background: "#ffffff",
-              border: "1px solid #cfeeee",
-              borderRadius: "16px",
-              padding: "16px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              color: "#006b5f",
-            }}
-          >
-            <span>{s.name}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <Link href={`/admin/ward/${wardId}/unrecorded`}>
+          <div style={menuStyle}>未入力者リスト</div>
+        </Link>
 
-            <button
-              onClick={() => retireStaff(s.id)}
-              style={{
-                background: "#ffdddd",
-                color: "#a30000",
-                border: "none",
-                padding: "8px 12px",
-                borderRadius: "10px",
-                cursor: "pointer",
-              }}
-            >
-              退職
-            </button>
-          </div>
-        ))}
-      </div>
+        <Link href={`/admin/ward/${wardId}/staff`}>
+          <div style={menuStyle}>スタッフ一覧</div>
+        </Link>
 
-      <div
-        onClick={() => router.push(`/admin/ward/${wardId}`)}
-        style={{
-          marginTop: "24px",
-          background: "#ffffff",
-          border: "1px solid #cfeeee",
-          borderRadius: "16px",
-          padding: "20px",
-          textAlign: "center",
-          cursor: "pointer",
-          color: "#006b5f",
-        }}
-      >
-        ← 部署管理メニューに戻る
+        <Link href={`/ranking/ward/${wardId}`}>
+          <div style={menuStyle}>個人ランキング</div>
+        </Link>
+
+        <Link href={`/admin/ward/${wardId}/stats`}>
+          <div style={menuStyle}>使用量の推移</div>
+        </Link>
+
+        <Link href={`/admin/ward/compare`}>
+          <div style={menuStyle}>病棟比較グラフ</div>
+        </Link>
       </div>
     </main>
   );
 }
+
+const menuStyle = {
+  background: "#ffffff",
+  border: "1px solid #cfeeee",
+  borderRadius: "16px",
+  padding: "20px",
+  textAlign: "center",
+  cursor: "pointer",
+  color: "#006b5f",
+};

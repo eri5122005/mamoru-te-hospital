@@ -4,9 +4,11 @@ import {
   addDoc,
   doc,
   getDoc,
+  getDocs,   // ← これが抜けてる！
   updateDoc,
   Timestamp,
 } from "firebase/firestore";
+
 
 export default async function handler(req, res) {
   // ★ POST：新規記録

@@ -1,30 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import RankingHeader from "../../components/RankingHeader";
-import { db } from "../../firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../../../../firebaseConfig";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { useRouter } from "next/router";
 
-export default function CountRanking() {
+export default function WardStaffRanking() {
+  const router = useRouter();
+  const { wardId } = router.query;
+
+  if (!wardId) return null;
+
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const wardNameMap = {
+    "6f": "6階",
+    "5f": "5階",
+    "4f": "4階",
+  };
+
 
   useEffect(() => {
     const load = async () => {
-      const staff = JSON.parse(localStorage.getItem("currentStaff"));
-      if (!staff) return;
+      setLoading(true);
 
-      const q = query(
-        collection(db, "records"),
-        where("wardId", "==", staff.wardId)
+      // ★ その病棟のスタッフ一覧
+      const staffSnap = await getDocs(
+        query(collection(db, "staff"), where("wardId", "==", wardId))
       );
+      const staffList = staffSnap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
-      const snap = await getDocs(q);
-      const records = snap.docs.map(doc => doc.data());
+      // ★ その病棟の記録
+      const recordSnap = await getDocs(
+        query(collection(db, "records"), where("wardId", "==", wardId))
+      );
+      const records = recordSnap.docs.map((d) => d.data());
 
       const now = new Date();
 
-      const filtered = records.filter(item => {
+      // ★ 期間フィルタ
+      const filtered = records.filter((item) => {
         const t = item.date.toDate();
         const jst =
           t.getTimezoneOffset() === 0
@@ -50,31 +70,39 @@ export default function CountRanking() {
           return jst.getFullYear() === now.getFullYear();
         }
 
-        return true;
+        return true; // 累計
       });
 
-      const counts = {};
-      filtered.forEach(item => {
-        if (!counts[item.staffId]) {
-          counts[item.staffId] = {
-            staffId: item.staffId,
-            name: item.name,
-            department: item.department,
-            count: 0
-          };
-        }
-        counts[item.staffId].count += 1;
+      // ★ スタッフごとに集計（記録ゼロでも出す）
+      const result = staffList.map((staff) => {
+        const myRecords = filtered.filter(
+          (r) => r.staffId === staff.staffId
+        );
+
+        const totalMl = myRecords.reduce(
+          (sum, r) => sum + Number(r.ml || 0),
+          0
+        );
+
+        return {
+          staffId: staff.staffId,
+          name: staff.name,
+          department: wardNameMap[staff.wardId] || staff.department,
+          totalMl,
+        };
       });
 
-      const sorted = Object.values(counts).sort(
-        (a, b) => b.count - a.count
-      );
+      // ★ ソート
+      result.sort((a, b) => b.totalMl - a.totalMl);
 
-      setRanking(sorted);
+      setRanking(result);
+      setLoading(false);
     };
 
     load();
-  }, [period]);
+  }, [period, wardId]);
+
+  if (loading) return <p>読み込み中です…</p>;
 
   const tabStyle = (active) => ({
     flex: 1,
@@ -88,9 +116,9 @@ export default function CountRanking() {
   });
 
   const cardStyle = {
-    background: "#e8f6f6",
+    background: "#ffffff",
     padding: "16px",
-    borderRadius: "16px",
+    borderRadius: "14px",
     marginBottom: "12px",
     border: "1px solid #cfeeee",
     color: "#006b5f",
@@ -102,35 +130,60 @@ export default function CountRanking() {
   const iconBoxStyle = {
     background: "#cfeeee",
     color: "#006b5f",
-    width: "52px",
-    height: "52px",
-    borderRadius: "14px",
+    width: "48px",
+    height: "48px",
+    borderRadius: "12px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "28px",
-    fontWeight: "bold",
+    fontSize: "26px",
   };
 
   const getRankIcon = (index) => {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🫧"; // 4位以下はミントアイコン
+    return "🧴";
   };
 
   return (
     <main
       style={{
-        padding: "20px",
         background: "#F9F9F9",
         minHeight: "100vh",
+        padding: "20px",
         fontFamily: "sans-serif",
         maxWidth: "480px",
         margin: "0 auto",
       }}
     >
-      <RankingHeader title="記録回数ランキング" icon="🫧" />
+      <button
+        onClick={() => router.push(`/admin/ward/${wardId}`)}
+        style={{
+          background: "#cfeeee",
+          color: "#006b5f",
+          border: "none",
+          padding: "10px 16px",
+          borderRadius: "12px",
+          cursor: "pointer",
+          marginBottom: "20px",
+          width: "100%",
+        }}
+      >
+        ← 部署管理メニューに戻る
+      </button>
+
+      <h1
+        style={{
+          textAlign: "center",
+          fontSize: "26px",
+          fontWeight: "600",
+          marginBottom: "20px",
+          color: "#006b5f",
+        }}
+      >
+        {wardNameMap[wardId]} 個人ランキング
+      </h1>
 
       {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
@@ -140,11 +193,7 @@ export default function CountRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード */}
-      {ranking.length === 0 && (
-        <p style={{ color: "#006b5f" }}>まだ記録がありません。</p>
-      )}
-
+      {/* ランキング */}
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
@@ -154,7 +203,7 @@ export default function CountRanking() {
               {index + 1} 位：{item.name}
             </p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              {item.count} 回
+              {item.totalMl.toFixed(1)} mL
             </p>
           </div>
         </div>
