@@ -29,11 +29,12 @@ export default function FirstLogin() {
   const handleRegister = async () => {
     if (!name || !department || !workDays) return;
 
-    // ★ 名前を自動整形（苗字と名前の間に半角スペース1つ）
-    const formattedName = name
-      .trim()
-      .replace(/\s+/g, " ")
-      .replace(/^(\S+)\s*(\S.*)$/, "$1 $2");
+   // ★ 名前を自動整形（苗字と名前の間に半角スペース1つ）
+const formattedName = name
+  .trim()
+  .replace(/\s+/g, " ")          // スペースを1個に
+  .replace(/^(\S+)\s+(\S+)$/, "$1 $2");  // 苗字と名前の2語だけにする
+
 
     const wardMap = {
       "4階病棟": "4f",
