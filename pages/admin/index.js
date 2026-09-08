@@ -49,7 +49,7 @@ const [wardRate, setWardRate] = useState([]);
     alignItems: "center",
     gap: "14px",
     width: "100%",
-    paddingLeft: "100px",
+    paddingLeft: "60px",
   };
 
   const SmallCard = ({ icon, title, value }) => (
@@ -106,7 +106,17 @@ const [wardRate, setWardRate] = useState([]);
 
   return (
     <div style={{ background: "#F9F9F9", minHeight: "100vh", padding: "20px" }}>
-      <h1 style={{ fontSize: "28px", marginBottom: "20px" }}>総合管理者トップページ</h1>
+     <h1
+  style={{
+    fontSize: "28px",
+    marginBottom: "20px",
+    letterSpacing: "0.5px",     // ★ 文字間隔を少しだけ広げる
+    wordBreak: "keep-all",      // ★ 日本語の途中改行を防ぐ
+  }}
+>
+  総合管理者トップページ
+</h1>
+ 
 
       {/* 今日の状況 */}
       <div style={sectionCard}>
