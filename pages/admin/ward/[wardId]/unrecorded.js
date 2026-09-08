@@ -30,13 +30,11 @@ export default function UnrecordedList() {
     const fetchData = async () => {
       const today = new Date();
 
-      // staff（部署のスタッフ）
       const staffSnap = await getDocs(collection(db, "staff"));
       const staff = staffSnap.docs
         .map((d) => d.data())
         .filter((s) => s.wardId === wardId && s.isActive);
 
-      // records（全記録）
       const recSnap = await getDocs(collection(db, "records"));
       const records = recSnap.docs.map((d) => d.data());
 
@@ -104,7 +102,7 @@ export default function UnrecordedList() {
     >
       <BackButton to={`/admin/ward/${wardId}`} />
 
-      {/* ★ タイトル（ミント＋アイコン＋2行構成） */}
+      {/* ★ タイトル（スマホで崩れない2行固定） */}
       <h1
         style={{
           color: "#006b5f",
@@ -117,9 +115,13 @@ export default function UnrecordedList() {
           lineHeight: "1.4",
         }}
       >
-        🫧 {wardNameMap[wardId]}　7日以上
+        <span style={{ display: "inline-block" }}>
+          🫧 {wardNameMap[wardId]}　7日以上
+        </span>
         <br />
-        入力が止まっているスタッフ
+        <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+          入力が止まっているスタッフ
+        </span>
       </h1>
 
       {/* ★ 未入力者リスト */}
@@ -142,8 +144,8 @@ export default function UnrecordedList() {
             <div
               key={s.staffId}
               style={{
-                background: "#e8f6f6",          // ミント背景
-                border: "1px solid #cfeeee",    // ミント枠線
+                background: "#e8f6f6",
+                border: "1px solid #cfeeee",
                 borderRadius: "16px",
                 padding: "18px",
                 color: "#006b5f",
@@ -154,7 +156,6 @@ export default function UnrecordedList() {
                 gap: "6px",
               }}
             >
-              {/* 名前行 */}
               <div
                 style={{
                   fontSize: "20px",
@@ -166,7 +167,6 @@ export default function UnrecordedList() {
                 🫧 {s.name}（ID: {s.staffId}）
               </div>
 
-              {/* 最終入力行 */}
               <div
                 style={{
                   fontSize: "14px",
