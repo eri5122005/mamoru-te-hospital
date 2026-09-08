@@ -120,7 +120,7 @@ export default function UnrecordedList() {
         </span>
         <br />
         <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-          入力が止まっているスタッフ
+          未入力スタッフ
         </span>
       </h1>
 
