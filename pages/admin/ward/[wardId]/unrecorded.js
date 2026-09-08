@@ -156,17 +156,27 @@ export default function UnrecordedList() {
                 gap: "6px",
               }}
             >
+              {/* ★ 名前行（折り返し位置を完全制御） */}
               <div
                 style={{
                   fontSize: "20px",
                   display: "flex",
                   alignItems: "center",
+                  flexWrap: "wrap",
                   gap: "6px",
+                  lineHeight: "1.4",
                 }}
               >
-                🫧 {s.name}（ID: {s.staffId}）
+                <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+                  🫧 {s.name}
+                </span>
+
+                <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+                  （ID: {s.staffId}）
+                </span>
               </div>
 
+              {/* ★ 最終入力行 */}
               <div
                 style={{
                   fontSize: "14px",
