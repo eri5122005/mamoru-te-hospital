@@ -8,7 +8,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function AvgRanking() {
   const router = useRouter();
-  const { wardId } = router.query;   // ★ URL から取得（正しい）
+  const { wardId } = router.query;
 
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
@@ -26,8 +26,10 @@ export default function AvgRanking() {
       const snap = await getDocs(q);
       const records = snap.docs.map(doc => doc.data());
 
-      // ★ 全スタッフ情報（勤務日数・名前補完）
-      const staffSnap = await getDocs(collection(db, "staff"));
+      // ★ 自部署スタッフだけ取得（最重要修正）
+      const staffSnap = await getDocs(
+        query(collection(db, "staff"), where("wardId", "==", staff.wardId))
+      );
       const staffList = staffSnap.docs.map(doc => doc.data());
       const staffMap = {};
       staffList.forEach(s => {
@@ -87,7 +89,6 @@ export default function AvgRanking() {
         map[staffId].totalMl += Number(item.ml || 0);
       });
 
-      // ★ 平均計算（勤務日数は staff.workDays を使う）
       const rankingData = Object.values(map)
         .map(s => {
           const staffInfo = staffMap[s.staffId] || {};
@@ -163,10 +164,8 @@ export default function AvgRanking() {
         margin: "0 auto",
       }}
     >
-      {/* ★ 戻るボタン（localStorage を使わない正しい形） */}
       <BackButton to={`/admin/ward/${wardId}`} />
 
-      {/* ★ タイトル（3行＋アイコン） */}
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
         <div style={{ fontSize: "22px", fontWeight: "600", color: "#006b5f" }}>
           📈 勤務日数を考慮した
@@ -179,7 +178,6 @@ export default function AvgRanking() {
         </div>
       </div>
 
-      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
         <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
         <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
@@ -187,7 +185,6 @@ export default function AvgRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキングカード */}
       {ranking.map((s, i) => (
         <div key={s.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(i)}</div>

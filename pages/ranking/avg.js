@@ -9,27 +9,83 @@ export default function AvgRanking() {
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
 
+  // ★ タブのデザイン（あなたのミント系そのまま）
+  const tabStyle = (active) => ({
+    flex: 1,
+    padding: "10px 0",
+    borderRadius: "12px",
+    border: "none",
+    cursor: "pointer",
+    background: active ? "#006b5f" : "#cfeeee",
+    color: active ? "#ffffff" : "#006b5f",
+    fontSize: "14px",
+  });
+
+  // ★ ランキングカードのデザイン（あなたのまま）
+  const cardStyle = {
+    background: "#e8f6f6",
+    padding: "16px",
+    borderRadius: "16px",
+    marginBottom: "12px",
+    border: "1px solid #cfeeee",
+    color: "#006b5f",
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  };
+
+  // ★ アイコンボックス（あなたのまま）
+  const iconBoxStyle = {
+    background: "#cfeeee",
+    color: "#006b5f",
+    width: "52px",
+    height: "52px",
+    borderRadius: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "28px",
+    fontWeight: "bold",
+  };
+
+  // ★ ランクアイコン（あなたのまま）
+  const getRankIcon = (index) => {
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+    return "🫧";
+  };
+
   useEffect(() => {
     const load = async () => {
       const staff = JSON.parse(localStorage.getItem("currentStaff"));
       if (!staff) return;
 
-      const q = query(
-        collection(db, "records"),
-        where("wardId", "==", staff.wardId)
+      // ★ 部署スタッフ一覧（勤務日数を取得）
+      const staffSnap = await getDocs(
+        query(collection(db, "staff"), where("wardId", "==", staff.wardId))
       );
+      const staffList = staffSnap.docs.map(doc => doc.data());
 
-      const snap = await getDocs(q);
-      const records = snap.docs.map(doc => doc.data());
+      // ★ 使用量記録
+      const recSnap = await getDocs(
+        query(collection(db, "records"), where("wardId", "==", staff.wardId))
+      );
+      const records = recSnap.docs.map(doc => doc.data());
 
       const now = new Date();
 
+      // ★ 日付フィルタ（Timestamp と文字列両対応）
       const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
+        let jst;
+
+        if (item.date?.toDate) {
+          jst = item.date.toDate();
+        } else if (typeof item.date === "string") {
+          jst = new Date(item.date);
+        } else {
+          return false;
+        }
 
         if (period === "today") {
           return (
@@ -53,39 +109,42 @@ export default function AvgRanking() {
         return true;
       });
 
-      const map = {};
+      // ★ 合計使用量を集計
+      const totals = {};
 
       filtered.forEach(item => {
-        const staffId = item.staffId;
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
+        const id = item.staffId;
+        const name = item.name;
+        const dept = item.department;
 
-        const dateOnly = jst.toISOString().split("T")[0];
-
-        if (!map[staffId]) {
-          map[staffId] = {
-            staffId,
-            name: item.name,
-            department: item.department,
-            dates: new Set(),
-            totalMl: 0
+        if (!totals[id]) {
+          totals[id] = {
+            staffId: id,
+            name,
+            department: dept,
+            totalMl: 0,
+            workDays: 0,
           };
         }
 
-        map[staffId].dates.add(dateOnly);
-        map[staffId].totalMl += Number(item.ml);
+        totals[id].totalMl += Number(item.ml || 0);
       });
 
-      const rankingData = Object.values(map)
+      // ★ staff.workDays を紐づける（勤務日数）
+      staffList.forEach(s => {
+        if (totals[s.staffId]) {
+          totals[s.staffId].workDays = Number(s.workDays || 0);
+        }
+      });
+
+      // ★ 平均使用量を計算
+      const rankingData = Object.values(totals)
         .map(s => ({
           staffId: s.staffId,
           name: s.name,
           department: s.department,
-          workDays: s.dates.size,
-          avgMl: s.dates.size > 0 ? s.totalMl / s.dates.size : 0
+          workDays: s.workDays,
+          avgMl: s.workDays > 0 ? s.totalMl / s.workDays : 0,
         }))
         .sort((a, b) => b.avgMl - a.avgMl);
 
@@ -94,49 +153,6 @@ export default function AvgRanking() {
 
     load();
   }, [period]);
-
-  const tabStyle = (active) => ({
-    flex: 1,
-    padding: "10px 0",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    background: active ? "#006b5f" : "#cfeeee",
-    color: active ? "#ffffff" : "#006b5f",
-    fontSize: "14px",
-  });
-
-  const cardStyle = {
-    background: "#e8f6f6",
-    padding: "16px",
-    borderRadius: "16px",
-    marginBottom: "12px",
-    border: "1px solid #cfeeee",
-    color: "#006b5f",
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-  };
-
-  const iconBoxStyle = {
-    background: "#cfeeee",
-    color: "#006b5f",
-    width: "52px",
-    height: "52px",
-    borderRadius: "14px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "28px",
-    fontWeight: "bold",
-  };
-
-  const getRankIcon = (index) => {
-    if (index === 0) return "🥇";
-    if (index === 1) return "🥈";
-    if (index === 2) return "🥉";
-    return "🫧"; // 4位以下はミントアイコン
-  };
 
   return (
     <main

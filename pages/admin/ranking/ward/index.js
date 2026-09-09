@@ -4,7 +4,18 @@ import { useRouter } from "next/navigation";
 
 export default function AdminWardSelect() {
   const router = useRouter();
-  const wards = ["6F", "5F", "4F", "3F", "2F", "1F", "外来"];
+  const wards = ["6f", "5f", "4f", "3f", "2f", "1f", "gairai", "riha"];
+
+  const wardNameMap = {
+  "6f": "6階",
+  "5f": "5階",
+  "4f": "4階",
+  "3f": "3階",
+  "2f": "2階",
+  "1f": "1階",
+  "gairai": "外来",
+  "riha": "リハビリ",
+};
 
   return (
     <main style={{

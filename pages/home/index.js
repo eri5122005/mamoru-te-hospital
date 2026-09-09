@@ -32,9 +32,14 @@ export default function Home() {
     { icon: "📚", label: "履歴を見る", path: "/history" },
     { icon: "📊", label: "ランキング", path: "/ranking" },
     { icon: "👤", label: "マイページ", path: "/mypage" },
+
+    // ★ 記録方式変更ボタン（追加）
+    { icon: "🔄", label: "記録方式を変更する", path: "/change-mode" },
+
     ...(user.isAdmin
       ? [{ icon: "🛠️", label: "管理者ページ", path: "/admin" }]
       : []),
+
     { icon: "🔓", label: "ログイン画面に戻る", path: "/login" },
   ];
 

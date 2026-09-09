@@ -56,16 +56,17 @@ export default function FirstLogin() {
     // ★ 保存直前に必ず整形（Safariでも確実に動く）
     const formattedName = formatName(name);
 
-    const wardMap = {
-      "4階病棟": "4f",
-      "5階病棟": "5f",
-      "6階病棟": "6f",
-      "7.8階病棟": "78f",
-      "外来": "gairai",
-      "透析室": "touseki",
-      "リハビリ": "riha",
-      "医局": "ikyoku",
-    };
+  const wardMap = {
+  "4階": "4f",
+  "5階": "5f",
+  "6階": "6f",
+  "7.8階": "78f",
+  "外来": "gairai",
+  "透析室": "touseki",
+  "リハビリ": "riha",
+  "医局": "ikyoku",
+};
+
 
     const wardId = wardMap[department];
 
@@ -77,6 +78,7 @@ export default function FirstLogin() {
       workDays,
       role: "staff",
       isActive: true,
+      mode: "weight", 
     };
 
     await setDoc(doc(db, "staff", realStaffId), staffData);
@@ -84,7 +86,7 @@ export default function FirstLogin() {
     localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
     localStorage.setItem("currentStaff", JSON.stringify(staffData));
 
-    router.replace("/home");
+    router.replace("/first-weight");
   };
 
   return (
@@ -147,14 +149,15 @@ export default function FirstLogin() {
             style={inputStyle}
           >
             <option value="">選択してください</option>
-            <option value="4階病棟">4階病棟</option>
-            <option value="5階病棟">5階病棟</option>
-            <option value="6階病棟">6階病棟</option>
-            <option value="7.8階病棟">7.8階病棟</option>
-            <option value="外来">外来</option>
-            <option value="透析室">透析室</option>
-            <option value="リハビリ">リハビリ</option>
-            <option value="医局">医局</option>
+<option value="4階">4階</option>
+<option value="5階">5階</option>
+<option value="6階">6階</option>
+<option value="7.8階">7.8階</option>
+<option value="外来">外来</option>
+<option value="透析室">透析室</option>
+<option value="リハビリ">リハビリ</option>
+<option value="医局">医局</option>
+
           </select>
 
           <label style={{ color: "#006b5f", fontSize: "14px" }}>

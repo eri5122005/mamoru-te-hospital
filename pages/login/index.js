@@ -83,17 +83,21 @@ export default function Login() {
     // ★ 初回登録済み → currentStaff を保存
     const staffData = JSON.parse(raw);
 
-    localStorage.setItem(
-      "currentStaff",
-      JSON.stringify({
-        staffId: staffData.staffId,
-        name: staffData.name,
-        department: staffData.department,
-        wardId: staffData.wardId,
-        workDays: staffData.workDays,
-        role: staffData.role,
-      })
-    );
+   localStorage.setItem(
+  "currentStaff",
+  JSON.stringify({
+    staffId: staffData.staffId,
+    name: staffData.name,
+    department: staffData.department,
+    wardId: staffData.wardId,
+    workDays: staffData.workDays,
+    role: staffData.role,
+    mode: staffData.mode,        // ★ 記録方式を保持
+    lastWeight: staffData.lastWeight || null, // ★ 重さ方式の前回値
+    emptyWeight: staffData.emptyWeight || null,
+  })
+);
+
 
     // ★ 一般スタッフ
     router.replace("/home");
