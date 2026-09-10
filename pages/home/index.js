@@ -33,9 +33,6 @@ export default function Home() {
     { icon: "📊", label: "ランキング", path: "/ranking" },
     { icon: "👤", label: "マイページ", path: "/mypage" },
 
-    // ★ 記録方式変更ボタン（追加）
-    { icon: "🔄", label: "記録方式を変更する", path: "/change-mode" },
-
     ...(user.isAdmin
       ? [{ icon: "🛠️", label: "管理者ページ", path: "/admin" }]
       : []),

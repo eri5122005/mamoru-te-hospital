@@ -21,8 +21,8 @@ export default function FirstWeightPage() {
   const router = useRouter();
   const [staff, setStaff] = useState(null);
 
-  // ★ 記録方式選択
-  const [selectedMode, setSelectedMode] = useState(null);
+  // ★ 重さ入力画面へ進むフラグ
+  const [selectedMode, setSelectedMode] = useState(false);
 
   // ★ 重さ入力
   const [weight, setWeight] = useState("");
@@ -44,29 +44,9 @@ export default function FirstWeightPage() {
     setStaff(data);
   }, [router]);
 
-  // ★ cm方式を選んだ場合
-  const handleSelectCm = async () => {
-    try {
-       setSelectedMode("cm");   // ★ これが必要
-        const updated = { ...staff, mode: "cm" };
-
-      // Firestore 更新
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        mode: "cm",
-      });
-
-      // localStorage 更新
-      localStorage.setItem("currentStaff", JSON.stringify(updated));
-
-      router.replace("/record");
-    } catch (e) {
-      setMessage("cm方式の設定に失敗しました");
-    }
-  };
-
   // ★ 重さ方式を選んだ場合 → 重さ入力画面へ
   const handleSelectWeight = () => {
-    setSelectedMode("weight");
+    setSelectedMode(true);
   };
 
   // ★ 重さ方式の初回重さ登録
@@ -133,29 +113,12 @@ export default function FirstWeightPage() {
           <p>病棟：{wardNameMap[staff.wardId] || staff.wardId}</p>
         </div>
 
-        {/* ★ 記録方式選択画面 */}
+        {/* ★ 記録方式選択画面（重さ方式のみ） */}
         {!selectedMode && (
           <>
             <p style={{ color: "#006b5f", marginBottom: "12px" }}>
-              記録方式を選んでください
+              初回のボトル重さを登録してください
             </p>
-
-            <button
-              onClick={handleSelectCm}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: "#e8f6f6",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "18px",
-                color: "#006b5f",
-                cursor: "pointer",
-                marginBottom: "12px",
-              }}
-            >
-              cm方式で記録する
-            </button>
 
             <button
               onClick={handleSelectWeight}
@@ -170,15 +133,21 @@ export default function FirstWeightPage() {
                 cursor: "pointer",
               }}
             >
-              重さ方式で記録する（g）
+              初回のボトル重さを登録する（g）
             </button>
           </>
         )}
 
         {/* ★ 重さ方式を選んだ後の入力画面 */}
-        {selectedMode === "weight" && (
+        {selectedMode && (
           <>
-            <p style={{ color: "#006b5f", marginBottom: "8px", marginTop: "20px" }}>
+            <p
+              style={{
+                color: "#006b5f",
+                marginBottom: "8px",
+                marginTop: "20px",
+              }}
+            >
               現在のボトルの重さ（g）を入力してください
             </p>
 

@@ -8,8 +8,7 @@ import { db } from "../../firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
 
-
-// ★ 病棟ID → 表示名マップ（最新）
+// ★ 病棟ID → 表示名マップ
 const wardNameMap = {
   "6f": "6階",
   "5f": "5階",
@@ -23,18 +22,15 @@ const wardNameMap = {
 
 export default function RecordPage() {
   const router = useRouter();
-  const ML_PER_CM = 23.8;
-  const EMPTY_WEIGHT = 46; // ★ 空ボトルの重さ（g）
+  const EMPTY_WEIGHT = 46; // 空ボトルの重さ
+  const FULL_WEIGHT = 260; // 新品ボトルの重さ（固定）
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
 
-  const [cm, setCm] = useState("");
   const [weightNow, setWeightNow] = useState("");
   const [message, setMessage] = useState("");
   const [staff, setStaff] = useState(null);
-
-  const [mode, setMode] = useState(null);
 
   // ★ ボトル交換確認ダイアログ
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
@@ -45,9 +41,7 @@ export default function RecordPage() {
       router.replace("/login");
       return;
     }
-
     setStaff(data);
-    setMode(data.mode);
   }, [router]);
 
   // ★ 記録保存共通処理
@@ -62,11 +56,11 @@ export default function RecordPage() {
           department: wardNameMap[staff.wardId] || staff.department,
           wardId: staff.wardId,
           ml: usedMl,
-          unit: mode,
+          unit: "weight",
           mintPoint: 1,
-          weightNow: mode === "weight" ? nowWeightValue : null,
-          weightPrev: mode === "weight" ? staff.lastWeight : null,
-          date: Timestamp.now(),   // ★ ここだけでOK
+          weightNow: nowWeightValue,
+          weightPrev: staff.lastWeight,
+          date: Timestamp.now(),
         }),
       });
     } catch (error) {
@@ -82,43 +76,35 @@ export default function RecordPage() {
       department: wardNameMap[staff.wardId] || staff.department,
       wardId: staff.wardId,
       ml: usedMl,
-      unit: mode,
-      weightNow: mode === "weight" ? nowWeightValue : null,
-      weightPrev: mode === "weight" ? staff.lastWeight : null,
-    
-
-date: Timestamp.now(),
-
+      unit: "weight",
+      weightNow: nowWeightValue,
+      weightPrev: staff.lastWeight,
+      date: Timestamp.now(),
     });
     localStorage.setItem("history", JSON.stringify(history));
 
     // ★ メッセージ
     setMessage(
-      mode === "cm"
-        ? `記録しました：${cm}cm → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
-        : `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
+      `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
     );
 
-    setCm("");
     setWeightNow("");
-
     setTimeout(() => setMessage(""), 6000);
-
     return true;
   };
 
-  // ★ ボトル交換 YES
+  // ★ ボトル交換 YES（完全修正版）
   const handleExchangeYes = async () => {
-    const prev = staff.lastWeight;
-    const now = Number(weightNow);
+    const prev = staff.lastWeight; // 前回の重さ
+    const now = Number(weightNow); // 今回の重さ
 
-    const prevRemain = prev - EMPTY_WEIGHT;
-    const nowRemain = now - EMPTY_WEIGHT;
+    const prevRemain = prev - EMPTY_WEIGHT; // 前回残量
+    const nowRemain = now - EMPTY_WEIGHT; // 今回残量
 
-    // ★ ボトル交換時の使用量
-    const usedMl = prevRemain + (prev - now);
+    // ★ ボトル交換時の使用量（前回残量 + 今回使用量）
+    const usedMl = prevRemain + (FULL_WEIGHT - nowRemain);
 
-    // ★ lastWeight を更新（新しいボトルの重さ）
+    // ★ lastWeight を更新（新品ボトルの重さ）
     await updateDoc(doc(db, "staff", staff.staffId), {
       lastWeight: now,
     });
@@ -128,7 +114,6 @@ date: Timestamp.now(),
     setStaff(updated);
 
     await saveRecord(usedMl, now);
-
     setShowExchangeConfirm(false);
   };
 
@@ -138,61 +123,45 @@ date: Timestamp.now(),
     setShowExchangeConfirm(false);
   };
 
-  // ★ 記録処理
+  // ★ 記録処理（重さ方式のみ）
   const handleRecord = async () => {
     if (!staff) return;
 
-    if (mode === "cm" && !cm) {
-      setMessage("cmを入力してください");
-      return;
-    }
-    if (mode === "weight" && !weightNow) {
+    if (!weightNow) {
       setMessage("重さを入力してください");
       return;
     }
 
-    let usedMl = 0;
+    const prev = staff.lastWeight;
+    const now = Number(weightNow);
 
-    // ★ cm方式
-    if (mode === "cm") {
-      usedMl = Number((cm * ML_PER_CM).toFixed(1));
-      await saveRecord(usedMl, null);
+    // ★ 重さが増えている → ボトル交換の可能性
+    if (now > prev) {
+      setShowExchangeConfirm(true);
       return;
     }
 
-    // ★ 重さ方式
-    if (mode === "weight") {
-      const prev = staff.lastWeight;
-      const now = Number(weightNow);
+    // ★ 通常計算
+    const usedMl = prev - now;
 
-      // ★ 重さが増えている → ボトル交換の可能性
-      if (now > prev) {
-        setShowExchangeConfirm(true);
-        return;
-      }
+    // ★ lastWeight 更新
+    try {
+      await updateDoc(doc(db, "staff", staff.staffId), {
+        lastWeight: now,
+      });
 
-      // ★ 通常計算
-      usedMl = prev - now;
-
-      // ★ lastWeight 更新
-      try {
-        await updateDoc(doc(db, "staff", staff.staffId), {
-          lastWeight: now,
-        });
-
-        const updated = { ...staff, lastWeight: now };
-        localStorage.setItem("currentStaff", JSON.stringify(updated));
-        setStaff(updated);
-      } catch (e) {
-        setMessage("前回の重さ更新に失敗しました");
-        return;
-      }
-
-      await saveRecord(usedMl, now);
+      const updated = { ...staff, lastWeight: now };
+      localStorage.setItem("currentStaff", JSON.stringify(updated));
+      setStaff(updated);
+    } catch (e) {
+      setMessage("前回の重さ更新に失敗しました");
+      return;
     }
+
+    await saveRecord(usedMl, now);
   };
 
-  if (!staff || mode === null) {
+  if (!staff) {
     return <p>スタッフ情報を読み込んでいます…</p>;
   }
 
@@ -225,6 +194,7 @@ date: Timestamp.now(),
             <p style={{ marginBottom: "12px", fontWeight: "bold" }}>
               重さが前回より増えています。ボトル交換しましたか？
             </p>
+
             <button
               onClick={handleExchangeYes}
               style={{
@@ -238,6 +208,7 @@ date: Timestamp.now(),
             >
               はい
             </button>
+
             <button
               onClick={handleExchangeNo}
               style={{
@@ -252,21 +223,6 @@ date: Timestamp.now(),
             </button>
           </div>
         )}
-
-        {/* ★ 記録方式の案内 */}
-        <div
-          style={{
-            background: "#dffef5",
-            color: "#008b75",
-            padding: "12px",
-            borderRadius: "12px",
-            marginBottom: "16px",
-            fontWeight: "bold",
-            textAlign: "center",
-          }}
-        >
-          あなたの記録方式：{mode === "cm" ? "cm方式" : "重さ方式（g）"}
-        </div>
 
         {/* ★ スタッフ情報 */}
         <div
@@ -283,44 +239,7 @@ date: Timestamp.now(),
           <p>病棟：{wardNameMap[staff.wardId] || staff.department}</p>
         </div>
 
-        {/* ★ 入力方式タブ */}
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-          {mode === "cm" && (
-            <button
-              onClick={() => setMode("cm")}
-              style={{
-                background: "#cfeeee",
-                color: "#006b5f",
-                padding: "10px 16px",
-                borderRadius: "12px",
-                border: "none",
-                cursor: "pointer",
-                flex: 1,
-              }}
-            >
-              cm入力
-            </button>
-          )}
-
-          {mode === "weight" && (
-            <button
-              onClick={() => setMode("weight")}
-              style={{
-                background: "#cfeeee",
-                color: "#006b5f",
-                padding: "10px 16px",
-                borderRadius: "12px",
-                border: "none",
-                cursor: "pointer",
-                flex: 1,
-              }}
-            >
-              重さ入力（g）
-            </button>
-          )}
-        </div>
-
-        {/* ★ 入力欄 */}
+        {/* ★ 入力欄（重さのみ） */}
         <div
           style={{
             background: "#ffffff",
@@ -330,41 +249,22 @@ date: Timestamp.now(),
             border: "1px solid #cfeeee",
           }}
         >
-          <label style={{ color: "#006b5f" }}>
-            今日使った量（{mode === "cm" ? "cm" : "g"}）
-          </label>
+          <label style={{ color: "#006b5f" }}>今日使った量（g）</label>
 
-          {mode === "cm" ? (
-            <input
-              type="number"
-              value={cm}
-              onChange={(e) => setCm(e.target.value)}
-              placeholder="例：2.3（cm）"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid #cfeeee",
-                marginTop: "8px",
-                fontSize: "16px",
-              }}
-            />
-          ) : (
-            <input
-              type="number"
-              value={weightNow}
-              onChange={(e) => setWeightNow(e.target.value)}
-              placeholder="例：240（g）"
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "12px",
-                border: "1px solid #cfeeee",
-                marginTop: "8px",
-                fontSize: "16px",
-              }}
-            />
-          )}
+          <input
+            type="number"
+            value={weightNow}
+            onChange={(e) => setWeightNow(e.target.value)}
+            placeholder="例：240（g）"
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: "12px",
+              border: "1px solid #cfeeee",
+              marginTop: "8px",
+              fontSize: "16px",
+            }}
+          />
         </div>
 
         {message && (
