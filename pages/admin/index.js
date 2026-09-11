@@ -39,226 +39,152 @@ export default function AdminTop() {
       .then(data => setMonthTotal(data.total));
   }, []);
 
-  const innerRow = {
-    display: "flex",
-    alignItems: "center",
+  // ★★★ すべての style をコンポーネント内に移動（Next.js pages ルーターで必須）
+  const Grid = {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "14px",
-    width: "100%",
-    paddingLeft: "60px",
+};
+
+
+
+  const Card = {
+    background: "#DFF7F2",
+    borderRadius: "14px",
+    padding: "16px",
+    border: "1px solid #cfeeee",
+    minHeight: "140px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
   };
 
-  const SmallCard = ({ icon, title, value }) => (
-    <div style={smallCardStyle}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>{icon}</div>
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "14px", opacity: 0.7 }}>{title}</div>
-          <div style={{ fontSize: "26px", fontWeight: "bold" }}>{value}</div>
-        </div>
-      </div>
-    </div>
-  );
+  const Title = {
+    fontSize: "22px",
+    margin: "20px 0 12px",
+    color: "#006b5f",
+  };
 
-  const RankingCard = ({ rank, name, total }) => (
-    <div style={smallCardStyle}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>🏥</div>
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "18px" }}>{rank}位：{name}</div>
-          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
-            {Number(total).toFixed(2)} mL
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const Value = {
+    fontSize: "26px",
+    fontWeight: "bold",
+    marginTop: "6px",
+    color: "#006b5f",
+  };
 
-  const WardRateCard = ({ name, rate }) => (
-    <div style={smallCardStyle}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "32px" }}>📊</div>
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontSize: "18px" }}>{name}</div>
-          <div style={{ fontSize: "22px", fontWeight: "bold" }}>
-            {rate}%
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const buttonStyle = {
+    width: "100%",
+    padding: "14px",
+    background: "#006b5f",
+    color: "#fff",
+    borderRadius: "12px",
+    border: "none",
+    fontSize: "18px",
+    marginTop: "16px",
+    cursor: "pointer",
+  };
 
-  const MenuCard = ({ icon, label }) => (
-    <div style={menuCard}>
-      <div style={innerRow}>
-        <div style={{ fontSize: "28px" }}>{icon}</div>
-        <div style={{ textAlign: "left", fontSize: "20px" }}>{label}</div>
-      </div>
-    </div>
-  );
+  const buttonStyle2 = {
+    width: "100%",
+    padding: "14px",
+    background: "#008b75",
+    color: "#fff",
+    borderRadius: "12px",
+    border: "none",
+    fontSize: "18px",
+    marginTop: "12px",
+    cursor: "pointer",
+  };
 
   return (
     <div style={{ background: "#F9F9F9", minHeight: "100vh", padding: "20px" }}>
-      <h1
-        style={{
-          fontSize: "28px",
-          marginBottom: "20px",
-          letterSpacing: "0.5px",
-          wordBreak: "keep-all",
-        }}
-      >
-        総合管理者トップページ
+      <h1 style={{ fontSize: "28px", marginBottom: "20px", color: "#006b5f" }}>
+        🌿 総合管理者トップページ
       </h1>
 
       {/* 今日の状況 */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>今日の状況</h2>
-        <div style={cardColumn}>
-          <SmallCard icon="🧴" title="今日の使用量" value={`${todayTotal} mL`} />
-          <SmallCard icon="📊" title="今日の入力率" value={`${todayRate}%`} />
-          <SmallCard icon="👤" title="今日の未入力者" value={`${todayNotEnteredCount} 人`} />
+      <h2 style={Title}>今日の状況</h2>
+      <div style={Grid}>
+        <div style={Card}>
+          <div>🧴 今日の使用量</div>
+          <div style={Value}>{todayTotal} mL</div>
+        </div>
+
+        <div style={Card}>
+          <div>📊 今日の入力率</div>
+          <div style={Value}>{todayRate}%</div>
+        </div>
+
+        <div style={Card}>
+          <div>👤 未入力者</div>
+          <div style={Value}>{todayNotEnteredCount} 人</div>
         </div>
       </div>
 
-      {/* 病棟別ランキング */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>病棟別ランキング</h2>
-        <div style={cardColumn}>
-          {ranking.map((ward, index) => (
-            <RankingCard
-              key={index}
-              rank={index + 1}
-              name={ward.wardName}
-              total={ward.total}
-            />
-          ))}
-        </div>
-
-        {/* ★ 院内個人ランキングボタン */}
-        <Link href="/admin/global-ranking">
-          <button
-            style={{
-              marginTop: "16px",
-              width: "100%",
-              padding: "14px",
-              background: "#006b5f",
-              color: "#fff",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "18px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
-          >
-            🧴 院内個人ランキングを見る
-          </button>
-        </Link>
-
-        {/* ★ 院内平均ランキングボタン（追加） */}
-        <Link href="/admin/global-avg-ranking">
-          <button
-            style={{
-              marginTop: "12px",
-              width: "100%",
-              padding: "14px",
-              background: "#008b75",
-              color: "#fff",
-              border: "none",
-              borderRadius: "12px",
-              fontSize: "18px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
-          >
-            📊 勤務日数を考慮した平均使用量ランキングを見る
-          </button>
-        </Link>
+      {/* ランキング */}
+      <h2 style={Title}>病棟別ランキング</h2>
+      <div style={Grid}>
+        {ranking.map((ward, index) => (
+          <div key={index} style={Card}>
+            <div style={{ fontSize: "18px" }}>{index + 1}位：{ward.wardName}</div>
+            <div style={Value}>{Number(ward.total).toFixed(2)} mL</div>
+          </div>
+        ))}
       </div>
 
-      {/* 病棟別入力率 */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>病棟別入力率</h2>
-        <div style={cardColumn}>
-          {wardRate.map((ward, index) => (
-            <WardRateCard key={index} name={ward.wardName} rate={ward.rate} />
-          ))}
-        </div>
+      <Link href="/admin/global-ranking">
+        <button style={buttonStyle}>🧴 院内個人ランキングを見る</button>
+      </Link>
+
+      <Link href="/admin/global-avg-ranking">
+        <button style={buttonStyle2}>📊 平均使用量ランキングを見る</button>
+      </Link>
+
+      {/* 入力率 */}
+      <h2 style={Title}>病棟別入力率</h2>
+      <div style={Grid}>
+        {wardRate.map((ward, index) => (
+          <div key={index} style={Card}>
+            <div style={{ fontSize: "18px" }}>{ward.wardName}</div>
+            <div style={Value}>{ward.rate}%</div>
+          </div>
+        ))}
       </div>
 
-      {/* 今月の状況 */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>今月の状況</h2>
-        <div style={cardColumn}>
-          <SmallCard
-            icon="📅"
-            title="今月の総使用量"
-            value={`${Number(monthTotal).toFixed(2)} mL`}
-          />
+      {/* 今月 */}
+      <h2 style={Title}>今月の状況</h2>
+      <div style={Grid}>
+        <div style={Card}>
+          <div>📅 今月の総使用量</div>
+          <div style={Value}>{Number(monthTotal).toFixed(2)} mL</div>
         </div>
       </div>
 
       {/* 管理メニュー */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>管理メニュー</h2>
-        <div style={cardColumn}>
-          <Link href="/admin/ward"><MenuCard icon="🏥" label="病棟一覧" /></Link>
-          <Link href="/admin/staff"><MenuCard icon="👥" label="スタッフ一覧" /></Link>
-        </div>
+      <h2 style={Title}>管理メニュー</h2>
+      <div style={Grid}>
+        <Link href="/admin/ward">
+          <div style={{ ...Card, background: "#006b5f", color: "#fff", minHeight: "120px" }}>
+            <div style={{ fontSize: "20px", fontWeight: "600" }}>🏥 病棟一覧</div>
+          </div>
+        </Link>
+
+        <Link href="/admin/staff">
+          <div style={{ ...Card, background: "#008b75", color: "#fff", minHeight: "120px" }}>
+            <div style={{ fontSize: "20px", fontWeight: "600" }}>👥 スタッフ一覧</div>
+          </div>
+        </Link>
       </div>
 
       {/* ログアウト */}
-      <div style={sectionCard}>
-        <h2 style={sectionTitle}>ログアウト</h2>
-        <div style={cardColumn}>
-          <Link href="/login">
-            <MenuCard icon="🔙" label="ログイン画面に戻る" />
-          </Link>
-        </div>
+      <h2 style={Title}>ログアウト</h2>
+      <div style={Grid}>
+        <Link href="/login">
+          <div style={{ ...Card, background: "#444", color: "#fff", minHeight: "120px" }}>
+            <div style={{ fontSize: "20px", fontWeight: "600" }}>🔙 ログイン画面に戻る</div>
+          </div>
+        </Link>
       </div>
     </div>
   );
 }
-
-const sectionCard = {
-  background: "transparent",
-  borderRadius: "16px",
-  padding: "10px",
-  marginBottom: "24px",
-  border: "1px solid #E0E0E0",
-};
-
-const sectionTitle = {
-  fontSize: "22px",
-  marginBottom: "16px",
-  color: "#006b5f",
-};
-
-const cardColumn = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-};
-
-const smallCardStyle = {
-  width: "100%",
-  height: "140px",
-  background: "#DFF7F2",
-  borderRadius: "12px",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  color: "#2AAE9E",
-  border: "1px solid #E0E0E0",
-};
-
-const menuCard = {
-  width: "100%",
-  height: "120px",
-  background: "#DFF7F2",
-  borderRadius: "12px",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  color: "#2AAE9E",
-  border: "1px solid #E0E0E0",
-  cursor: "pointer",
-};
