@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const records = snapshot.docs.map(doc => doc.data());
 
     // ★ あなたの病棟名セット（正式名称）
-    const wardNameMap = {
+   const wardNameMap = {
   "4f": "4階",
   "5f": "5階",
   "6f": "6階",
@@ -16,6 +16,7 @@ export default async function handler(req, res) {
   "touseki": "透析室",
   "ikyoku": "医局",
   "riha": "リハビリ",   // ★ reha → riha に修正
+  "shisetsu": "施設管理"   // ★ 追加
 };
 
 

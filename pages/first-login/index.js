@@ -65,7 +65,9 @@ export default function FirstLogin() {
   "透析室": "touseki",
   "リハビリ": "riha",
   "医局": "ikyoku",
+  "施設管理": "shisetsu"   // ★ 正しい向き
 };
+
 
 
     const wardId = wardMap[department];
@@ -157,6 +159,7 @@ export default function FirstLogin() {
 <option value="透析室">透析室</option>
 <option value="リハビリ">リハビリ</option>
 <option value="医局">医局</option>
+<option value="施設管理">施設管理</option>
 
           </select>
 

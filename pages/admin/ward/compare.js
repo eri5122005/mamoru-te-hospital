@@ -39,6 +39,7 @@ export default function WardComparePage() {
     "touseki": "透析室",
     "ikyoku": "医局",
     "reha": "リハビリ",
+    "shisetsu": "施設管理",   // ★ 追加
   };
 
   const wardList = Object.keys(wardNameMap);

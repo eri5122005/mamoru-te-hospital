@@ -13,6 +13,7 @@ export default async function handler(req, res) {
       "touseki": "透析室",
       "ikyoku": "医局",
       "riha": "リハビリ",
+      "shisetsu": "施設管理"   // ★ 追加
     };
 
     // ★ staff.department ではなく wardId を使う

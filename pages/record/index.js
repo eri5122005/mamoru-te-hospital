@@ -18,6 +18,7 @@ const wardNameMap = {
   "touseki": "透析室",
   "riha": "リハビリ",
   "ikyoku": "医局",
+  "shisetsu": "施設管理",   // ★ 追加
 };
 
 export default function RecordPage() {
