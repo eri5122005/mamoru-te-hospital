@@ -20,7 +20,7 @@ export default function WardAdminTop() {
     "gairai": "外来",
     "touseki": "透析室",
     "ikyoku": "医局",
-    "reha": "リハビリ",
+    "riha": "リハビリ",
     "shisetsu": "施設管理",   // ★ 追加
   };
 

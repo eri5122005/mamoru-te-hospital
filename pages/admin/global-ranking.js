@@ -104,29 +104,20 @@ export default function GlobalRanking() {
     fontSize: "14px",
   });
 
-  const cardStyle = {
-    background: "#ffffff",
-    padding: "16px",
-    borderRadius: "14px",
-    marginBottom: "12px",
-    border: "1px solid #cfeeee",
-    color: "#006b5f",
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-  };
+  
 
-  const iconBoxStyle = {
-    background: "#cfeeee",
-    color: "#006b5f",
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "26px",
-  };
+const iconBoxStyle = {
+  background: "#cfeeee",
+  color: "#006b5f",
+  width: "48px",
+  height: "48px",
+  borderRadius: "12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "26px",
+};
+
 
   const getRankIcon = (index) => {
     if (index === 0) return "🥇";
@@ -168,21 +159,61 @@ export default function GlobalRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキング */}
-      {ranking.map((item, index) => (
-        <div key={item.staffId} style={cardStyle}>
-          <div style={iconBoxStyle}>{getRankIcon(index)}</div>
+      {/* ランキング（華やか版） */}
+{ranking.map((item, index) => {
+  const medal =
+    index === 0 ? "🥇" :
+    index === 1 ? "🥈" :
+    index === 2 ? "🥉" : "✨";
 
-          <div>
-            <p style={{ margin: 0, fontWeight: "bold", fontSize: "18px" }}>
-              {index + 1} 位：{item.name}
-            </p>
-            <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              {item.totalMl.toFixed(1)} mL（平均 {item.avgMl.toFixed(1)} mL）
-            </p>
-          </div>
+  const bgColor =
+    index === 0 ? "#FFF7D1" :   // 金
+    index === 1 ? "#F0F4F8" :   // 銀
+    index === 2 ? "#F8E6D8" :   // 銅
+    "#E8F8F6";                  // その他（ミント）
+
+  return (
+    <div key={index} style={{
+      background: bgColor,
+      borderRadius: "14px",
+      padding: "16px",
+      border: "1px solid #cfeeee",
+      minHeight: "140px",
+      display: "flex",
+      alignItems: "center",
+      animation: "fadeIn 0.4s ease",
+      marginBottom: "16px",
+
+    }}>
+      <div style={{ marginLeft: "24px", fontSize: "40px" }}>
+        {medal}
+      </div>
+
+      <div style={{ marginLeft: "20px" }}>
+        <div style={{ fontSize: "22px", color: "#006b5f", fontWeight: "600" }}>
+          {index + 1} 位：{item.name}
         </div>
-      ))}
+        <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>
+          <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>
+  {item.totalMl.toFixed(1)} mL
+</div>
+
+<div style={{ fontSize: "20px", fontWeight: "600", color: "#008b75" }}>
+  （平均 {item.avgMl.toFixed(1)} mL）
+</div>
+
+        </div>
+      </div>
+    </div>
+  );
+})}
+<style jsx>{`
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`}</style>
+
     </main>
   );
 }

@@ -28,27 +28,39 @@ export default function Login() {
       return;
     }
 
-    // ★ 部署管理者ID → 自部署トップページへ
-    const departmentAdmins = {
+ const departmentAdmins = {
+  // 外来
+  "2100": "gairai",
+  "2150": "gairai",
+
+  // リハビリ（2200・2201）
+  "2200": "riha",
+  "2201": "riha",
+
+  // 医局
+  "2300": "ikyoku",
+
+  // 透析室
+  "2305": "touseki",
+
+  // 4階
   "2400": "4f",
   "2444": "4f",
 
+  // 5階
   "2500": "5f",
   "2555": "5f",
 
+  // 6階
   "2600": "6f",
   "2666": "6f",
 
+  // 7・8階
   "2700": "78f",
   "2777": "78f",
-
-  "2150": "gairai",
-  "2100": "gairai",
-
-  "2305": "touseki",
-
-  "2300": "ikyoku",
 };
+
+
 
 
     if (departmentAdmins[staffId]) {
