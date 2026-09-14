@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
@@ -26,6 +27,18 @@ ChartJS.register(
 );
 
 export default function WardComparePage() {
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
+  // ★ wardId を受け取る（病棟管理TOPに戻るために必要）
+  const wardId = searchParams.get("wardId") || "6f";
+
+  // ★ 戻る先は必ず「病棟管理TOP」
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
+
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState(null);
   const [mode, setMode] = useState("monthly");
@@ -39,7 +52,7 @@ export default function WardComparePage() {
     "touseki": "透析室",
     "ikyoku": "医局",
     "reha": "リハビリ",
-    "shisetsu": "施設管理",   // ★ 追加
+    "shisetsu": "施設管理",
   };
 
   const wardList = Object.keys(wardNameMap);
@@ -51,12 +64,8 @@ export default function WardComparePage() {
       const snap = await getDocs(collection(db, "records"));
       const records = snap.docs.map((d) => d.data());
 
-      // 病棟ごとの集計
       const totals = {};
-
-      wardList.forEach((w) => {
-        totals[w] = 0;
-      });
+      wardList.forEach((w) => (totals[w] = 0));
 
       records.forEach((r) => {
         const t = r.date.toDate();
@@ -95,7 +104,10 @@ export default function WardComparePage() {
     load();
   }, [mode]);
 
-  if (loading) return <p>読み込み中です…</p>;
+  // ★ ここはコンポーネント内なので return OK
+  if (loading) {
+    return <p>読み込み中です…🫧</p>;
+  }
 
   const tabStyle = (active) => ({
     flex: 1,
@@ -117,7 +129,7 @@ export default function WardComparePage() {
         fontFamily: "sans-serif",
       }}
     >
-      <BackButton to="/admin/ward/6f" />
+      <BackButton to={backTo} />
 
       <h1
         style={{
@@ -133,7 +145,6 @@ export default function WardComparePage() {
         🏥 病棟ごとの比較グラフ
       </h1>
 
-      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
         <button style={tabStyle(mode === "monthly")} onClick={() => setMode("monthly")}>
           今月
@@ -143,7 +154,6 @@ export default function WardComparePage() {
         </button>
       </div>
 
-      {/* グラフ */}
       <div
         style={{
           background: "#ffffff",

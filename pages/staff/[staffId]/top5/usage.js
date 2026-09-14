@@ -1,87 +1,69 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useEffect, useState } from "react";
-import { db } from "../../../../firebaseConfig";
-import { collection, getDocs, query, where } from "firebase/firestore";
 import { useRouter } from "next/router";
+import BackButton from "@/components/BackButton";
+import { db } from "../../../../firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 
-export default function WardStaffRanking() {
+export default function UsageTop5Page() {
   const router = useRouter();
-  const { wardId } = router.query;
+  const { staffId } = router.query;
 
-  if (!wardId) return null;
-
-  // ★ from=admin を受け取る
-  const searchParams = useSearchParams();
-  const fromAdmin = searchParams.get("from") === "admin";
-
-  // ★ 戻る先を分岐
-  const backTo = fromAdmin
-    ? `/admin/ward/${wardId}?from=admin`
-    : `/admin/ward/${wardId}`;
-
-  const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
+  const [mode, setMode] = useState("week"); // week / month / year
   const [loading, setLoading] = useState(true);
 
-  const wardNameMap = {
-    "6f": "6階",
-    "5f": "5階",
-    "4f": "4階",
+  const modeLabel = {
+    week: "今週",
+    month: "今月",
+    year: "今年",
   };
 
   useEffect(() => {
+    if (!staffId) return;
+
     const load = async () => {
       setLoading(true);
 
-      const staffSnap = await getDocs(
-        query(collection(db, "staff"), where("wardId", "==", wardId))
-      );
-      const staffList = staffSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
+      // 全スタッフ
+      const staffSnap = await getDocs(collection(db, "staff"));
+      const staffList = staffSnap.docs.map((d) => d.data());
 
-      const recordSnap = await getDocs(
-        query(collection(db, "records"), where("wardId", "==", wardId))
-      );
-      const records = recordSnap.docs.map((d) => d.data());
+      // 全記録
+      const recSnap = await getDocs(collection(db, "records"));
+      const records = recSnap.docs.map((d) => d.data());
 
       const now = new Date();
 
-      const filtered = records.filter((item) => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
+      // 週の開始（日曜）
+      const startOfWeek = new Date();
+      startOfWeek.setDate(now.getDate() - now.getDay());
 
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
+      // 期間フィルタ
+      const filtered = records.filter((r) => {
+        const t = r.date.toDate();
+        const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+
+        if (mode === "week") {
+          return jst >= startOfWeek && jst <= now;
         }
-
-        if (period === "month") {
+        if (mode === "month") {
           return (
             jst.getFullYear() === now.getFullYear() &&
             jst.getMonth() === now.getMonth()
           );
         }
-
-        if (period === "year") {
+        if (mode === "year") {
           return jst.getFullYear() === now.getFullYear();
         }
-
         return true;
       });
 
-      const result = staffList.map((staff) => {
+      // スタッフごとに集計
+      const result = staffList.map((s) => {
         const myRecords = filtered.filter(
-          (r) => r.staffId === staff.staffId
+          (r) => String(r.staffId) === String(s.staffId)
         );
 
         const totalMl = myRecords.reduce(
@@ -90,23 +72,29 @@ export default function WardStaffRanking() {
         );
 
         return {
-          staffId: staff.staffId,
-          name: staff.name,
-          department: wardNameMap[staff.wardId] || staff.department,
+          staffId: s.staffId,
+          name: s.name,
           totalMl,
         };
       });
 
+      // ソートして TOP5
       result.sort((a, b) => b.totalMl - a.totalMl);
+      setRanking(result.slice(0, 5));
 
-      setRanking(result);
       setLoading(false);
     };
 
     load();
-  }, [period, wardId]);
+  }, [staffId, mode]);
 
-  if (loading) return <p>読み込み中です…</p>;
+  if (loading) {
+    return (
+      <main style={{ padding: "24px", textAlign: "center", color: "#006b5f" }}>
+        読み込み中…🫧
+      </main>
+    );
+  }
 
   const tabStyle = (active) => ({
     flex: 1,
@@ -161,22 +149,8 @@ export default function WardStaffRanking() {
         margin: "0 auto",
       }}
     >
-      {/* ★ 修正：backTo を使う */}
-      <button
-        onClick={() => router.push(backTo)}
-        style={{
-          background: "#cfeeee",
-          color: "#006b5f",
-          border: "none",
-          padding: "10px 16px",
-          borderRadius: "12px",
-          cursor: "pointer",
-          marginBottom: "20px",
-          width: "100%",
-        }}
-      >
-        ← 部署管理メニューに戻る
-      </button>
+      <BackButton to={`/home`} />
+
 
       <h1
         style={{
@@ -187,16 +161,23 @@ export default function WardStaffRanking() {
           color: "#006b5f",
         }}
       >
-        {wardNameMap[wardId]} 個人ランキング
+        🏆 院内ランキング TOP5（総使用量）
       </h1>
 
+      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
-        <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
-        <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
-        <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
+        <button style={tabStyle(mode === "week")} onClick={() => setMode("week")}>
+          今週
+        </button>
+        <button style={tabStyle(mode === "month")} onClick={() => setMode("month")}>
+          今月
+        </button>
+        <button style={tabStyle(mode === "year")} onClick={() => setMode("year")}>
+          今年
+        </button>
       </div>
 
+      {/* ランキング */}
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>

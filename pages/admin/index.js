@@ -86,7 +86,7 @@ export default function AdminTop() {
       <div style={Grid}>
         <div style={Card}>
           <div style={Row}>
-            <div style={CardIcon}>🫧</div>
+            <div style={CardIcon}>💧</div>
             <div>
               <div style={{ fontSize: "18px", color: "#006b5f" }}>今日の使用量</div>
               <div style={Value}>{todayTotal} mL</div>

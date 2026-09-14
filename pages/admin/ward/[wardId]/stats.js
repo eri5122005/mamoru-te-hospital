@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useEffect, useState } from "react";
 import { db } from "../../../../firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -31,6 +32,15 @@ ChartJS.register(
 export default function WardStatsPage() {
   const router = useRouter();
   const { wardId } = router.query;
+
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
+  // ★ 戻る先を分岐
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
 
   const [loading, setLoading] = useState(true);
   const [dailyChart, setDailyChart] = useState(null);
@@ -144,7 +154,8 @@ export default function WardStatsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <BackButton to={`/admin/ward/${wardId}`} />
+      {/* ★ 修正：backTo を使う */}
+      <BackButton to={backTo} />
 
       <h1
         style={{

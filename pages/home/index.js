@@ -28,17 +28,22 @@ export default function Home() {
   }
 
   const menu = [
-    { icon: "📝", label: "記録する", path: "/record" },
-    { icon: "📚", label: "履歴を見る", path: "/history" },
-    { icon: "📊", label: "ランキング", path: "/ranking" },
-    { icon: "👤", label: "マイページ", path: "/mypage" },
+  { icon: "📝", label: "記録する", path: "/record" },
+  { icon: "📚", label: "履歴を見る", path: "/history" },
+  { icon: "📊", label: "ランキング", path: "/ranking" },
+  { icon: "👤", label: "マイページ", path: "/mypage" },
 
-    ...(user.isAdmin
-      ? [{ icon: "🛠️", label: "管理者ページ", path: "/admin" }]
-      : []),
+  // ★ 修正：staffId を含める
+  { icon: "🏆", label: "院内ランキング TOP5", path: `/staff/${user.staffId}/top5/usage` },
+{ icon: "📈", label: "平均使用量 TOP5", path: `/staff/${user.staffId}/top5/avg` },
 
-    { icon: "🔓", label: "ログイン画面に戻る", path: "/login" },
-  ];
+  ...(user.isAdmin
+    ? [{ icon: "🛠️", label: "管理者ページ", path: "/admin" }]
+    : []),
+
+  { icon: "🔓", label: "ログイン画面に戻る", path: "/login" },
+];
+
 
   return (
     <main

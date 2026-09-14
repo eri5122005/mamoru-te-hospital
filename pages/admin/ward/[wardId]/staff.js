@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
@@ -9,6 +10,15 @@ import { collection, getDocs } from "firebase/firestore";
 export default function StaffList() {
   const router = useRouter();
   const { wardId } = router.query;
+
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
+  // ★ 戻る先を分岐
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
 
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +52,8 @@ export default function StaffList() {
   if (loading) {
     return (
       <main style={{ padding: "24px" }}>
-        <BackButton to={`/admin/ward/${wardId}`} />
+        {/* ★ 修正：backTo を使う */}
+        <BackButton to={backTo} />
         <p style={{ textAlign: "center", color: "#006b5f" }}>読み込み中…🫧</p>
       </main>
     );
@@ -57,7 +68,8 @@ export default function StaffList() {
         fontFamily: "sans-serif",
       }}
     >
-      <BackButton to={`/admin/ward/${wardId}`} />
+      {/* ★ 修正：backTo を使う */}
+      <BackButton to={backTo} />
 
       {/* タイトル */}
       <h1
@@ -72,7 +84,7 @@ export default function StaffList() {
           lineHeight: "1.4",
         }}
       >
-        🫧 {wardNameMap[wardId]} スタッフ一覧
+        💠 {wardNameMap[wardId]} スタッフ一覧
       </h1>
 
       {/* スタッフ一覧 */}
@@ -81,8 +93,8 @@ export default function StaffList() {
           <div
             key={s.staffId}
             style={{
-              background: "#e8f6f6",          // ミント背景
-              border: "1px solid #cfeeee",    // ミント枠線
+              background: "#e8f6f6",
+              border: "1px solid #cfeeee",
               borderRadius: "16px",
               padding: "18px",
               color: "#006b5f",
@@ -93,7 +105,6 @@ export default function StaffList() {
               gap: "6px",
             }}
           >
-            {/* 名前 */}
             <div
               style={{
                 fontSize: "20px",
@@ -102,10 +113,9 @@ export default function StaffList() {
                 gap: "6px",
               }}
             >
-              🫧 {s.name}（ID: {s.staffId}）
+              🔹 {s.name}（ID: {s.staffId}）
             </div>
 
-            {/* 使用量 */}
             <div
               style={{
                 fontSize: "14px",
@@ -118,7 +128,6 @@ export default function StaffList() {
               💧 今月の使用量：{s.monthlyUsage ?? 0} mL
             </div>
 
-            {/* 入力率 */}
             <div
               style={{
                 fontSize: "14px",

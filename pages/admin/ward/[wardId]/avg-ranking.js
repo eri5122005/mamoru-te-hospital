@@ -1,14 +1,25 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/router";
+import BackButton from "@/components/BackButton";
+
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";                 
-import BackButton from "../../../../components/BackButton";
 import { db } from "../../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function AvgRanking() {
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
   const router = useRouter();
   const { wardId } = router.query;
+
+  // ★ 戻る先を分岐
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
 
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
@@ -18,7 +29,6 @@ export default function AvgRanking() {
       const staff = JSON.parse(localStorage.getItem("currentStaff"));
       if (!staff) return;
 
-      // ★ 自部署の記録
       const q = query(
         collection(db, "records"),
         where("wardId", "==", staff.wardId)
@@ -26,7 +36,6 @@ export default function AvgRanking() {
       const snap = await getDocs(q);
       const records = snap.docs.map(doc => doc.data());
 
-      // ★ 自部署スタッフだけ取得（最重要修正）
       const staffSnap = await getDocs(
         query(collection(db, "staff"), where("wardId", "==", staff.wardId))
       );
@@ -164,7 +173,8 @@ export default function AvgRanking() {
         margin: "0 auto",
       }}
     >
-      <BackButton to={`/admin/ward/${wardId}`} />
+      {/* ★ 修正済み：fromAdmin に応じて戻る */}
+      <BackButton to={backTo} />
 
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
         <div style={{ fontSize: "22px", fontWeight: "600", color: "#006b5f" }}>

@@ -21,7 +21,7 @@ export default function WardAdminTop() {
     "touseki": "透析室",
     "ikyoku": "医局",
     "riha": "リハビリ",
-    "shisetsu": "施設管理",   // ★ 追加
+    "shisetsu": "施設管理",
   };
 
   const innerRow = {
@@ -57,7 +57,7 @@ export default function WardAdminTop() {
       </h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <Link href={`/admin/ward/${wardId}/unrecorded`}>
+        <Link href={`/admin/ward/${wardId}/unrecorded?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>👤</span>
@@ -66,7 +66,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/${wardId}/staff`}>
+        <Link href={`/admin/ward/${wardId}/staff?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>👥</span>
@@ -75,7 +75,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/ranking/ward/${wardId}`}>
+        <Link href={`/ranking/ward/${wardId}?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>💧</span>
@@ -84,8 +84,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        {/* ★ 勤務日数を考慮した平均使用量ランキング */}
-        <Link href={`/admin/ward/${wardId}/avg-ranking`}>
+        <Link href={`/admin/ward/${wardId}/avg-ranking?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>📈</span>
@@ -94,7 +93,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/${wardId}/stats`}>
+        <Link href={`/admin/ward/${wardId}/stats?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>📊</span>
@@ -103,7 +102,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/compare`}>
+        <Link href={`/admin/ward/compare?from=${from}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>✨</span>
