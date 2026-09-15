@@ -1,11 +1,30 @@
 "use client";
 
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Login() {
   const router = useRouter();
   const [staffId, setStaffId] = useState("");
+
+  // ★ ログイン画面を開いた瞬間にローカルストレージを強制クリア
+useEffect(() => {
+  const mode = localStorage.getItem("trainingMode");
+
+  if (mode === "off") {
+    // ★ 初回判定に使うキーをすべて削除
+    Object.keys(localStorage).forEach((key) => {
+      if (
+        key.startsWith("staff-") ||
+        key === "currentStaff" ||
+        key === "loginUser" ||
+        key === "staffList"
+      ) {
+        localStorage.removeItem(key);
+      }
+    });
+  }
+}, []);
 
   const handleLogin = () => {
     if (!staffId) return;
@@ -28,45 +47,26 @@ export default function Login() {
       return;
     }
 
- const departmentAdmins = {
-  // 外来
-  "2100": "gairai",
-  "2150": "gairai",
-
-  // リハビリ（2200・2201）
-  "2200": "riha",
-  "2201": "riha",
-
-  // 医局
-  "2300": "ikyoku",
-
-  // 透析室
-  "2305": "touseki",
-
-  // 4階
-  "2400": "4f",
-  "2444": "4f",
-
-  // 5階
-  "2500": "5f",
-  "2555": "5f",
-
-  // 6階
-  "2600": "6f",
-  "2666": "6f",
-
-  // 7・8階
-  "2700": "78f",
-  "2777": "78f",
-};
-
-
-
+    const departmentAdmins = {
+      "2100": "gairai",
+      "2150": "gairai",
+      "2200": "riha",
+      "2201": "riha",
+      "2300": "ikyoku",
+      "2305": "touseki",
+      "2400": "4f",
+      "2444": "4f",
+      "2500": "5f",
+      "2555": "5f",
+      "2600": "6f",
+      "2666": "6f",
+      "2700": "78f",
+      "2777": "78f",
+    };
 
     if (departmentAdmins[staffId]) {
       const dept = departmentAdmins[staffId];
 
-      // currentStaff を保存（部署管理者として）
       localStorage.setItem(
         "currentStaff",
         JSON.stringify({
@@ -87,31 +87,27 @@ export default function Login() {
     const raw = localStorage.getItem(`staff-${staffId}`);
 
     if (!raw) {
-      // 初回ログイン → first-login へ
       router.replace(`/first-login?staffId=${staffId}`);
       return;
     }
 
-    // ★ 初回登録済み → currentStaff を保存
     const staffData = JSON.parse(raw);
 
-   localStorage.setItem(
-  "currentStaff",
-  JSON.stringify({
-    staffId: staffData.staffId,
-    name: staffData.name,
-    department: staffData.department,
-    wardId: staffData.wardId,
-    workDays: staffData.workDays,
-    role: staffData.role,
-    mode: staffData.mode,        // ★ 記録方式を保持
-    lastWeight: staffData.lastWeight || null, // ★ 重さ方式の前回値
-    emptyWeight: staffData.emptyWeight || null,
-  })
-);
+    localStorage.setItem(
+      "currentStaff",
+      JSON.stringify({
+        staffId: staffData.staffId,
+        name: staffData.name,
+        department: staffData.department,
+        wardId: staffData.wardId,
+        workDays: staffData.workDays,
+        role: staffData.role,
+        mode: staffData.mode,
+        lastWeight: staffData.lastWeight || null,
+        emptyWeight: staffData.emptyWeight || null,
+      })
+    );
 
-
-    // ★ 一般スタッフ
     router.replace("/home");
   };
 
