@@ -3,22 +3,25 @@ import { collection, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
-    // 今日の日付（YYYY-MM-DD）
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const todayY = now.getFullYear();
+    const todayM = now.getMonth();
+    const todayD = now.getDate();
 
-    // 全記録を取得（Timestamp なので後で変換する）
     const snapshot = await getDocs(collection(db, "records"));
 
     let total = 0;
 
     snapshot.forEach(doc => {
       const data = doc.data();
+      const d = data.date.toDate(); // JST のまま使う
 
-      // Timestamp → Date → "YYYY-MM-DD" に変換
-      const recordDate = data.date.toDate().toISOString().split("T")[0];
-
-      // 今日の記録だけ合計する（★ ml を使う）
-      if (recordDate === today) {
+      // 今日の記録だけ合計する
+      if (
+        d.getFullYear() === todayY &&
+        d.getMonth() === todayM &&
+        d.getDate() === todayD
+      ) {
         total += data.ml || 0;
       }
     });
