@@ -220,9 +220,10 @@ for (let d = 1; d <= 31; d++) {
     <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
       <BackButton to="/admin" />
 
-      <h1 style={{ fontSize: "26px", color: "#006b5f", marginBottom: "20px", textAlign: "center" }}>
-        📊 月ごとの使用量（日次推移）
-      </h1>
+<h1 style={{ fontSize: "26px", color: "#006b5f", marginBottom: "20px", textAlign: "center" }}>
+  📊 月ごとの使用量<br />（日次推移）
+</h1>
+
 
       <div style={{ marginBottom: "20px" }}>
         <input
