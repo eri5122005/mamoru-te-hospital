@@ -36,28 +36,64 @@ export default function UsageTop5Page() {
 
       const now = new Date();
 
-      // 週の開始（日曜）
-      const startOfWeek = new Date();
-      startOfWeek.setDate(now.getDate() - now.getDay());
+     // 週の開始（日曜 0:00）
+const startOfWeek = new Date(
+  now.getFullYear(),
+  now.getMonth(),
+  now.getDate() - now.getDay()
+);
+
 
       // 期間フィルタ
       const filtered = records.filter((r) => {
+        if (!r.date) return false;
+
+        // Firestore Timestamp → JS Date
         const t = r.date.toDate();
-        const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+
+        // JST に変換
+        const jst = t; // Firestore Timestamp はすでに JST
+
+
+        // 日付だけに揃える（時刻ズレ対策）
+        const jstDateOnly = new Date(jst.getFullYear(), jst.getMonth(), jst.getDate());
+        const startDateOnly = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate());
+        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         if (mode === "week") {
-          return jst >= startOfWeek && jst <= now;
-        }
-        if (mode === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-        if (mode === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-        return true;
+  // 日付だけに揃える（時刻ズレ対策）
+  const jstDateOnly = new Date(
+    jst.getFullYear(),
+    jst.getMonth(),
+    jst.getDate()
+  );
+  const startDateOnly = new Date(
+    startOfWeek.getFullYear(),
+    startOfWeek.getMonth(),
+    startOfWeek.getDate()
+  );
+  const nowDateOnly = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+
+  return jstDateOnly >= startDateOnly && jstDateOnly <= nowDateOnly;
+}
+
+if (mode === "month") {
+  return (
+    jst.getFullYear() === now.getFullYear() &&
+    jst.getMonth() === now.getMonth()
+  );
+}
+
+if (mode === "year") {
+  return jst.getFullYear() === now.getFullYear();
+}
+
+return true;
+
       });
 
       // スタッフごとに集計
@@ -66,10 +102,11 @@ export default function UsageTop5Page() {
           (r) => String(r.staffId) === String(s.staffId)
         );
 
-        const totalMl = myRecords.reduce(
-          (sum, r) => sum + Number(r.ml || 0),
-          0
-        );
+       const totalMl = myRecords.reduce(
+  (sum, r) => sum + Number(r.ml || 0),
+  0
+);
+
 
         return {
           staffId: s.staffId,
@@ -150,7 +187,6 @@ export default function UsageTop5Page() {
       }}
     >
       <BackButton to={`/home`} />
-
 
       <h1
         style={{

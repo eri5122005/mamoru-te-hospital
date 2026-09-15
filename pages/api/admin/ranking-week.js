@@ -16,32 +16,32 @@ export default async function handler(req, res) {
       "shisetsu": "施設管理"
     };
 
-    // 今日の日付
+    // 今日の日付（JST）
     const today = new Date();
 
-    // 7日前の日付を作る
+    // 7日前（JST）
     const weekAgo = new Date();
     weekAgo.setDate(today.getDate() - 7);
 
-    // Firestore の date は "2026-09-11" のような文字列なので
-    // records 全件を取得してからフィルタリングする
+    // Firestore records 全件取得
     const snapshot = await getDocs(collection(db, "records"));
     const records = snapshot.docs.map(doc => doc.data());
 
-    // 文字列の日付を Date に変換する関数
-    const toDate = (str) => {
-      const [y, m, d] = str.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d));
-    };
-
-    // 過去7日間の記録だけに絞る
+    // Timestamp → JST Date に統一
     const filtered = records.filter(r => {
       if (!r.date) return false;
-      const recordDate = toDate(r.date);
-      return recordDate >= weekAgo && recordDate <= today;
+
+      // Firestore Timestamp → JS Date
+      const t = r.date.toDate();
+
+      // JST に変換
+      const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+
+      // 過去7日間に含まれるか
+      return jst >= weekAgo && jst <= today;
     });
 
-    // 病棟ごとに使用量を集計
+    // 病棟ごとに集計
     const wardMap = {};
 
     filtered.forEach(r => {

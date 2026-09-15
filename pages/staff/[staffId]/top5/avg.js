@@ -36,8 +36,7 @@ export default function AvgTop5Page() {
 
       // 期間フィルタ
       const filtered = records.filter((r) => {
-        const t = r.date.toDate();
-        const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+        const jst = r.date.toDate(); // Firestore Timestamp はすでに JST
 
         if (mode === "week") {
           return jst >= startOfWeek && jst <= now;
