@@ -61,6 +61,17 @@ export default function HistoryYear() {
 
     const monthly = {};
     const wards = {};
+    // ★ 全部署を強制初期化（入力が無くても表示される）
+const allWards = Object.keys(wardNameMap);
+
+allWards.forEach(w => {
+  wards[w] = {};
+  for (let m = 1; m <= 12; m++) {
+    const key = `${year}-${m}`;
+    wards[w][key] = 0;
+  }
+});
+
 
     records.forEach(item => {
       const t = item.date.toDate();
@@ -186,6 +197,16 @@ export default function HistoryYear() {
       tension: 0.3,
     })),
   };
+
+  const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false, // ★ Chart.js の凡例を消す（外出しするため）
+    },
+  },
+};
 
   return (
     <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
@@ -328,7 +349,47 @@ export default function HistoryYear() {
         <h2 style={{ color: "#006b5f", fontSize: "20px", marginBottom: "10px" }}>
           🏥 病棟別（年）
         </h2>
-        <Line data={wardData} />
+        <div style={{ width: "100%" }}>
+  <Line data={wardData} options={chartOptions} />
+</div>
+
+{/* ★ グラフ下の凡例（9部署全部） */}
+<div
+  style={{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    marginTop: "12px",
+  }}
+>
+  {Object.keys(wardNameMap).map((ward) => (
+    <div
+      key={ward}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "4px 8px",
+        background: "#fff",
+        borderRadius: "6px",
+        border: "1px solid #cfeeee",
+      }}
+    >
+      <div
+        style={{
+          width: "12px",
+          height: "12px",
+          background: wardColors[ward] || "#888",
+          borderRadius: "3px",
+        }}
+      />
+      <span style={{ fontSize: "14px", color: "#006b5f" }}>
+        {wardNameMap[ward]}
+      </span>
+    </div>
+  ))}
+</div>
+
       </div>
     </div>
   );

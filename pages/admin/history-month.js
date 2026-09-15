@@ -50,47 +50,45 @@ export default function HistoryMonth() {
   const [dailyTotals, setDailyTotals] = useState({});
   const [wardDailyTotals, setWardDailyTotals] = useState({});
 
-  const loadData = async () => {
-    if (!month) return;
+ const loadData = async () => {
+  if (!month) return;
 
-    const recSnap = await getDocs(collection(db, "records"));
-    const records = recSnap.docs.map(doc => doc.data());
+  const recSnap = await getDocs(collection(db, "records"));
+  const records = recSnap.docs.map(doc => doc.data());
 
-    const daily = {};
-    const wardDaily = {};
+  const daily = {};
+  const wardDaily = {};
 
-    // ★ 1〜31日を必ず初期化
+  // ★ 全部署を強制初期化
+  const allWards = Object.keys(wardNameMap);
+  allWards.forEach(w => {
+    wardDaily[w] = {};
     for (let d = 1; d <= 31; d++) {
-      daily[d] = 0;
+      wardDaily[w][d] = 0;
+    }
+  });
+
+  // ★ 入力があった部署を上書きして集計
+  records.forEach(item => {
+    const t = item.date.toDate();
+    const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+    const day = jst.getDate();
+
+    const ward = item.wardId || "不明";
+
+    if (!wardDaily[ward]) {
+      wardDaily[ward] = {};
+      for (let d = 1; d <= 31; d++) {
+        wardDaily[ward][d] = 0;
+      }
     }
 
-    records.forEach(item => {
-      const t = item.date.toDate();
-      const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+    wardDaily[ward][day] += Number(item.ml || 0);
+  });
 
-      const keyMonth = jst.toISOString().slice(0, 7);
-      if (keyMonth !== month) return;
-
-      const day = jst.getDate();
-      const ward = item.wardId || "不明";
-
-      // 院内合計
-      daily[day] += Number(item.ml || 0);
-
-      // 部署別
-      if (!wardDaily[ward]) {
-        wardDaily[ward] = {};
-        for (let d = 1; d <= 31; d++) {
-          wardDaily[ward][d] = 0;
-        }
-      }
-
-      wardDaily[ward][day] += Number(item.ml || 0);
-    });
-
-    setDailyTotals(daily);
-    setWardDailyTotals(wardDaily);
-  };
+  setDailyTotals(daily);
+  setWardDailyTotals(wardDaily);
+}   // ← ★ ここはセミコロン無し
 
   // CSV（院内）
   const downloadDailyCSV = () => {
@@ -198,6 +196,18 @@ export default function HistoryMonth() {
     })),
   };
 
+   
+  const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false, // ★ Chart.js の凡例を消す（外出しするため）
+    },
+  },
+};
+
+
   return (
     <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
       <BackButton to="/admin" />
@@ -304,7 +314,7 @@ export default function HistoryMonth() {
         </button>
       </div>
 
-      {/* 院内合計 */}
+            {/* 院内合計 */}
       <div
         style={{
           background: "#E8F8F6",
@@ -317,10 +327,13 @@ export default function HistoryMonth() {
         <h2 style={{ color: "#006b5f", fontSize: "20px", marginBottom: "10px" }}>
           💧 院内合計（日次）
         </h2>
-        <Line data={totalData} />
+        <div style={{ width: "100%" }}>
+          <Line data={totalData} options={chartOptions} />
+        </div>
       </div>
 
-      {/* 部署別 */}
+
+            {/* 部署別 */}
       <div
         style={{
           background: "#F0F4F8",
@@ -332,8 +345,48 @@ export default function HistoryMonth() {
         <h2 style={{ color: "#006b5f", fontSize: "20px", marginBottom: "10px" }}>
           🏥 部署別（日次）
         </h2>
-        <Line data={wardData} />
+        <div style={{ width: "100%" }}>
+          <Line data={wardData} options={chartOptions} />
+        </div>
       </div>
+
+      <div
+  style={{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    marginTop: "12px",
+  }}
+>
+  {Object.keys(wardDailyTotals).map((ward) => (
+    <div
+      key={ward}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "4px 8px",
+        background: "#fff",
+        borderRadius: "6px",
+        border: "1px solid #cfeeee",
+      }}
+    >
+      <div
+        style={{
+          width: "12px",
+          height: "12px",
+          background: wardColors[ward] || "#888",
+          borderRadius: "3px",
+        }}
+      />
+      <span style={{ fontSize: "14px", color: "#006b5f" }}>
+        {wardNameMap[ward] || ward}
+      </span>
+    </div>
+  ))}
+</div>
+
+
     </div>
   );
 }
