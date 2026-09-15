@@ -12,10 +12,19 @@ useEffect(() => {
   const mode = localStorage.getItem("trainingMode");
 
   if (mode === "off") {
-    // ★ 初回判定に使うキーをすべて削除
     Object.keys(localStorage).forEach((key) => {
+      // staff-XXXX を削除
+      if (key.startsWith("staff-")) {
+        localStorage.removeItem(key);
+      }
+
+      // 数字だけのキー（例：4358）も削除
+      if (/^\d+$/.test(key)) {
+        localStorage.removeItem(key);
+      }
+
+      // 初回判定に使うキーも削除
       if (
-        key.startsWith("staff-") ||
         key === "currentStaff" ||
         key === "loginUser" ||
         key === "staffList"
@@ -25,6 +34,7 @@ useEffect(() => {
     });
   }
 }, []);
+
 
   const handleLogin = () => {
     if (!staffId) return;
