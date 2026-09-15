@@ -159,8 +159,11 @@ export default function GlobalAvgRanking() {
     color: "#006b5f",
   }}
 >
-  📊 勤務日数を考慮した平均使用量ランキング（mL/日）
+  📊 勤務日数を考慮した<br />
+  平均使用量ランキング<br />
+  （mL/日）
 </h1>
+
 
 
       {/* タブ */}

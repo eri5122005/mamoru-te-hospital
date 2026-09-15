@@ -18,13 +18,13 @@ const wardNameMap = {
   "touseki": "透析室",
   "riha": "リハビリ",
   "ikyoku": "医局",
-  "shisetsu": "施設管理",   // ★ 追加
+  "shisetsu": "施設管理",
 };
 
 export default function RecordPage() {
   const router = useRouter();
-  const EMPTY_WEIGHT = 46; // 空ボトルの重さ
-  const FULL_WEIGHT = 260; // 新品ボトルの重さ（固定）
+  const EMPTY_WEIGHT = 46;
+  const FULL_WEIGHT = 260;
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
@@ -33,7 +33,6 @@ export default function RecordPage() {
   const [message, setMessage] = useState("");
   const [staff, setStaff] = useState(null);
 
-  // ★ ボトル交換確認ダイアログ
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
   useEffect(() => {
@@ -69,7 +68,6 @@ export default function RecordPage() {
       return false;
     }
 
-    // ★ ローカル履歴保存
     const history = JSON.parse(localStorage.getItem("history") || "[]");
     history.push({
       staffId: staff.staffId,
@@ -84,7 +82,6 @@ export default function RecordPage() {
     });
     localStorage.setItem("history", JSON.stringify(history));
 
-    // ★ メッセージ
     setMessage(
       `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
     );
@@ -96,16 +93,16 @@ export default function RecordPage() {
 
   // ★ ボトル交換 YES（完全修正版）
   const handleExchangeYes = async () => {
-    const prev = staff.lastWeight; // 前回の重さ
-    const now = Number(weightNow); // 今回の重さ
+    let prev = Number(staff.lastWeight);
+    if (isNaN(prev) || prev <= 0) prev = FULL_WEIGHT;
 
-    const prevRemain = prev - EMPTY_WEIGHT; // 前回残量
-    const nowRemain = now - EMPTY_WEIGHT; // 今回残量
+    const now = Number(weightNow);
 
-    // ★ ボトル交換時の使用量（前回残量 + 今回使用量）
+    const prevRemain = prev - EMPTY_WEIGHT;
+    const nowRemain = now - EMPTY_WEIGHT;
+
     const usedMl = prevRemain + (FULL_WEIGHT - nowRemain);
 
-    // ★ lastWeight を更新（新品ボトルの重さ）
     await updateDoc(doc(db, "staff", staff.staffId), {
       lastWeight: now,
     });
@@ -124,7 +121,7 @@ export default function RecordPage() {
     setShowExchangeConfirm(false);
   };
 
-  // ★ 記録処理（重さ方式のみ）
+  // ★ 記録処理（重さ方式）完全修正版
   const handleRecord = async () => {
     if (!staff) return;
 
@@ -133,19 +130,18 @@ export default function RecordPage() {
       return;
     }
 
-    const prev = staff.lastWeight;
+    let prev = Number(staff.lastWeight);
+    if (isNaN(prev) || prev <= 0) prev = FULL_WEIGHT;
+
     const now = Number(weightNow);
 
-    // ★ 重さが増えている → ボトル交換の可能性
     if (now > prev) {
       setShowExchangeConfirm(true);
       return;
     }
 
-    // ★ 通常計算
     const usedMl = prev - now;
 
-    // ★ lastWeight 更新
     try {
       await updateDoc(doc(db, "staff", staff.staffId), {
         lastWeight: now,
@@ -180,7 +176,6 @@ export default function RecordPage() {
       <main>
         <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>今日の記録</h1>
 
-        {/* ★ ボトル交換ダイアログ */}
         {showExchangeConfirm && (
           <div
             style={{
@@ -225,7 +220,6 @@ export default function RecordPage() {
           </div>
         )}
 
-        {/* ★ スタッフ情報 */}
         <div
           style={{
             background: "#ffffff",
@@ -240,7 +234,6 @@ export default function RecordPage() {
           <p>病棟：{wardNameMap[staff.wardId] || staff.department}</p>
         </div>
 
-        {/* ★ 入力欄（重さのみ） */}
         <div
           style={{
             background: "#ffffff",
