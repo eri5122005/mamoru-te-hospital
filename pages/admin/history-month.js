@@ -58,6 +58,10 @@ export default function HistoryMonth() {
 
   const daily = {};
   const wardDaily = {};
+// ★ 全日を強制初期化（1〜31日）
+for (let d = 1; d <= 31; d++) {
+  daily[d] = 0;
+}
 
   // ★ 全部署を強制初期化
   const allWards = Object.keys(wardNameMap);
@@ -195,18 +199,22 @@ export default function HistoryMonth() {
       tension: 0.3,
     })),
   };
-
    
-  const chartOptions = {
+ const chartOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: {
-      display: false, // ★ Chart.js の凡例を消す（外出しするため）
+      display: false,
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true, // ★ 0を必ず下に固定
+      min: 0,            // ★ マイナス領域を完全に消す
     },
   },
 };
-
 
   return (
     <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
