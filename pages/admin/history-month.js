@@ -74,21 +74,30 @@ for (let d = 1; d <= 31; d++) {
 
   // ★ 入力があった部署を上書きして集計
   records.forEach(item => {
-    const t = item.date.toDate();
-    const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
-    const day = jst.getDate();
+  const d = item.date.toDate();
 
-    const ward = item.wardId || "不明";
+  // ★ 月の一致判定
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const ym = `${y}-${m}`;
+  if (ym !== month) return;
 
-    if (!wardDaily[ward]) {
-      wardDaily[ward] = {};
-      for (let d = 1; d <= 31; d++) {
-        wardDaily[ward][d] = 0;
-      }
+  const day = d.getDate();
+  const ward = item.wardId || "不明";
+
+  // 部署別
+  if (!wardDaily[ward]) {
+    wardDaily[ward] = {};
+    for (let d = 1; d <= 31; d++) {
+      wardDaily[ward][d] = 0;
     }
+  }
+  wardDaily[ward][day] += Number(item.ml || 0);
 
-    wardDaily[ward][day] += Number(item.ml || 0);
-  });
+  // ★ 院内合計（日次）
+  daily[day] += Number(item.ml || 0);
+});
+
 
   setDailyTotals(daily);
   setWardDailyTotals(wardDaily);

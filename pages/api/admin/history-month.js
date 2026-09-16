@@ -46,12 +46,20 @@ export default async function handler(req, res) {
     });
 
     // staff 情報と合体
-    const result = staffList.map(s => ({
-      staffId: s.staffId,
-      name: s.name,
-      wardId: s.wardId,
-      total: map[s.staffId] || 0,
-    }));
+const result = staffList.map(s => ({
+  staffId: s.staffId,
+  name: s.name,
+  wardId: s.wardId,
+  total: map[s.staffId] || 0,
+}));
+
+// ★ 院内合計を追加
+const hospitalTotal = result.reduce((sum, s) => sum + s.total, 0);
+
+return res.status(200).json({
+  staff: result,
+  hospitalTotal
+});
 
     return res.status(200).json(result);
 
