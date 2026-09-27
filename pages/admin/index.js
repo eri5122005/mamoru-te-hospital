@@ -64,10 +64,10 @@ export default function AdminTop() {
   });
 
   return (
-    <div style={{ background: "#F9F9F9", minHeight: "100vh", padding: "20px" }}>
+    <div className="admin-container">
       
       {/* ★ 中央寄せコンテナ（これが重要） */}
-      <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+      <div className="admin-container" style={{ maxWidth: "600px", margin: "0 auto" }}>
 
         {/* タイトル */}
         <h1

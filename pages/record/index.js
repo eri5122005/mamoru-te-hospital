@@ -25,6 +25,9 @@ export default function RecordPage() {
   const router = useRouter();
   const EMPTY_WEIGHT = 46;
   const FULL_WEIGHT = 260;
+  // ★ g → mL 換算係数（263g = 250mL）
+const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
+
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
@@ -98,10 +101,11 @@ export default function RecordPage() {
 
     const now = Number(weightNow);
 
-    const prevRemain = prev - EMPTY_WEIGHT;
-    const nowRemain = now - EMPTY_WEIGHT;
+    const prevRemainG = prev - EMPTY_WEIGHT;
+const nowRemainG = now - EMPTY_WEIGHT;
 
-    const usedMl = prevRemain + (FULL_WEIGHT - nowRemain);
+const usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
+
 
     await updateDoc(doc(db, "staff", staff.staffId), {
       lastWeight: now,
@@ -140,7 +144,8 @@ export default function RecordPage() {
       return;
     }
 
-    const usedMl = prev - now;
+    const usedMl = (prev - now) * ML_PER_GRAM;
+
 
     try {
       await updateDoc(doc(db, "staff", staff.staffId), {
