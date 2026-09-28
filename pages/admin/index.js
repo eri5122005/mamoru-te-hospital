@@ -94,7 +94,7 @@ export default function AdminTop() {
               <div style={CardIcon}>💧</div>
               <div>
                 <div style={{ fontSize: "18px", color: "#006b5f" }}>今日の使用量</div>
-                <div style={Value}>{todayTotal} mL</div>
+                <div style={Value}>{Number(todayTotal).toFixed(2)} mL</div>
               </div>
             </div>
           </div>
