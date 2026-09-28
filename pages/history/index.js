@@ -117,7 +117,7 @@ setRecords(list);
             color: "#006b5f",
           }}
         >
-          {item.date.toDate().toLocaleString()} / {item.ml} mL
+          {item.date.toDate().toLocaleString()} / {Number(item.ml).toFixed(2)} mL
         </div>
       ))}
 

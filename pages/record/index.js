@@ -104,8 +104,7 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
     const prevRemainG = prev - EMPTY_WEIGHT;
 const nowRemainG = now - EMPTY_WEIGHT;
 
-const usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
-
+const usedMl = Number(((prevRemainG - nowRemainG) * ML_PER_GRAM).toFixed(2));
 
     await updateDoc(doc(db, "staff", staff.staffId), {
       lastWeight: now,
@@ -144,8 +143,7 @@ const usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
       return;
     }
 
-    const usedMl = (prev - now) * ML_PER_GRAM;
-
+    const usedMl = Number(((prev - now) * ML_PER_GRAM).toFixed(2));
 
     try {
       await updateDoc(doc(db, "staff", staff.staffId), {
