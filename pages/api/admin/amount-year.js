@@ -7,24 +7,25 @@ export default async function handler(req, res) {
     const staffSnap = await getDocs(collection(db, "staff"));
     const staffList = staffSnap.docs.map(doc => doc.data());
 
-    // 今日の日付から「今年」を作る
+    // 今日の年
     const today = new Date();
     const year = today.getFullYear();
-
-    // 今年の prefix（例：2026-）
-    const yearPrefix = `${year}-`;
 
     // records 全件取得
     const recordSnap = await getDocs(collection(db, "records"));
     const records = recordSnap.docs.map(doc => doc.data());
 
-    // staffId ごとに ml を合計
     const map = {};
 
     records.forEach(r => {
       if (!r.date) return;
 
-      if (r.date.startsWith(yearPrefix)) {
+      // ★ Timestamp → Date に変換
+      const d = r.date.toDate();
+      const y = d.getFullYear();
+
+      // ★ 今年だけ合計
+      if (y === year) {
         const id = r.staffId;
         const ml = Number(r.ml) || 0;
 

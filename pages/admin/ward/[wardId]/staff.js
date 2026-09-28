@@ -33,21 +33,44 @@ export default function StaffList() {
     "ikyoku": "医局",
   };
 
-  useEffect(() => {
-    if (!wardId) return;
+ useEffect(() => {
+  if (!wardId) return;
 
-    const fetchData = async () => {
-      const staffSnap = await getDocs(collection(db, "staff"));
-      const staffList = staffSnap.docs
-        .map((d) => d.data())
-        .filter((s) => s.wardId === wardId && s.isActive);
+  const fetchData = async () => {
+    const staffSnap = await getDocs(collection(db, "staff"));
+    const staffList = staffSnap.docs
+  .map((d) => ({
+    staffId: d.id,   // ★ 本物の staffId を使う
+    ...d.data(),
+  }))
+  .filter((s) => s.wardId === wardId && s.isActive);
 
-      setStaff(staffList);
-      setLoading(false);
-    };
+    // ★ ここで今日・今月の使用量を追加する
+    const staffWithUsage = await Promise.all(
+      staffList.map(async (s) => {
+        // 今日の使用量
+        const todayRes = await fetch(`/api/admin/staff-today?staffId=${s.staffId}`);
+        const todayData = await todayRes.json();
 
-    fetchData();
-  }, [wardId]);
+        // 今月の使用量
+        const monthRes = await fetch(`/api/admin/staff-month?staffId=${s.staffId}`);
+        const monthData = await monthRes.json();
+
+        return {
+          ...s,
+          todayTotal: todayData.total,
+          monthTotal: monthData.total,
+        };
+      })
+    );
+
+    setStaff(staffWithUsage);
+    setLoading(false);
+  };
+
+  fetchData();
+}, [wardId]);
+
 
   if (loading) {
     return (
@@ -117,16 +140,29 @@ export default function StaffList() {
             </div>
 
             <div
-              style={{
-                fontSize: "14px",
-                color: "#008080",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              💧 今月の使用量：{s.monthlyUsage ?? 0} mL
-            </div>
+  style={{
+    fontSize: "14px",
+    color: "#008080",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  💧 今月の使用量：{Number(s.monthTotal ?? 0).toFixed(2)} mL
+</div>
+
+<div
+  style={{
+    fontSize: "14px",
+    color: "#008080",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  }}
+>
+  💧 今日の使用量：{Number(s.todayTotal ?? 0).toFixed(2)} mL
+</div>
+
 
             <div
               style={{

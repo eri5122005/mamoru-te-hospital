@@ -26,17 +26,20 @@ export default async function handler(req, res) {
       wardStaffCount[ward]++;
     });
 
-    // 今日の日付（文字列）
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, "0");
-    const d = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${y}-${m}-${d}`;
+    // 今日の開始・終了
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-    // 今日の記録
+    // ★ Timestamp の範囲検索に修正
     const recordSnap = await getDocs(
-      query(collection(db, "records"), where("date", "==", todayStr))
+      query(
+        collection(db, "records"),
+        where("date", ">=", start),
+        where("date", "<=", end)
+      )
     );
+
     const records = recordSnap.docs.map(doc => doc.data());
 
     const wardUsedCount = {};
@@ -62,10 +65,10 @@ export default async function handler(req, res) {
       };
     });
 
-    res.status(200).json(wardRate);
+    return res.status(200).json(wardRate);
 
   } catch (error) {
     console.error("ward-rate error:", error);
-    res.status(500).json({ error: "Failed to load ward rate" });
+    return res.status(500).json({ error: "Failed to load ward rate" });
   }
 }

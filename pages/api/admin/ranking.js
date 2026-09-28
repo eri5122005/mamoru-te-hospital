@@ -30,20 +30,22 @@ export default async function handler(req, res) {
 
     // 期間フィルタ
     const filtered = records.filter(r => {
-      const t = r.date.toDate();
-      const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
+      if (!r.date) return false;
+
+      // ★ Timestamp → Date（JSTで保存されているのでそのままでOK）
+      const recordDate = r.date.toDate();
 
       if (mode === "week") {
-        return jst >= startOfWeek && jst <= now;
+        return recordDate >= startOfWeek && recordDate <= now;
       }
       if (mode === "month") {
         return (
-          jst.getFullYear() === now.getFullYear() &&
-          jst.getMonth() === now.getMonth()
+          recordDate.getFullYear() === now.getFullYear() &&
+          recordDate.getMonth() === now.getMonth()
         );
       }
       if (mode === "year") {
-        return jst.getFullYear() === now.getFullYear();
+        return recordDate.getFullYear() === now.getFullYear();
       }
       return true;
     });
@@ -68,7 +70,7 @@ export default async function handler(req, res) {
     return res.status(200).json(ranking);
 
   } catch (error) {
-    console.error(error);
+    console.error("ranking error:", error);
     return res.status(500).json({ error: "Failed to load ranking" });
   }
 }

@@ -18,18 +18,15 @@ export default async function handler(req, res) {
     const recordSnap = await getDocs(collection(db, "records"));
     const records = recordSnap.docs.map(doc => doc.data());
 
-    // "2026-09-11" → Date に変換する関数
-    const toDate = (str) => {
-      const [y, m, d] = str.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d));
-    };
-
     // 30日以内に入力した staffId をセット化
     const usedSet = new Set(
       records
         .filter(r => {
           if (!r.date) return false;
-          const recordDate = toDate(r.date);
+
+          // ★ Timestamp → Date に変換
+          const recordDate = r.date.toDate();
+
           return recordDate >= monthAgo && recordDate <= today;
         })
         .map(r => r.staffId)

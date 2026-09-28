@@ -1,27 +1,27 @@
 import { db } from "@/firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
-    // 今日の日付（YYYY-MM-DD）
-    const today = new Date().toISOString().split("T")[0];
+    // 今日の開始（00:00）
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    // 今日の記録を取得（Timestamp なので後で変換する）
-    const recordSnap = await getDocs(collection(db, "records"));
+    // 今日の終了（23:59:59）
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
 
-    const enteredStaffIds = new Set();
+    // ★ 今日の記録だけ Firestore 側で絞り込む（高速）
+    const recordSnap = await getDocs(
+      query(
+        collection(db, "records"),
+        where("date", ">=", start),
+        where("date", "<=", end)
+      )
+    );
 
-    recordSnap.forEach(doc => {
-      const data = doc.data();
-
-      // Timestamp → Date → "YYYY-MM-DD" に変換
-      const recordDate = data.date.toDate().toISOString().split("T")[0];
-
-      // 今日の記録だけカウント
-      if (recordDate === today) {
-        enteredStaffIds.add(data.staffId);
-      }
-    });
+    const enteredStaffIds = new Set(
+      recordSnap.docs.map(doc => doc.data().staffId)
+    );
 
     const enteredCount = enteredStaffIds.size;
 
@@ -32,9 +32,10 @@ export default async function handler(req, res) {
     // 未入力者数
     const notEntered = totalStaff - enteredCount;
 
-    res.status(200).json({ count: notEntered });
+    return res.status(200).json({ count: notEntered });
+
   } catch (error) {
     console.error("today-not-entered-count error:", error);
-    res.status(500).json({ count: 0 });
+    return res.status(500).json({ count: 0 });
   }
 }

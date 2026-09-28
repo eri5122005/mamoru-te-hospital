@@ -1,4 +1,4 @@
-import { db } from "@/firebaseConfig";
+import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 // ★ ここに normalizeMl を貼る（このままコピペOK）
@@ -14,33 +14,35 @@ function normalizeMl(value) {
 }
 
 export default async function handler(req, res) {
-  try {
-    const now = new Date();
+  const { staffId } = req.query;
 
-    // 今日の開始（00:00:00）
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  try {
+    // 今日の開始（00:00）
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
     // 今日の終了（23:59:59）
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
 
-    // 今日の記録だけを Firestore 側で絞り込む（高速）
-    const q = query(
-      collection(db, "records"),
-      where("date", ">=", start),
-      where("date", "<=", end)
-    );
+   const q = query(
+  collection(db, "records"),
+  where("staffId", "==", staffId),   // ★ 文字列で検索
+  where("date", ">=", start),
+  where("date", "<=", end)
+);
 
-    const snapshot = await getDocs(q);
+    const snap = await getDocs(q);
 
     let total = 0;
-    snapshot.forEach(doc => {
+    snap.forEach(doc => {
       // ★ ここを書き換える（Number → normalizeMl）
       total += normalizeMl(doc.data().ml);
     });
 
-    res.status(200).json({ total });
+    return res.status(200).json({ total });
+
   } catch (error) {
-    console.error("today-total error:", error);
-    res.status(500).json({ total: 0 });
+    console.error("staff-today error:", error);
+    return res.status(500).json({ total: 0 });
   }
 }

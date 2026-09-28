@@ -1,9 +1,20 @@
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
+// ★ normalizeMl をここに貼る（このままコピペOK）
+function normalizeMl(value) {
+  const ml = Number(value);
+
+  if (isNaN(ml)) return 0;      // 数字に変換できない → 0
+  if (ml < 0.1) return 0;       // 異常に小さい値 → 0
+  if (ml > 1000) return 0;      // 異常に大きい値 → 0
+  if (!Number.isFinite(ml)) return 0; // 無限大など → 0
+
+  return ml; // 正常値
+}
+
 export default async function handler(req, res) {
   try {
-    // 病棟名マップ（正式名称）
     const wardNameMap = {
       "4f": "4階",
       "5f": "5階",
@@ -16,43 +27,32 @@ export default async function handler(req, res) {
       "shisetsu": "施設管理"
     };
 
-    // 今日の日付（JST）
     const today = new Date();
-
-    // 7日前（JST）
     const weekAgo = new Date();
     weekAgo.setDate(today.getDate() - 7);
 
-    // Firestore records 全件取得
     const snapshot = await getDocs(collection(db, "records"));
     const records = snapshot.docs.map(doc => doc.data());
 
-    // Timestamp → JST Date に統一
     const filtered = records.filter(r => {
       if (!r.date) return false;
 
-      // Firestore Timestamp → JS Date
-      const t = r.date.toDate();
-
-      // JST に変換
-      const jst = new Date(t.getTime() + 9 * 60 * 60 * 1000);
-
-      // 過去7日間に含まれるか
-      return jst >= weekAgo && jst <= today;
+      const recordDate = r.date.toDate();
+      return recordDate >= weekAgo && recordDate <= today;
     });
 
-    // 病棟ごとに集計
     const wardMap = {};
 
     filtered.forEach(r => {
       const ward = r.wardId || "不明";
-      const ml = Number(r.ml) || 0;
+
+      // ★ Number → normalizeMl に変更
+      const ml = normalizeMl(r.ml);
 
       if (!wardMap[ward]) wardMap[ward] = 0;
       wardMap[ward] += ml;
     });
 
-    // ランキング形式に変換
     const ranking = Object.entries(wardMap)
       .map(([ward, total]) => ({
         wardId: ward,
@@ -68,3 +68,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Failed to load weekly ranking" });
   }
 }
+ 

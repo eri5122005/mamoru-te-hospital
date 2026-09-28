@@ -16,17 +16,22 @@ export default async function handler(req, res) {
       "shisetsu": "施設管理"
     };
 
-    // 今日の日付（文字列）
+    // 今日の開始（00:00:00）
     const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, "0");
-    const d = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${y}-${m}-${d}`;
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    // 今日の記録だけ取得
+    // 今日の終了（23:59:59）
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+    // ★ 今日の記録だけ取得（高速）
     const snapshot = await getDocs(
-      query(collection(db, "records"), where("date", "==", todayStr))
+      query(
+        collection(db, "records"),
+        where("date", ">=", start),
+        where("date", "<=", end)
+      )
     );
+
     const records = snapshot.docs.map(doc => doc.data());
 
     // 病棟ごとに使用量を集計
