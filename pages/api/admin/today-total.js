@@ -1,40 +1,35 @@
 import { db } from "@/firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
-// ★ ここに normalizeMl を貼る（このままコピペOK）
 function normalizeMl(value) {
   const ml = Number(value);
-
-  if (isNaN(ml)) return 0;      // 数字に変換できない → 0
-  if (ml < 0.1) return 0;       // 異常に小さい値 → 0
-  if (ml > 1000) return 0;      // 異常に大きい値 → 0
-  if (!Number.isFinite(ml)) return 0; // 無限大など → 0
-
-  return ml; // 正常値
+  if (isNaN(ml)) return 0;
+  if (ml < 0.1) return 0;
+  if (ml > 1000) return 0;
+  if (!Number.isFinite(ml)) return 0;
+  return ml;
 }
 
 export default async function handler(req, res) {
   try {
     const now = new Date();
 
-    // 今日の開始（00:00:00）
+    // 今日の開始（JST）
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // 今日の終了（23:59:59）
+    // 今日の終了（JST）
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-    // 今日の記録だけを Firestore 側で絞り込む（高速）
+    // ★ Firestore は UTC なので Timestamp に変換する
     const q = query(
-      collection(db, "records"),
-      where("date", ">=", start),
-      where("date", "<=", end)
-    );
+  collection(db, "records"),
+  where("date", ">=", Timestamp.fromDate(start)),
+  where("date", "<=", Timestamp.fromDate(end))
+);
 
     const snapshot = await getDocs(q);
 
     let total = 0;
     snapshot.forEach(doc => {
-      // ★ ここを書き換える（Number → normalizeMl）
       total += normalizeMl(doc.data().ml);
     });
 

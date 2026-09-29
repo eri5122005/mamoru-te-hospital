@@ -95,28 +95,37 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
   };
 
   // ★ ボトル交換 YES（完全修正版）
-  const handleExchangeYes = async () => {
-    let prev = Number(staff.lastWeight);
-    if (isNaN(prev) || prev <= 0) prev = FULL_WEIGHT;
+const handleExchangeYes = async () => {
+  let prev = Number(staff.lastWeight);
 
-    const now = Number(weightNow);
+  // ★ lastWeight が壊れている人を自動初期化
+  if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
+    prev = FULL_WEIGHT;
+  }
 
-    const prevRemainG = prev - EMPTY_WEIGHT;
-const nowRemainG = now - EMPTY_WEIGHT;
+  const now = Number(weightNow);
 
-const usedMl = Number(((prevRemainG - nowRemainG) * ML_PER_GRAM).toFixed(2));
+  const prevRemainG = prev - EMPTY_WEIGHT;
+  const nowRemainG = now - EMPTY_WEIGHT;
 
-    await updateDoc(doc(db, "staff", staff.staffId), {
-      lastWeight: now,
-    });
+  let usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
 
-    const updated = { ...staff, lastWeight: now };
-    localStorage.setItem("currentStaff", JSON.stringify(updated));
-    setStaff(updated);
+  if (usedMl < 0) usedMl = 0;
+  if (usedMl < 0.01) usedMl = 0;
+  usedMl = Number(usedMl.toFixed(2));
 
-    await saveRecord(usedMl, now);
-    setShowExchangeConfirm(false);
-  };
+  await updateDoc(doc(db, "staff", staff.staffId), {
+    lastWeight: now,
+  });
+
+  const updated = { ...staff, lastWeight: now };
+  localStorage.setItem("currentStaff", JSON.stringify(updated));
+  setStaff(updated);
+
+  await saveRecord(usedMl, now);
+  setShowExchangeConfirm(false);
+  return;   // ★ 必須（多重登録防止）
+};
 
   // ★ ボトル交換 NO
   const handleExchangeNo = () => {
@@ -125,41 +134,53 @@ const usedMl = Number(((prevRemainG - nowRemainG) * ML_PER_GRAM).toFixed(2));
   };
 
   // ★ 記録処理（重さ方式）完全修正版
-  const handleRecord = async () => {
-    if (!staff) return;
+const handleRecord = async () => {
+  if (!staff) return;
 
-    if (!weightNow) {
-      setMessage("重さを入力してください");
-      return;
-    }
+  if (!weightNow) {
+    setMessage("重さを入力してください");
+    return;
+  }
 
-    let prev = Number(staff.lastWeight);
-    if (isNaN(prev) || prev <= 0) prev = FULL_WEIGHT;
+  const now = Number(weightNow);
+  let prev = Number(staff.lastWeight);
 
-    const now = Number(weightNow);
+  // ★ lastWeight が壊れている人を自動初期化
+  if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
+    prev = FULL_WEIGHT; // 初期値は満タン扱い
+  }
 
-    if (now > prev) {
-      setShowExchangeConfirm(true);
-      return;
-    }
+  // ★ ボトル交換判定（誤差3gまで許容）
+  if (now > prev + 3) {
+    setShowExchangeConfirm(true);
+    return;
+  }
 
-    const usedMl = Number(((prev - now) * ML_PER_GRAM).toFixed(2));
+  // ★ 使用量計算（異常値を自動補正）
+  let usedMl = (prev - now) * ML_PER_GRAM;
 
-    try {
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        lastWeight: now,
-      });
+  if (usedMl < 0) usedMl = 0;          // マイナス補正
+  if (usedMl < 0.01) usedMl = 0;       // 極小値補正
+  usedMl = Number(usedMl.toFixed(2));  // 小数点第2位に統一
 
-      const updated = { ...staff, lastWeight: now };
-      localStorage.setItem("currentStaff", JSON.stringify(updated));
-      setStaff(updated);
-    } catch (e) {
-      setMessage("前回の重さ更新に失敗しました");
-      return;
-    }
+  try {
+    await updateDoc(doc(db, "staff", staff.staffId), {
+      lastWeight: now,
+    });
 
-    await saveRecord(usedMl, now);
-  };
+    const updated = { ...staff, lastWeight: now };
+    localStorage.setItem("currentStaff", JSON.stringify(updated));
+    setStaff(updated);
+  } catch (e) {
+    setMessage("前回の重さ更新に失敗しました");
+    return;
+  }
+
+  // ★ 二重登録防止（return を必ず入れる）
+  await saveRecord(usedMl, now);
+  return;
+};
+
 
   if (!staff) {
     return <p>スタッフ情報を読み込んでいます…</p>;
