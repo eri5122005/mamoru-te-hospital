@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 
 export default function Login() {
@@ -8,38 +8,29 @@ export default function Login() {
   const [staffId, setStaffId] = useState("");
 
   // ★ ログイン画面を開いた瞬間にローカルストレージを強制クリア
-useEffect(() => {
-  const mode = localStorage.getItem("trainingMode");
+  useEffect(() => {
+    const mode = localStorage.getItem("trainingMode");
 
-  if (mode === "off") {
-    Object.keys(localStorage).forEach((key) => {
-      // staff-XXXX を削除
-      if (key.startsWith("staff-")) {
-        localStorage.removeItem(key);
-      }
+    if (mode === "off") {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("staff-")) localStorage.removeItem(key);
+        if (/^\d+$/.test(key)) localStorage.removeItem(key);
+        if (
+          key === "currentStaff" ||
+          key === "loginUser" ||
+          key === "staffList"
+        ) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+  }, []);
 
-      // 数字だけのキー（例：4358）も削除
-      if (/^\d+$/.test(key)) {
-        localStorage.removeItem(key);
-      }
-
-      // 初回判定に使うキーも削除
-      if (
-        key === "currentStaff" ||
-        key === "loginUser" ||
-        key === "staffList"
-      ) {
-        localStorage.removeItem(key);
-      }
-    });
-  }
-}, []);
-
-
+  // ★ ログイン処理（ここだけ使う）
   const handleLogin = () => {
     if (!staffId) return;
 
-    // ★ 総合管理者（9999）は初回登録不要
+    // ★ 総合管理者（9999）
     if (staffId === "9999") {
       localStorage.setItem(
         "currentStaff",
@@ -52,11 +43,11 @@ useEffect(() => {
           role: "super",
         })
       );
-
       router.replace("/admin");
       return;
     }
 
+    // ★ 部署管理者
     const departmentAdmins = {
       "2100": "gairai",
       "2150": "gairai",
@@ -76,7 +67,6 @@ useEffect(() => {
 
     if (departmentAdmins[staffId]) {
       const dept = departmentAdmins[staffId];
-
       localStorage.setItem(
         "currentStaff",
         JSON.stringify({
@@ -88,12 +78,11 @@ useEffect(() => {
           role: "admin",
         })
       );
-
       router.replace(`/admin/ward/${dept}`);
       return;
     }
 
-    // ★ staff-XXXX を読み込む（初回登録データ）
+    // ★ 一般スタッフ（staff-XXXX を使う）
     const raw = localStorage.getItem(`staff-${staffId}`);
 
     if (!raw) {
@@ -103,6 +92,7 @@ useEffect(() => {
 
     const staffData = JSON.parse(raw);
 
+    // ★ currentStaff を上書き
     localStorage.setItem(
       "currentStaff",
       JSON.stringify({
@@ -118,7 +108,14 @@ useEffect(() => {
       })
     );
 
-    router.replace("/home");
+    // ★ 重さ方式なら first-weight 判定
+    if (!staffData.lastWeight) {
+      router.replace("/first-weight");
+      return;
+    }
+
+    // ★ 記録ページへ
+    router.replace("/record");
   };
 
   return (

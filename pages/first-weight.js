@@ -15,17 +15,14 @@ const wardNameMap = {
   "touseki": "透析室",
   "riha": "リハビリ",
   "ikyoku": "医局",
-  "shisetsu": "施設管理",   // ★ 追加
+  "shisetsu": "施設管理",
 };
 
 export default function FirstWeightPage() {
   const router = useRouter();
   const [staff, setStaff] = useState(null);
 
-  // ★ 重さ入力画面へ進むフラグ
   const [selectedMode, setSelectedMode] = useState(false);
-
-  // ★ 重さ入力
   const [weight, setWeight] = useState("");
   const [message, setMessage] = useState("");
 
@@ -36,7 +33,6 @@ export default function FirstWeightPage() {
       return;
     }
 
-    // すでに lastWeight がある → 初回設定不要
     if (data.lastWeight) {
       router.replace("/record");
       return;
@@ -45,12 +41,11 @@ export default function FirstWeightPage() {
     setStaff(data);
   }, [router]);
 
-  // ★ 重さ方式を選んだ場合 → 重さ入力画面へ
   const handleSelectWeight = () => {
     setSelectedMode(true);
   };
 
-  // ★ 重さ方式の初回重さ登録
+  // ★ 重さ方式の初回重さ登録（完成版）
   const handleRegisterWeight = async () => {
     if (!weight) {
       setMessage("重さを入力してください");
@@ -60,20 +55,31 @@ export default function FirstWeightPage() {
     const now = Number(weight);
 
     try {
+      // ★ staff コレクション（既存）
       await updateDoc(doc(db, "staff", staff.staffId), {
         mode: "weight",
         lastWeight: now,
         emptyWeight: 46,
       });
 
-      const updated = {
-        ...staff,
-        mode: "weight",
+      // ★ staffs コレクション（クラウド復旧用）
+      await updateDoc(doc(db, "staffs", staff.staffId), {
         lastWeight: now,
         emptyWeight: 46,
-      };
+        mode: "weight",
+      });
 
-      localStorage.setItem("currentStaff", JSON.stringify(updated));
+     // ★ localStorage 更新
+const updated = {
+  ...staff,
+  mode: "weight",
+  lastWeight: now,
+  emptyWeight: 46,
+};
+
+localStorage.setItem("currentStaff", JSON.stringify(updated));
+localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated)); // ★ これが必要
+ 
 
       router.replace("/record");
     } catch (e) {
@@ -99,7 +105,6 @@ export default function FirstWeightPage() {
           初回設定
         </h1>
 
-        {/* スタッフ情報 */}
         <div
           style={{
             background: "#ffffff",
@@ -114,7 +119,6 @@ export default function FirstWeightPage() {
           <p>病棟：{wardNameMap[staff.wardId] || staff.wardId}</p>
         </div>
 
-        {/* ★ 記録方式選択画面（重さ方式のみ） */}
         {!selectedMode && (
           <>
             <p style={{ color: "#006b5f", marginBottom: "12px" }}>
@@ -139,7 +143,6 @@ export default function FirstWeightPage() {
           </>
         )}
 
-        {/* ★ 重さ方式を選んだ後の入力画面 */}
         {selectedMode && (
           <>
             <p

@@ -5,7 +5,7 @@ import NavBar from "../../components/NavBar";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
 
 // ★ 病棟ID → 表示名マップ
@@ -38,41 +38,21 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
 
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
   const local = JSON.parse(localStorage.getItem("currentStaff"));
 
-  // ★ localStorage が消えている場合 → Firestore から復旧
   if (!local) {
-    const id = router.query.staffId;
-    if (id) {
-      const ref = doc(db, "staffs", id);
-      getDoc(ref).then((snap) => {
-        if (snap.exists()) {
-          const cloud = snap.data();
-
-          // ★ 復旧：localStorage に書き戻す
-          localStorage.setItem("currentStaff", JSON.stringify(cloud));
-
-          setStaff(cloud);
-          return;
-        } else {
-          router.replace("/login");
-        }
-      });
-    }
+    router.replace("/login");
     return;
   }
 
-  // ★ localStorage が正常なら lastWeight をチェック
-  const lw = Number(local.lastWeight);
-  if (!isNaN(lw) && lw >= EMPTY_WEIGHT && lw <= FULL_WEIGHT) {
-    setStaff(local);
+  if (!local.lastWeight) {
+    router.replace("/first-weight");
     return;
   }
 
-  // ★ lastWeight が壊れている場合だけ初期登録へ戻す（安全）
-  router.replace("/first-login");
-}, [router]);
+  setStaff(local);
+}, []); // ← ここは [] が正解
 
   // ★ 記録保存共通処理
   const saveRecord = async (usedMl, nowWeightValue) => {
@@ -141,17 +121,31 @@ const handleExchangeYes = async () => {
   if (usedMl < 0.01) usedMl = 0;
   usedMl = Number(usedMl.toFixed(2));
 
+ try {
+  // ★ staff コレクション（既存）
   await updateDoc(doc(db, "staff", staff.staffId), {
     lastWeight: now,
   });
 
+  // ★★★ staffs コレクション（クラウド復旧用）★★★
+  await updateDoc(doc(db, "staffs", staff.staffId), {
+    lastWeight: now,
+  });
+
+  // ★ localStorage 更新
   const updated = { ...staff, lastWeight: now };
   localStorage.setItem("currentStaff", JSON.stringify(updated));
   setStaff(updated);
 
-  await saveRecord(usedMl, now);
-  setShowExchangeConfirm(false);
-  return;   // ★ 必須（多重登録防止）
+} catch (e) {
+  setMessage("前回の重さ更新に失敗しました");
+  return;
+}
+
+// ★ 二重登録防止
+await saveRecord(usedMl, now);
+return;
+    // ★ 必須（多重登録防止）
 };
 
   // ★ ボトル交換 NO
