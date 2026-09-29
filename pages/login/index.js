@@ -41,6 +41,9 @@ export default function Login() {
           wardId: "",
           workDays: [],
           role: "super",
+          mode: "weight",
+          lastWeight: 1,
+          emptyWeight: 1,
         })
       );
       router.replace("/admin");
@@ -76,6 +79,9 @@ export default function Login() {
           wardId: dept,
           workDays: [],
           role: "admin",
+          mode: "weight",
+          lastWeight: 1,
+          emptyWeight: 1,
         })
       );
       router.replace(`/admin/ward/${dept}`);
@@ -93,23 +99,29 @@ export default function Login() {
     const staffData = JSON.parse(raw);
 
     // ★ currentStaff を上書き
-    localStorage.setItem(
-      "currentStaff",
-      JSON.stringify({
-        staffId: staffData.staffId,
-        name: staffData.name,
-        department: staffData.department,
-        wardId: staffData.wardId,
-        workDays: staffData.workDays,
-        role: staffData.role,
-        mode: staffData.mode,
-        lastWeight: staffData.lastWeight || null,
-        emptyWeight: staffData.emptyWeight || null,
-      })
-    );
+    const current = {
+      staffId: staffData.staffId,
+      name: staffData.name,
+      department: staffData.department,
+      wardId: staffData.wardId,
+      workDays: staffData.workDays,
+      role: staffData.role,
+      mode: staffData.mode ?? null,
+      lastWeight:
+        staffData.lastWeight === undefined ? null : staffData.lastWeight,
+      emptyWeight:
+        staffData.emptyWeight === undefined ? null : staffData.emptyWeight,
+    };
 
-    // ★ 重さ方式なら first-weight 判定
-    if (!staffData.lastWeight) {
+    localStorage.setItem("currentStaff", JSON.stringify(current));
+
+    // ★ 初回重さ登録の安全判定（誤判定ゼロ）
+    const needFirstWeight =
+      current.mode !== "weight" ||
+      current.lastWeight === null ||
+      current.emptyWeight === null;
+
+    if (needFirstWeight) {
       router.replace("/first-weight");
       return;
     }

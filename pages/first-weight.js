@@ -5,7 +5,6 @@ import { useRouter } from "next/router";
 import { db } from "../firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
 
-// ★ 病棟ID → 表示名マップ
 const wardNameMap = {
   "4f": "4階",
   "5f": "5階",
@@ -21,7 +20,6 @@ const wardNameMap = {
 export default function FirstWeightPage() {
   const router = useRouter();
   const [staff, setStaff] = useState(null);
-
   const [selectedMode, setSelectedMode] = useState(false);
   const [weight, setWeight] = useState("");
   const [message, setMessage] = useState("");
@@ -33,7 +31,15 @@ export default function FirstWeightPage() {
       return;
     }
 
-    if (data.lastWeight) {
+    // ★ 誤判定ゼロの安全判定
+    const alreadyRegistered =
+      data.mode === "weight" &&
+      data.lastWeight !== null &&
+      data.lastWeight !== undefined &&
+      data.emptyWeight !== null &&
+      data.emptyWeight !== undefined;
+
+    if (alreadyRegistered) {
       router.replace("/record");
       return;
     }
@@ -45,7 +51,6 @@ export default function FirstWeightPage() {
     setSelectedMode(true);
   };
 
-  // ★ 重さ方式の初回重さ登録（完成版）
   const handleRegisterWeight = async () => {
     if (!weight) {
       setMessage("重さを入力してください");
@@ -55,31 +60,27 @@ export default function FirstWeightPage() {
     const now = Number(weight);
 
     try {
-      // ★ staff コレクション（既存）
       await updateDoc(doc(db, "staff", staff.staffId), {
         mode: "weight",
         lastWeight: now,
         emptyWeight: 46,
       });
 
-      // ★ staffs コレクション（クラウド復旧用）
       await updateDoc(doc(db, "staffs", staff.staffId), {
         lastWeight: now,
         emptyWeight: 46,
         mode: "weight",
       });
 
-     // ★ localStorage 更新
-const updated = {
-  ...staff,
-  mode: "weight",
-  lastWeight: now,
-  emptyWeight: 46,
-};
+      const updated = {
+        ...staff,
+        mode: "weight",
+        lastWeight: now,
+        emptyWeight: 46,
+      };
 
-localStorage.setItem("currentStaff", JSON.stringify(updated));
-localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated)); // ★ これが必要
- 
+      localStorage.setItem("currentStaff", JSON.stringify(updated));
+      localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated));
 
       router.replace("/record");
     } catch (e) {
@@ -101,9 +102,7 @@ localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated)); // ★ 
       }}
     >
       <main>
-        <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>
-          初回設定
-        </h1>
+        <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>初回設定</h1>
 
         <div
           style={{
