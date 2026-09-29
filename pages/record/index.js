@@ -39,13 +39,40 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("currentStaff"));
-    if (!data) {
-      router.replace("/login");
-      return;
+  const local = JSON.parse(localStorage.getItem("currentStaff"));
+
+  // ★ localStorage が消えている場合 → Firestore から復旧
+  if (!local) {
+    const id = router.query.staffId;
+    if (id) {
+      const ref = doc(db, "staffs", id);
+      getDoc(ref).then((snap) => {
+        if (snap.exists()) {
+          const cloud = snap.data();
+
+          // ★ 復旧：localStorage に書き戻す
+          localStorage.setItem("currentStaff", JSON.stringify(cloud));
+
+          setStaff(cloud);
+          return;
+        } else {
+          router.replace("/login");
+        }
+      });
     }
-    setStaff(data);
-  }, [router]);
+    return;
+  }
+
+  // ★ localStorage が正常なら lastWeight をチェック
+  const lw = Number(local.lastWeight);
+  if (!isNaN(lw) && lw >= EMPTY_WEIGHT && lw <= FULL_WEIGHT) {
+    setStaff(local);
+    return;
+  }
+
+  // ★ lastWeight が壊れている場合だけ初期登録へ戻す（安全）
+  router.replace("/first-login");
+}, [router]);
 
   // ★ 記録保存共通処理
   const saveRecord = async (usedMl, nowWeightValue) => {

@@ -37,59 +37,98 @@ export default function FirstLogin() {
 
   const [realStaffId, setRealStaffId] = useState("");
 
-  useEffect(() => {
-    if (!router.isReady) return;
+ useEffect(() => {
+  if (!router.isReady) return;
 
+  const local = JSON.parse(localStorage.getItem("currentStaff"));
+
+  // ★ localStorage が消えている場合 → Firestore から復旧
+  if (!local) {
     const id = router.query.staffId;
     if (id) {
-      setRealStaffId(id);
+      const ref = doc(db, "staffs", id);
+      getDoc(ref).then((snap) => {
+        if (snap.exists()) {
+          const cloud = snap.data();
+
+          // ★ 復旧：localStorage に書き戻す
+          localStorage.setItem("currentStaff", JSON.stringify(cloud));
+
+          router.replace("/record");
+          return;
+        } else {
+          router.replace("/login");
+        }
+      });
     }
-  }, [router.isReady]);
+    return;
+  }
+
+  // ★ localStorage が正常なら first-login スキップ
+  if (local.lastWeight) {
+    router.replace("/record");
+    return;
+  }
+}, [router.isReady]);
 
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const [workDays, setWorkDays] = useState("");
 
   const handleRegister = async () => {
-    if (!name || !department || !workDays) return;
+  if (!name || !department || !workDays) return;
 
-    // ★ 保存直前に必ず整形（Safariでも確実に動く）
-    const formattedName = formatName(name);
+  // ★ 保存直前に必ず整形（Safariでも確実に動く）
+  const formattedName = formatName(name);
 
   const wardMap = {
-  "4階": "4f",
-  "5階": "5f",
-  "6階": "6f",
-  "7.8階": "78f",
-  "外来": "gairai",
-  "透析室": "touseki",
-  "リハビリ": "riha",
-  "医局": "ikyoku",
-  "施設管理": "shisetsu"   // ★ 正しい向き
-};
-
-
-
-    const wardId = wardMap[department];
-
-    const staffData = {
-      staffId: realStaffId,
-      name: formattedName, // ← ★ 整形済みの名前を保存
-      department,
-      wardId,
-      workDays,
-      role: "staff",
-      isActive: true,
-      mode: "weight", 
-    };
-
-    await setDoc(doc(db, "staff", realStaffId), staffData);
-
-    localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
-    localStorage.setItem("currentStaff", JSON.stringify(staffData));
-
-    router.replace("/first-weight");
+    "4階": "4f",
+    "5階": "5f",
+    "6階": "6f",
+    "7.8階": "78f",
+    "外来": "gairai",
+    "透析室": "touseki",
+    "リハビリ": "riha",
+    "医局": "ikyoku",
+    "施設管理": "shisetsu"
   };
+
+  const wardId = wardMap[department];
+
+  const staffData = {
+    staffId: realStaffId,
+    name: formattedName,
+    department,
+    wardId,
+    workDays,
+    role: "staff",
+    isActive: true,
+    mode: "weight",
+  };
+
+  // ★ Firestore（既存の staff コレクション）
+  await setDoc(doc(db, "staff", realStaffId), staffData);
+
+  // ★ localStorage 保存（既存）
+  localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
+  localStorage.setItem("currentStaff", JSON.stringify(staffData));
+
+  // ★★★ ここに貼るのが正しい位置（クラウドバックアップ）★★★
+  await setDoc(doc(db, "staffs", realStaffId), {
+    staffId: realStaffId,
+    name: formattedName,
+    department,
+    wardId,
+    workDays,
+    lastWeight: null,   // 初期登録時はまだ重さが無いので null
+    role: "staff",
+    isActive: true,
+    mode: "weight",
+  });
+
+  // ★ 初期重さ入力画面へ
+  router.replace("/first-weight");
+};
 
   return (
     <>
