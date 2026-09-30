@@ -147,6 +147,7 @@ const handleExchangeYes = async () => {
 
 // ★ 二重登録防止
 await saveRecord(usedMl, now);
+setIsSubmitting(false);   // ★ 必須
 return;
     // ★ 必須（多重登録防止）
 };
@@ -200,6 +201,7 @@ const handleRecord = async () => {
   // ★ ボトル交換判定（誤差3gまで許容）
   if (now > prev + 3) {
     setShowExchangeConfirm(true);
+    setIsSubmitting(false);   // ★ これが必須
     return;
   }
 
@@ -225,10 +227,9 @@ const handleRecord = async () => {
 
   // ★ 二重登録防止（return を必ず入れる）
   await saveRecord(usedMl, now);
-  return;
   setIsSubmitting(false);
-
-};
+  return;
+  };
 
 
   if (!staff) {
