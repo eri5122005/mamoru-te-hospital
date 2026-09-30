@@ -33,10 +33,13 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
     messages[Math.floor(Math.random() * messages.length)];
 
   const [weightNow, setWeightNow] = useState("");
-  const [message, setMessage] = useState("");
-  const [staff, setStaff] = useState(null);
+const [message, setMessage] = useState("");
+const [staff, setStaff] = useState(null);
 
-  const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+
+// ★ 二重登録防止フラグ（ここに追加）
+const [isSubmitting, setIsSubmitting] = useState(false);
 
  useEffect(() => {
   const local = JSON.parse(localStorage.getItem("currentStaff"));
@@ -97,7 +100,7 @@ const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
     );
 
     setWeightNow("");
-    setTimeout(() => setMessage(""), 6000);
+    setTimeout(() => setMessage(""), 3000);
     return true;
   };
 
@@ -158,13 +161,36 @@ return;
 const handleRecord = async () => {
   if (!staff) return;
 
+  // ★ 連打防止（2回目を絶対に走らせない）
+  if (isSubmitting) return;
+  setIsSubmitting(true);
+
+  // ★ 押した瞬間に反応させる（現場向け）
+  setMessage("記録中です…");
+
   if (!weightNow) {
     setMessage("重さを入力してください");
+    setIsSubmitting(false);
+    return;
+  }
+
+  // ★ 45g以下は絶対にあり得ない
+  if (Number(weightNow) <= 45) {
+    setMessage("45g以下はあり得ない値です。入力を確認してください。");
+    setIsSubmitting(false);
+    return;
+  }
+
+  // ★ 登録前の確認ポップアップ
+  const ok = confirm(`${weightNow} g で登録してよろしいですか？`);
+  if (!ok) {
+    setIsSubmitting(false);
     return;
   }
 
   const now = Number(weightNow);
   let prev = Number(staff.lastWeight);
+
 
   // ★ lastWeight が壊れている人を自動初期化
   if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
@@ -200,6 +226,8 @@ const handleRecord = async () => {
   // ★ 二重登録防止（return を必ず入れる）
   await saveRecord(usedMl, now);
   return;
+  setIsSubmitting(false);
+
 };
 
 
@@ -291,19 +319,29 @@ const handleRecord = async () => {
           <label style={{ color: "#006b5f" }}>今日使った量（g）</label>
 
           <input
-            type="number"
-            value={weightNow}
-            onChange={(e) => setWeightNow(e.target.value)}
-            placeholder="例：240（g）"
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "12px",
-              border: "1px solid #cfeeee",
-              marginTop: "8px",
-              fontSize: "16px",
-            }}
-          />
+  type="number"
+  value={weightNow}
+  onChange={(e) => {
+    const v = e.target.value;
+
+    // ★ 全角 → 半角に強制変換（ここが最重要）
+    const half = v.replace(/[０-９]/g, s =>
+      String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+    );
+
+    setWeightNow(half);
+  }}
+  placeholder="例：240（g）"
+  style={{
+    width: "100%",
+    padding: "12px",
+    borderRadius: "12px",
+    border: "1px solid #cfeeee",
+    marginTop: "8px",
+    fontSize: "16px",
+  }}
+/>
+
         </div>
 
         {message && (
@@ -325,20 +363,23 @@ const handleRecord = async () => {
         )}
 
         <button
-          onClick={handleRecord}
-          style={{
-            width: "100%",
-            padding: "16px",
-            background: "#cfeeee",
-            border: "none",
-            borderRadius: "12px",
-            fontSize: "20px",
-            color: "#006b5f",
-            cursor: "pointer",
-          }}
-        >
-          ＋ 記録する
-        </button>
+  onClick={handleRecord}
+  disabled={isSubmitting}
+  style={{
+    width: "100%",
+    padding: "16px",
+    background: "#cfeeee",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "20px",
+    color: "#006b5f",
+    cursor: isSubmitting ? "not-allowed" : "pointer",
+    opacity: isSubmitting ? 0.6 : 1,
+  }}
+>
+  ＋ 記録する
+</button>
+
 
         <NavBar />
       </main>

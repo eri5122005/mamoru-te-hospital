@@ -121,10 +121,10 @@ export default function Login() {
       current.lastWeight === null ||
       current.emptyWeight === null;
 
-    if (needFirstWeight) {
-      router.replace("/first-weight");
-      return;
-    }
+if (needFirstWeight) {
+  router.replace("/first-weight");
+  return;
+}
 
     // ★ 記録ページへ
     router.replace("/record");

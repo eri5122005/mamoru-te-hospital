@@ -1,3 +1,4 @@
+import AmountSwitcher from "../../components/AmountSwitcher";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -83,22 +84,8 @@ export default function AdminTop() {
 </h1>
 
 
-        {/* 今日の状況 */}
-        <h2 style={{ fontSize: "22px", color: "#006b5f", marginBottom: "12px" }}>
-          今日の状況
-        </h2>
+       <AmountSwitcher />
 
-        <div style={Grid}>
-          <div style={Card}>
-            <div style={Row}>
-              <div style={CardIcon}>💧</div>
-              <div>
-                <div style={{ fontSize: "18px", color: "#006b5f" }}>今日の使用量</div>
-                <div style={Value}>{Number(todayTotal).toFixed(2)} mL</div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* 今月の状況 */}
         <h2 style={{ fontSize: "22px", color: "#006b5f", marginTop: "30px", marginBottom: "12px" }}>
