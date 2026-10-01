@@ -56,11 +56,23 @@ export default function StaffList() {
         const monthRes = await fetch(`/api/admin/staff-month?staffId=${s.staffId}`);
         const monthData = await monthRes.json();
 
-        return {
-          ...s,
-          todayTotal: todayData.total,
-          monthTotal: monthData.total,
-        };
+        const recordDayCount = monthData.recordDayCount ?? 0;
+const workDayCount = s.workDays ?? 0;
+
+const inputRate =
+  workDayCount > 0
+    ? Math.round((recordDayCount / workDayCount) * 100)
+    : 0;
+
+return {
+  ...s,
+  todayTotal: todayData.total,
+  monthTotal: monthData.total,
+  inputRate,          // 入力率（勤務日数ベース）
+  recordDayCount,     // ★ 表示に必要
+  workDays: workDayCount, // ★ 表示に必要
+};
+
       })
     );
 
@@ -173,7 +185,7 @@ export default function StaffList() {
                 gap: "6px",
               }}
             >
-              ✨ 入力率：{s.inputRate ?? 0} %
+              ✨ 入力率：{s.inputRate ?? 0}%（{s.recordDayCount ?? 0}日 / {s.workDays ?? 0}日）
             </div>
           </div>
         ))}

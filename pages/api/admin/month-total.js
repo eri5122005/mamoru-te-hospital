@@ -3,33 +3,33 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
-    const now = new Date();
-    const thisYear = now.getFullYear();
-    const thisMonth = now.getMonth(); // 0 = January
+    // 現在日時（JST）
+const now = new Date();
+const year = now.getFullYear();
+const month = now.getMonth();
 
-    // 今月の開始
-    const start = new Date(thisYear, thisMonth, 1);
+// JST の月初（そのままでOK）
+const start = new Date(year, month, 1, 0, 0, 0);
 
-    // 来月の開始（< で比較するため）
-    const end = new Date(thisYear, thisMonth + 1, 1);
+// JST の来月月初（そのままでOK）
+const end = new Date(year, month + 1, 1, 0, 0, 0);
 
-    // ★ 今月の記録だけ Firestore 側で絞り込む（高速）
-    const q = query(
-      collection(db, "records"),
-      where("date", ">=", start),
-      where("date", "<", end)
-    );
+// ★ Firestore は JST のまま比較してよい
+const q = query(
+  collection(db, "records"),
+  where("date", ">=", start),
+  where("date", "<", end)
+);
 
     const snapshot = await getDocs(q);
 
     let total = 0;
-
     snapshot.forEach(doc => {
-      const data = doc.data();
-      total += Number(data.ml) || 0;
+      total += Number(doc.data().ml) || 0;
     });
 
     res.status(200).json({ total });
+
   } catch (error) {
     console.error("month-total error:", error);
     res.status(500).json({ total: 0 });

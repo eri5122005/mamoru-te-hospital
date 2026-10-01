@@ -20,25 +20,39 @@ export default async function handler(req, res) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    // ★ ここが最重要：カンマ必須
     const q = query(
-  collection(db, "records"),
-  where("staffId", "==", staffId),   // ★ 文字列で検索
-  where("date", ">=", monthStart),
-  where("date", "<", monthEnd)
-);
+      collection(db, "records"),
+      where("staffId", "==", staffId),
+      where("date", ">=", monthStart),
+      where("date", "<", monthEnd)
+    );
 
     const snap = await getDocs(q);
 
     let total = 0;
+    const recordDays = new Set();   // ★ 追加：記録した日付を集める
+
     snap.forEach(doc => {
-      total += normalizeMl(doc.data().ml);
+      const data = doc.data();
+
+      // 使用量
+      total += normalizeMl(data.ml);
+
+      // ★ 記録日（YYYY-MM-DD）をセットに追加
+      const dayStr = data.date.toDate().toISOString().split("T")[0];
+      recordDays.add(dayStr);
     });
 
-    return res.status(200).json({ total });
+    // ★ 記録した日数
+    const recordDayCount = recordDays.size;
+
+    return res.status(200).json({
+      total,
+      recordDayCount,   // ★ これが勤務日数ベース入力率の材料
+    });
 
   } catch (error) {
     console.error("staff-month error:", error);
-    return res.status(500).json({ total: 0 });
+    return res.status(500).json({ total: 0, recordDayCount: 0 });
   }
 }
