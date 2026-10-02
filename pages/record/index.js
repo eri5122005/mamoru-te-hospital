@@ -23,11 +23,10 @@ const wardNameMap = {
 
 export default function RecordPage() {
   const router = useRouter();
-  const EMPTY_WEIGHT = 46;
+  const EMPTY_WEIGHT = 45;
   const FULL_WEIGHT = 260;
   // ★ g → mL 換算係数（263g = 250mL）
-const ML_PER_GRAM = 250 / (263 - 46); // 250 / 217 = 1.152mL
-
+const ML_PER_GRAM = 250 / (263 - 45); // 250 / 218 = 1.147mL
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
