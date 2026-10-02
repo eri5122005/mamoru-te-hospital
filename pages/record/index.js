@@ -316,7 +316,7 @@ const handleRecord = async () => {
             border: "1px solid #cfeeee",
           }}
         >
-          <label style={{ color: "#006b5f" }}>今日使った量（g）</label>
+          <label style={{ color: "#006b5f" }}>ボトルの現在の重さ（g）</label>
 
           <input
   type="number"
