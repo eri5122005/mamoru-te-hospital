@@ -23,8 +23,9 @@ const wardNameMap = {
 
 export default function RecordPage() {
   const router = useRouter();
-  const EMPTY_WEIGHT = 46; // 空ボトルの重さ
+  const EMPTY_WEIGHT = 45; // 空ボトルの重さ
   const FULL_WEIGHT = 260; // 新品ボトルの重さ（固定）
+const ML_PER_GRAM = 250 / (263 - 45); // 1.147mL/g
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
@@ -99,11 +100,14 @@ export default function RecordPage() {
     const prev = staff.lastWeight; // 前回の重さ
     const now = Number(weightNow); // 今回の重さ
 
-    const prevRemain = prev - EMPTY_WEIGHT; // 前回残量
-    const nowRemain = now - EMPTY_WEIGHT; // 今回残量
+    const prevRemainG = prev - EMPTY_WEIGHT;
+const nowRemainG = now - EMPTY_WEIGHT;
 
-    // ★ ボトル交換時の使用量（前回残量 + 今回使用量）
-    const usedMl = prevRemain + (FULL_WEIGHT - nowRemain);
+let usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
+
+if (usedMl < 0) usedMl = 0;
+usedMl = Number(usedMl.toFixed(2));
+
 
     // ★ lastWeight を更新（新品ボトルの重さ）
     await updateDoc(doc(db, "staff", staff.staffId), {
@@ -142,8 +146,15 @@ export default function RecordPage() {
       return;
     }
 
-    // ★ 通常計算
-    const usedMl = prev - now;
+  // ★ 使用量計算（新ロジック）
+let usedMl = (prev - now) * ML_PER_GRAM;
+
+// ★ 小数点誤差を完全に消す
+usedMl = Number(usedMl.toFixed(2));
+
+if (usedMl < 0) usedMl = 0;
+if (usedMl < 0.01) usedMl = 0;
+usedMl = Number(usedMl.toFixed(2));
 
     // ★ lastWeight 更新
     try {
