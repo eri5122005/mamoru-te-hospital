@@ -12,20 +12,25 @@ export default async function handler(req, res) {
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, "0");
 
-    // 今月の prefix（例：2026-09）
-    const monthPrefix = `${year}-${month}`;
+    const monthPrefix = `${year}-${month}`; // 例: 2026-09
 
     // records 全件取得
     const recordSnap = await getDocs(collection(db, "records"));
     const records = recordSnap.docs.map(doc => doc.data());
 
-    // staffId ごとに ml を合計
     const map = {};
 
     records.forEach(r => {
       if (!r.date) return;
 
-      if (r.date.startsWith(monthPrefix)) {
+      // ★ Timestamp → Date → "YYYY-MM" に変換
+      const d = r.date.toDate();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const ym = `${y}-${m}`;
+
+      // ★ 今月だけ合計
+      if (ym === monthPrefix) {
         const id = r.staffId;
         const ml = Number(r.ml) || 0;
 

@@ -7,20 +7,21 @@ export default async function handler(req, res) {
     const staffSnap = await getDocs(collection(db, "staff"));
     const staffList = staffSnap.docs.map(doc => doc.data());
 
-    // 昨日の日付（文字列）
+    // 昨日の開始（00:00:00）
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
 
-    const y = yesterday.getFullYear();
-    const m = String(yesterday.getMonth() + 1).padStart(2, "0");
-    const d = String(yesterday.getDate()).padStart(2, "0");
-    const ystr = `${y}-${m}-${d}`;
+    // 昨日の終了（23:59:59）
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1, 23, 59, 59);
 
-    // 昨日の記録
-    const recordSnap = await getDocs(
-      query(collection(db, "records"), where("date", "==", ystr))
+    // 昨日の記録だけ取得（高速）
+    const q = query(
+      collection(db, "records"),
+      where("date", ">=", start),
+      where("date", "<=", end)
     );
+
+    const recordSnap = await getDocs(q);
     const records = recordSnap.docs.map(doc => doc.data());
 
     // staffId ごとに ml を合計

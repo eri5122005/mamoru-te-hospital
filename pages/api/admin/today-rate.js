@@ -1,27 +1,28 @@
-import { db } from "@/firebaseConfig";
+import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
-    // 今日の日付（YYYY-MM-DD）
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
 
-    // 今日の記録を取得（Timestamp なので後で変換する）
-    const q = query(collection(db, "records"));
+    // 今日の開始（00:00:00）
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // 今日の終了（23:59:59）
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    // 今日の記録だけを Firestore 側で絞り込む
+    const q = query(
+      collection(db, "records"),
+      where("date", ">=", start),
+      where("date", "<=", end)
+    );
+
     const snapshot = await getDocs(q);
 
     const enteredStaffIds = new Set();
-
     snapshot.forEach(doc => {
-      const data = doc.data();
-
-      // Timestamp → Date → "YYYY-MM-DD" に変換
-      const recordDate = data.date.toDate().toISOString().split("T")[0];
-
-      // 今日の記録だけカウント
-      if (recordDate === today) {
-        enteredStaffIds.add(data.staffId);
-      }
+      enteredStaffIds.add(doc.data().staffId);
     });
 
     const enteredCount = enteredStaffIds.size;

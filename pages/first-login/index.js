@@ -6,7 +6,7 @@ import NavBar from "../../components/NavBar";
 
 // ★ Firestore 追加
 import { db } from "../../firebaseConfig";
-import { setDoc, doc } from "firebase/firestore";
+import { setDoc, doc, getDoc } from "firebase/firestore";
 
 // ★ Safariでも確実に動く名前整形ロジック
 function formatName(name) {
@@ -24,7 +24,6 @@ function formatName(name) {
   }
 
   // スペースが無い場合 → 苗字と名前の間にスペースを入れる
-  // 例：宇野恵理 → 宇野 恵理（後ろ2文字を名前とみなす）
   if (cleaned.length >= 3) {
     return cleaned.slice(0, cleaned.length - 2) + " " + cleaned.slice(cleaned.length - 2);
   }
@@ -36,58 +35,84 @@ export default function FirstLogin() {
   const router = useRouter();
 
   const [realStaffId, setRealStaffId] = useState("");
-
-  useEffect(() => {
-    if (!router.isReady) return;
-
-    const id = router.query.staffId;
-    if (id) {
-      setRealStaffId(id);
-    }
-  }, [router.isReady]);
-
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
   const [workDays, setWorkDays] = useState("");
 
+  // ★★★ useEffect（壊れていた部分を完全修復）★★★
+  useEffect(() => {
+  if (!router.isReady) return;
+
+  const staffId = router.query.staffId;
+  if (!staffId) return;
+
+  setRealStaffId(staffId);
+
+  // ★ staff-XXXX が存在するかどうかで判定（最重要）
+  const localStaff = localStorage.getItem(`staff-${staffId}`);
+
+  if (localStaff) {
+    const parsed = JSON.parse(localStaff);
+
+    // ★ 初回登録済み（lastWeight あり）
+    if (parsed.lastWeight) {
+      router.replace("/record");
+      return;
+    }
+
+    // ★ 初回登録済みだが重さ未入力
+    router.replace("/first-weight");
+    return;
+  }
+
+  // ★ staff-XXXX が無い → 初回登録が必要
+  // このまま first-login を表示
+}, [router.isReady]);
+  
   const handleRegister = async () => {
     if (!name || !department || !workDays) return;
 
-    // ★ 保存直前に必ず整形（Safariでも確実に動く）
     const formattedName = formatName(name);
 
-  const wardMap = {
-  "4階": "4f",
-  "5階": "5f",
-  "6階": "6f",
-  "7.8階": "78f",
-  "外来": "gairai",
-  "透析室": "touseki",
-  "リハビリ": "riha",
-  "医局": "ikyoku",
-  "施設管理": "shisetsu"   // ★ 正しい向き
-};
-
-
+    const wardMap = {
+      "4階": "4f",
+      "5階": "5f",
+      "6階": "6f",
+      "7.8階": "78f",
+      "外来": "gairai",
+      "透析室": "touseki",
+      "リハビリ": "riha",
+      "医局": "ikyoku",
+      "施設管理": "shisetsu",
+    };
 
     const wardId = wardMap[department];
 
     const staffData = {
       staffId: realStaffId,
-      name: formattedName, // ← ★ 整形済みの名前を保存
+      name: formattedName,
       department,
       wardId,
       workDays,
       role: "staff",
       isActive: true,
-      mode: "weight", 
+      mode: "weight",
     };
 
+    // ★ Firestore（既存の staff コレクション）
     await setDoc(doc(db, "staff", realStaffId), staffData);
 
+    // ★ localStorage 保存（既存）
     localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
     localStorage.setItem("currentStaff", JSON.stringify(staffData));
 
+    // ★★★ クラウドバックアップ（staffs コレクション）★★★
+    await setDoc(doc(db, "staffs", realStaffId), {
+      ...staffData,
+      lastWeight: null,
+    });
+
+    // ★ 初期重さ入力画面へ
     router.replace("/first-weight");
   };
 
@@ -151,16 +176,15 @@ export default function FirstLogin() {
             style={inputStyle}
           >
             <option value="">選択してください</option>
-<option value="4階">4階</option>
-<option value="5階">5階</option>
-<option value="6階">6階</option>
-<option value="7.8階">7.8階</option>
-<option value="外来">外来</option>
-<option value="透析室">透析室</option>
-<option value="リハビリ">リハビリ</option>
-<option value="医局">医局</option>
-<option value="施設管理">施設管理</option>
-
+            <option value="4階">4階</option>
+            <option value="5階">5階</option>
+            <option value="6階">6階</option>
+            <option value="7.8階">7.8階</option>
+            <option value="外来">外来</option>
+            <option value="透析室">透析室</option>
+            <option value="リハビリ">リハビリ</option>
+            <option value="医局">医局</option>
+            <option value="施設管理">施設管理</option>
           </select>
 
           <label style={{ color: "#006b5f", fontSize: "14px" }}>

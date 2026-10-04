@@ -10,10 +10,12 @@ export default async function handler(req, res) {
 
   try {
     const staffRef = doc(db, "staff", staffId);
+
     await setDoc(staffRef, {
-      staffId,
+      staffId,   // データ内にも staffId を保存（統一）
       name,
       wardId,
+      createdAt: new Date(),   // 追加しておくと便利
     });
 
     return res.status(200).json({ ok: true });

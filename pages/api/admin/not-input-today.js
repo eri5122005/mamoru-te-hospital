@@ -7,17 +7,22 @@ export default async function handler(req, res) {
     const staffSnap = await getDocs(collection(db, "staff"));
     const staffList = staffSnap.docs.map(doc => doc.data());
 
-    // 今日の日付（文字列）
+    // 今日の開始（00:00:00）
     const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, "0");
-    const d = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${y}-${m}-${d}`;
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    // 今日の記録
+    // 今日の終了（23:59:59）
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+    // 今日の記録だけ取得（高速）
     const recordSnap = await getDocs(
-      query(collection(db, "records"), where("date", "==", todayStr))
+      query(
+        collection(db, "records"),
+        where("date", ">=", start),
+        where("date", "<=", end)
+      )
     );
+
     const records = recordSnap.docs.map(doc => doc.data());
 
     // 今日入力した staffId をセット化

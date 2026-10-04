@@ -2,15 +2,18 @@ import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, "0");
-  const d = String(today.getDate()).padStart(2, "0");
-  const todayStr = `${y}-${m}-${d}`;
+  const now = new Date();
+
+  // 今日の開始（00:00:00）
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // 今日の終了（23:59:59）
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
   const q = query(
     collection(db, "records"),
-    where("date", "==", todayStr)
+    where("date", ">=", start),
+    where("date", "<=", end)
   );
 
   const snapshot = await getDocs(q);
@@ -18,7 +21,7 @@ export default async function handler(req, res) {
   const list = snapshot.docs.map(doc => ({
     name: doc.data().name,
     wardName: doc.data().wardName,
-    amount: doc.data().amount,
+    amount: Number(doc.data().ml) || 0,
     time: doc.data().time || null,
   }));
 

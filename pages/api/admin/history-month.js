@@ -22,20 +22,15 @@ export default async function handler(req, res) {
     records.forEach(r => {
       if (!r.date) return;
 
-      // ★ Timestamp → JS Date に変換
-      let d;
-      if (typeof r.date === "string") {
-        d = new Date(r.date);
-      } else {
-        d = r.date.toDate(); // Firestore Timestamp
-      }
+      // Timestamp → Date
+      const d = r.date.toDate();
 
-      // ★ "YYYY-MM" を作る
+      // "YYYY-MM" を作る
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const ym = `${y}-${m}`;
 
-      // ★ 月が一致したら加算
+      // 月が一致したら加算
       if (ym === month) {
         const id = r.staffId;
         const ml = Number(r.ml) || 0;
@@ -53,7 +48,13 @@ export default async function handler(req, res) {
       total: map[s.staffId] || 0,
     }));
 
-    return res.status(200).json(result);
+    // 院内合計
+    const hospitalTotal = result.reduce((sum, s) => sum + s.total, 0);
+
+    return res.status(200).json({
+      staff: result,
+      hospitalTotal
+    });
 
   } catch (error) {
     console.error("history-month error:", error);

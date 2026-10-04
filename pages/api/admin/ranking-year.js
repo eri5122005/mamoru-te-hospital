@@ -1,9 +1,20 @@
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
+// ★ normalizeMl をここに貼る（このままコピペOK）
+function normalizeMl(value) {
+  const ml = Number(value);
+
+  if (isNaN(ml)) return 0;      // 数字に変換できない → 0
+  if (ml < 0.1) return 0;       // 異常に小さい値 → 0
+  if (ml > 1000) return 0;      // 異常に大きい値 → 0
+  if (!Number.isFinite(ml)) return 0; // 無限大など → 0
+
+  return ml; // 正常値
+}
+
 export default async function handler(req, res) {
   try {
-    // 病棟名マップ（正式名称）
     const wardNameMap = {
       "4f": "4階",
       "5f": "5階",
@@ -16,30 +27,28 @@ export default async function handler(req, res) {
       "shisetsu": "施設管理"
     };
 
-    // 今日の日付から「今年」を作る
     const today = new Date();
-    const year = today.getFullYear();
+    const thisYear = today.getFullYear();
 
-    // 今年の prefix（例：2026-）
-    const yearPrefix = `${year}-`;
-
-    // Firestore の date は "2026-09-11" の文字列なので
-    // records 全件を取得してからフィルタリングする
+    // records 全件取得
     const snapshot = await getDocs(collection(db, "records"));
     const records = snapshot.docs.map(doc => doc.data());
 
-    // 今年のデータだけに絞る
+    // 今年のデータだけに絞る（Timestamp → Date）
     const filtered = records.filter(r => {
       if (!r.date) return false;
-      return r.date.startsWith(yearPrefix);
+      const d = r.date.toDate();
+      return d.getFullYear() === thisYear;
     });
 
-    // 病棟ごとに使用量を集計
+    // 病棟ごとに集計
     const wardMap = {};
 
     filtered.forEach(r => {
       const ward = r.wardId || "不明";
-      const ml = Number(r.ml) || 0;
+
+      // ★ Number → normalizeMl に変更
+      const ml = normalizeMl(r.ml);
 
       if (!wardMap[ward]) wardMap[ward] = 0;
       wardMap[ward] += ml;

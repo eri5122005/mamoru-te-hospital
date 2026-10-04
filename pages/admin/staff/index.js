@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/AdminLayout";
+import BackButton from "@/components/BackButton";
 
 // Firestore
 import { db } from "../../../firebaseConfig";
@@ -15,18 +16,16 @@ export default function StaffManagePage() {
   const [selectedStaffId, setSelectedStaffId] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ★ Firestore から wards を読み込む（あなたのデータ構造に合わせた完成版）
   const loadWards = async () => {
     const snapshot = await getDocs(collection(db, "wards"));
     const list = snapshot.docs.map((d) => ({
-      wardId: d.data().wardId,   // ★ Firestore の wardId を使う
+      wardId: d.data().wardId,
       name: d.data().name,
       order: d.data().order,
     }));
     setWards(list);
   };
 
-  // ★ Firestore から staff を読み込む
   const loadStaff = async () => {
     try {
       const snapshot = await getDocs(collection(db, "staff"));
@@ -51,7 +50,6 @@ export default function StaffManagePage() {
     return <AdminLayout>読み込み中...</AdminLayout>;
   }
 
-  // 退職処理
   const retireStaff = async () => {
     if (!selectedStaffId) return;
 
@@ -63,36 +61,31 @@ export default function StaffManagePage() {
     location.reload();
   };
 
-  // ★ 完全削除（staff + records）
-const deleteStaff = async () => {
-  if (!selectedStaffId) return;
+  const deleteStaff = async () => {
+    if (!selectedStaffId) return;
 
-  const ok = confirm(
-    `スタッフ ID: ${selectedStaffId} を完全に削除しますか？\n（過去の記録もすべて消えます）`
-  );
-  if (!ok) return;
+    const ok = confirm(
+      `スタッフ ID: ${selectedStaffId} を完全に削除しますか？\n（過去の記録もすべて消えます）`
+    );
+    if (!ok) return;
 
-  // ① staff ドキュメント削除
-  await deleteDoc(doc(db, "staff", String(selectedStaffId)));
+    await deleteDoc(doc(db, "staff", String(selectedStaffId)));
 
-  // ② records の削除（staffId が一致するもの）
-  const recSnap = await getDocs(collection(db, "records"));
-  const recList = recSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const recSnap = await getDocs(collection(db, "records"));
+    const recList = recSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  const targetRecords = recList.filter(
-    (r) => String(r.staffId) === String(selectedStaffId)
-  );
+    const targetRecords = recList.filter(
+      (r) => String(r.staffId) === String(selectedStaffId)
+    );
 
-  for (const r of targetRecords) {
-    await deleteDoc(doc(db, "records", r.id));
-  }
+    for (const r of targetRecords) {
+      await deleteDoc(doc(db, "records", r.id));
+    }
 
-  alert("スタッフとその記録を削除しました");
-  location.reload();
-};
+    alert("スタッフとその記録を削除しました");
+    location.reload();
+  };
 
-
-  // 部署ごとにグループ化（wardId でグループ化）
   const grouped = staffList.reduce((acc, s) => {
     const ward = s.wardId || "不明";
     acc[ward] = acc[ward] || [];
@@ -102,11 +95,14 @@ const deleteStaff = async () => {
 
   return (
     <AdminLayout>
+
+      {/* ★ 戻るボタンをページ最上部に配置 */}
+      <BackButton to="/admin" />
+
       <h1 style={{ textAlign: "center", color: "#006b5f", marginBottom: "24px" }}>
         👥 スタッフ管理
       </h1>
 
-      {/* スタッフ追加 */}
       <button
         onClick={() => router.push("/admin/staff/add")}
         style={{
@@ -122,7 +118,6 @@ const deleteStaff = async () => {
         ➕ スタッフを追加する
       </button>
 
-      {/* 部署ごとに表示 */}
       {Object.keys(grouped).map((wardId) => {
         const wardName = wards.find((w) => w.wardId === wardId)?.name || "不明";
 
@@ -165,7 +160,6 @@ const deleteStaff = async () => {
         );
       })}
 
-      {/* ★ 選択したスタッフに対する操作ボタン */}
       {selectedStaffId && (
         <div
           style={{

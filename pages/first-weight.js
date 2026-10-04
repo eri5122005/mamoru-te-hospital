@@ -5,7 +5,6 @@ import { useRouter } from "next/router";
 import { db } from "../firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
 
-// ★ 病棟ID → 表示名マップ
 const wardNameMap = {
   "4f": "4階",
   "5f": "5階",
@@ -15,17 +14,13 @@ const wardNameMap = {
   "touseki": "透析室",
   "riha": "リハビリ",
   "ikyoku": "医局",
-  "shisetsu": "施設管理",   // ★ 追加
+  "shisetsu": "施設管理",
 };
 
 export default function FirstWeightPage() {
   const router = useRouter();
   const [staff, setStaff] = useState(null);
-
-  // ★ 重さ入力画面へ進むフラグ
   const [selectedMode, setSelectedMode] = useState(false);
-
-  // ★ 重さ入力
   const [weight, setWeight] = useState("");
   const [message, setMessage] = useState("");
 
@@ -36,8 +31,15 @@ export default function FirstWeightPage() {
       return;
     }
 
-    // すでに lastWeight がある → 初回設定不要
-    if (data.lastWeight) {
+    // ★ 誤判定ゼロの安全判定
+    const alreadyRegistered =
+      data.mode === "weight" &&
+      data.lastWeight !== null &&
+      data.lastWeight !== undefined &&
+      data.emptyWeight !== null &&
+      data.emptyWeight !== undefined;
+
+    if (alreadyRegistered) {
       router.replace("/record");
       return;
     }
@@ -45,12 +47,10 @@ export default function FirstWeightPage() {
     setStaff(data);
   }, [router]);
 
-  // ★ 重さ方式を選んだ場合 → 重さ入力画面へ
   const handleSelectWeight = () => {
     setSelectedMode(true);
   };
 
-  // ★ 重さ方式の初回重さ登録
   const handleRegisterWeight = async () => {
     if (!weight) {
       setMessage("重さを入力してください");
@@ -66,6 +66,12 @@ export default function FirstWeightPage() {
         emptyWeight: 46,
       });
 
+      await updateDoc(doc(db, "staffs", staff.staffId), {
+        lastWeight: now,
+        emptyWeight: 46,
+        mode: "weight",
+      });
+
       const updated = {
         ...staff,
         mode: "weight",
@@ -74,6 +80,7 @@ export default function FirstWeightPage() {
       };
 
       localStorage.setItem("currentStaff", JSON.stringify(updated));
+      localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated));
 
       router.replace("/record");
     } catch (e) {
@@ -95,11 +102,8 @@ export default function FirstWeightPage() {
       }}
     >
       <main>
-        <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>
-          初回設定
-        </h1>
+        <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>初回設定</h1>
 
-        {/* スタッフ情報 */}
         <div
           style={{
             background: "#ffffff",
@@ -114,7 +118,6 @@ export default function FirstWeightPage() {
           <p>病棟：{wardNameMap[staff.wardId] || staff.wardId}</p>
         </div>
 
-        {/* ★ 記録方式選択画面（重さ方式のみ） */}
         {!selectedMode && (
           <>
             <p style={{ color: "#006b5f", marginBottom: "12px" }}>
@@ -139,7 +142,6 @@ export default function FirstWeightPage() {
           </>
         )}
 
-        {/* ★ 重さ方式を選んだ後の入力画面 */}
         {selectedMode && (
           <>
             <p

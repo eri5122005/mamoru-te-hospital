@@ -1,9 +1,20 @@
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
+// ★ normalizeMl をここに貼る（このままコピペOK）
+function normalizeMl(value) {
+  const ml = Number(value);
+
+  if (isNaN(ml)) return 0;      // 数字に変換できない → 0
+  if (ml < 0.1) return 0;       // 異常に小さい値 → 0
+  if (ml > 1000) return 0;      // 異常に大きい値 → 0
+  if (!Number.isFinite(ml)) return 0; // 無限大など → 0
+
+  return ml; // 正常値
+}
+
 export default async function handler(req, res) {
   try {
-    // 病棟名マップ（正式名称）
     const wardNameMap = {
       "4f": "4階",
       "5f": "5階",
@@ -16,43 +27,32 @@ export default async function handler(req, res) {
       "shisetsu": "施設管理"
     };
 
-    // 今日の日付
     const today = new Date();
-
-    // 7日前の日付を作る
     const weekAgo = new Date();
     weekAgo.setDate(today.getDate() - 7);
 
-    // Firestore の date は "2026-09-11" のような文字列なので
-    // records 全件を取得してからフィルタリングする
     const snapshot = await getDocs(collection(db, "records"));
     const records = snapshot.docs.map(doc => doc.data());
 
-    // 文字列の日付を Date に変換する関数
-    const toDate = (str) => {
-      const [y, m, d] = str.split("-");
-      return new Date(Number(y), Number(m) - 1, Number(d));
-    };
-
-    // 過去7日間の記録だけに絞る
     const filtered = records.filter(r => {
       if (!r.date) return false;
-      const recordDate = toDate(r.date);
+
+      const recordDate = r.date.toDate();
       return recordDate >= weekAgo && recordDate <= today;
     });
 
-    // 病棟ごとに使用量を集計
     const wardMap = {};
 
     filtered.forEach(r => {
       const ward = r.wardId || "不明";
-      const ml = Number(r.ml) || 0;
+
+      // ★ Number → normalizeMl に変更
+      const ml = normalizeMl(r.ml);
 
       if (!wardMap[ward]) wardMap[ward] = 0;
       wardMap[ward] += ml;
     });
 
-    // ランキング形式に変換
     const ranking = Object.entries(wardMap)
       .map(([ward, total]) => ({
         wardId: ward,
@@ -68,3 +68,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Failed to load weekly ranking" });
   }
 }
+ 

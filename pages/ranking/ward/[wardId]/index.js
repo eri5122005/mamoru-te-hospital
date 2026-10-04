@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useEffect, useState } from "react";
 import { db } from "../../../../firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -11,6 +12,15 @@ export default function WardStaffRanking() {
 
   if (!wardId) return null;
 
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
+  // ★ 戻る先を分岐
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
+
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,12 +31,10 @@ export default function WardStaffRanking() {
     "4f": "4階",
   };
 
-
   useEffect(() => {
     const load = async () => {
       setLoading(true);
 
-      // ★ その病棟のスタッフ一覧
       const staffSnap = await getDocs(
         query(collection(db, "staff"), where("wardId", "==", wardId))
       );
@@ -35,7 +43,6 @@ export default function WardStaffRanking() {
         ...d.data(),
       }));
 
-      // ★ その病棟の記録
       const recordSnap = await getDocs(
         query(collection(db, "records"), where("wardId", "==", wardId))
       );
@@ -43,7 +50,6 @@ export default function WardStaffRanking() {
 
       const now = new Date();
 
-      // ★ 期間フィルタ
       const filtered = records.filter((item) => {
         const t = item.date.toDate();
         const jst =
@@ -70,10 +76,9 @@ export default function WardStaffRanking() {
           return jst.getFullYear() === now.getFullYear();
         }
 
-        return true; // 累計
+        return true;
       });
 
-      // ★ スタッフごとに集計（記録ゼロでも出す）
       const result = staffList.map((staff) => {
         const myRecords = filtered.filter(
           (r) => r.staffId === staff.staffId
@@ -92,7 +97,6 @@ export default function WardStaffRanking() {
         };
       });
 
-      // ★ ソート
       result.sort((a, b) => b.totalMl - a.totalMl);
 
       setRanking(result);
@@ -157,8 +161,9 @@ export default function WardStaffRanking() {
         margin: "0 auto",
       }}
     >
+      {/* ★ 修正：backTo を使う */}
       <button
-        onClick={() => router.push(`/admin/ward/${wardId}`)}
+        onClick={() => router.push(backTo)}
         style={{
           background: "#cfeeee",
           color: "#006b5f",
@@ -185,7 +190,6 @@ export default function WardStaffRanking() {
         {wardNameMap[wardId]} 個人ランキング
       </h1>
 
-      {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
         <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
         <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
@@ -193,7 +197,6 @@ export default function WardStaffRanking() {
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
 
-      {/* ランキング */}
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>

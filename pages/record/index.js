@@ -5,7 +5,7 @@ import NavBar from "../../components/NavBar";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
 
 // ★ 病棟ID → 表示名マップ
@@ -18,33 +18,43 @@ const wardNameMap = {
   "touseki": "透析室",
   "riha": "リハビリ",
   "ikyoku": "医局",
-  "shisetsu": "施設管理",   // ★ 追加
+  "shisetsu": "施設管理",
 };
 
 export default function RecordPage() {
   const router = useRouter();
-  const EMPTY_WEIGHT = 45; // 空ボトルの重さ
-  const FULL_WEIGHT = 260; // 新品ボトルの重さ（固定）
-const ML_PER_GRAM = 250 / (263 - 45); // 1.147mL/g
+  const EMPTY_WEIGHT = 45;
+  const FULL_WEIGHT = 260;
+  // ★ g → mL 換算係数（263g = 250mL）
+const ML_PER_GRAM = 250 / (263 - 45); // 250 / 218 = 1.147mL
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
 
   const [weightNow, setWeightNow] = useState("");
-  const [message, setMessage] = useState("");
-  const [staff, setStaff] = useState(null);
+const [message, setMessage] = useState("");
+const [staff, setStaff] = useState(null);
 
-  // ★ ボトル交換確認ダイアログ
-  const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
-  useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("currentStaff"));
-    if (!data) {
-      router.replace("/login");
-      return;
-    }
-    setStaff(data);
-  }, [router]);
+// ★ 二重登録防止フラグ（ここに追加）
+const [isSubmitting, setIsSubmitting] = useState(false);
+
+ useEffect(() => {
+  const local = JSON.parse(localStorage.getItem("currentStaff"));
+
+  if (!local) {
+    router.replace("/login");
+    return;
+  }
+
+  if (!local.lastWeight) {
+    router.replace("/first-weight");
+    return;
+  }
+
+  setStaff(local);
+}, []); // ← ここは [] が正解
 
   // ★ 記録保存共通処理
   const saveRecord = async (usedMl, nowWeightValue) => {
@@ -70,7 +80,6 @@ const ML_PER_GRAM = 250 / (263 - 45); // 1.147mL/g
       return false;
     }
 
-    // ★ ローカル履歴保存
     const history = JSON.parse(localStorage.getItem("history") || "[]");
     history.push({
       staffId: staff.staffId,
@@ -85,42 +94,62 @@ const ML_PER_GRAM = 250 / (263 - 45); // 1.147mL/g
     });
     localStorage.setItem("history", JSON.stringify(history));
 
-    // ★ メッセージ
     setMessage(
       `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
     );
 
     setWeightNow("");
-    setTimeout(() => setMessage(""), 6000);
+    setTimeout(() => setMessage(""), 3000);
     return true;
   };
 
   // ★ ボトル交換 YES（完全修正版）
-  const handleExchangeYes = async () => {
-    const prev = staff.lastWeight; // 前回の重さ
-    const now = Number(weightNow); // 今回の重さ
+const handleExchangeYes = async () => {
+  let prev = Number(staff.lastWeight);
 
-    const prevRemainG = prev - EMPTY_WEIGHT;
-const nowRemainG = now - EMPTY_WEIGHT;
+  // ★ lastWeight が壊れている人を自動初期化
+  if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
+    prev = FULL_WEIGHT;
+  }
 
-let usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
+  const now = Number(weightNow);
 
-if (usedMl < 0) usedMl = 0;
-usedMl = Number(usedMl.toFixed(2));
+  const prevRemainG = prev - EMPTY_WEIGHT;
+  const nowRemainG = now - EMPTY_WEIGHT;
 
+  let usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
 
-    // ★ lastWeight を更新（新品ボトルの重さ）
-    await updateDoc(doc(db, "staff", staff.staffId), {
-      lastWeight: now,
-    });
+  if (usedMl < 0) usedMl = 0;
+  if (usedMl < 0.01) usedMl = 0;
+  usedMl = Number(usedMl.toFixed(2));
 
-    const updated = { ...staff, lastWeight: now };
-    localStorage.setItem("currentStaff", JSON.stringify(updated));
-    setStaff(updated);
+ try {
+  // ★ staff コレクション（既存）
+  await updateDoc(doc(db, "staff", staff.staffId), {
+    lastWeight: now,
+  });
 
-    await saveRecord(usedMl, now);
-    setShowExchangeConfirm(false);
-  };
+  // ★★★ staffs コレクション（クラウド復旧用）★★★
+  await updateDoc(doc(db, "staffs", staff.staffId), {
+    lastWeight: now,
+  });
+
+  // ★ localStorage 更新
+  const updated = { ...staff, lastWeight: now };
+  localStorage.setItem("currentStaff", JSON.stringify(updated));
+  setStaff(updated);
+
+} catch (e) {
+  setMessage("前回の重さ更新に失敗しました");
+  return;
+}
+
+// ★ 二重登録防止
+await saveRecord(usedMl, now);
+setIsSubmitting(false);   // ★ 必須
+return;
+    // ★ 必須（多重登録防止）
+};
 
   // ★ ボトル交換 NO
   const handleExchangeNo = () => {
@@ -128,50 +157,79 @@ usedMl = Number(usedMl.toFixed(2));
     setShowExchangeConfirm(false);
   };
 
-  // ★ 記録処理（重さ方式のみ）
-  const handleRecord = async () => {
-    if (!staff) return;
+  // ★ 記録処理（重さ方式）完全修正版
+const handleRecord = async () => {
+  if (!staff) return;
 
-    if (!weightNow) {
-      setMessage("重さを入力してください");
-      return;
-    }
+  // ★ 連打防止（2回目を絶対に走らせない）
+  if (isSubmitting) return;
+  setIsSubmitting(true);
 
-    const prev = staff.lastWeight;
-    const now = Number(weightNow);
+  // ★ 押した瞬間に反応させる（現場向け）
+  setMessage("記録中です…");
 
-    // ★ 重さが増えている → ボトル交換の可能性
-    if (now > prev) {
-      setShowExchangeConfirm(true);
-      return;
-    }
+  if (!weightNow) {
+    setMessage("重さを入力してください");
+    setIsSubmitting(false);
+    return;
+  }
 
-  // ★ 使用量計算（新ロジック）
-let usedMl = (prev - now) * ML_PER_GRAM;
+  // ★ 45g以下は絶対にあり得ない
+  if (Number(weightNow) <= 45) {
+    setMessage("45g以下はあり得ない値です。入力を確認してください。");
+    setIsSubmitting(false);
+    return;
+  }
 
-// ★ 小数点誤差を完全に消す
-usedMl = Number(usedMl.toFixed(2));
+  // ★ 登録前の確認ポップアップ
+  const ok = confirm(`${weightNow} g で登録してよろしいですか？`);
+  if (!ok) {
+    setIsSubmitting(false);
+    return;
+  }
 
-if (usedMl < 0) usedMl = 0;
-if (usedMl < 0.01) usedMl = 0;
-usedMl = Number(usedMl.toFixed(2));
+  const now = Number(weightNow);
+  let prev = Number(staff.lastWeight);
 
-    // ★ lastWeight 更新
-    try {
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        lastWeight: now,
-      });
 
-      const updated = { ...staff, lastWeight: now };
-      localStorage.setItem("currentStaff", JSON.stringify(updated));
-      setStaff(updated);
-    } catch (e) {
-      setMessage("前回の重さ更新に失敗しました");
-      return;
-    }
+  // ★ lastWeight が壊れている人を自動初期化
+  if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
+    prev = FULL_WEIGHT; // 初期値は満タン扱い
+  }
 
-    await saveRecord(usedMl, now);
+  // ★ ボトル交換判定（誤差3gまで許容）
+  if (now > prev + 3) {
+    setShowExchangeConfirm(true);
+    setIsSubmitting(false);   // ★ これが必須
+    return;
+  }
+
+  // ★ 使用量計算（異常値を自動補正）
+  let usedMl = (prev - now) * ML_PER_GRAM;
+
+  if (usedMl < 0) usedMl = 0;          // マイナス補正
+  if (usedMl < 0.01) usedMl = 0;       // 極小値補正
+  usedMl = Number(usedMl.toFixed(2));  // 小数点第2位に統一
+
+  try {
+    await updateDoc(doc(db, "staff", staff.staffId), {
+      lastWeight: now,
+    });
+
+    const updated = { ...staff, lastWeight: now };
+    localStorage.setItem("currentStaff", JSON.stringify(updated));
+    setStaff(updated);
+  } catch (e) {
+    setMessage("前回の重さ更新に失敗しました");
+    return;
+  }
+
+  // ★ 二重登録防止（return を必ず入れる）
+  await saveRecord(usedMl, now);
+  setIsSubmitting(false);
+  return;
   };
+
 
   if (!staff) {
     return <p>スタッフ情報を読み込んでいます…</p>;
@@ -191,7 +249,6 @@ usedMl = Number(usedMl.toFixed(2));
       <main>
         <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>今日の記録</h1>
 
-        {/* ★ ボトル交換ダイアログ */}
         {showExchangeConfirm && (
           <div
             style={{
@@ -236,7 +293,6 @@ usedMl = Number(usedMl.toFixed(2));
           </div>
         )}
 
-        {/* ★ スタッフ情報 */}
         <div
           style={{
             background: "#ffffff",
@@ -251,7 +307,6 @@ usedMl = Number(usedMl.toFixed(2));
           <p>病棟：{wardNameMap[staff.wardId] || staff.department}</p>
         </div>
 
-        {/* ★ 入力欄（重さのみ） */}
         <div
           style={{
             background: "#ffffff",
@@ -261,22 +316,32 @@ usedMl = Number(usedMl.toFixed(2));
             border: "1px solid #cfeeee",
           }}
         >
-          <label style={{ color: "#006b5f" }}>今日使った量（g）</label>
+          <label style={{ color: "#006b5f" }}>ボトルの現在の重さ（g）</label>
 
           <input
-            type="number"
-            value={weightNow}
-            onChange={(e) => setWeightNow(e.target.value)}
-            placeholder="例：240（g）"
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "12px",
-              border: "1px solid #cfeeee",
-              marginTop: "8px",
-              fontSize: "16px",
-            }}
-          />
+  type="number"
+  value={weightNow}
+  onChange={(e) => {
+    const v = e.target.value;
+
+    // ★ 全角 → 半角に強制変換（ここが最重要）
+    const half = v.replace(/[０-９]/g, s =>
+      String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+    );
+
+    setWeightNow(half);
+  }}
+  placeholder="例：240（g）"
+  style={{
+    width: "100%",
+    padding: "12px",
+    borderRadius: "12px",
+    border: "1px solid #cfeeee",
+    marginTop: "8px",
+    fontSize: "16px",
+  }}
+/>
+
         </div>
 
         {message && (
@@ -298,20 +363,23 @@ usedMl = Number(usedMl.toFixed(2));
         )}
 
         <button
-          onClick={handleRecord}
-          style={{
-            width: "100%",
-            padding: "16px",
-            background: "#cfeeee",
-            border: "none",
-            borderRadius: "12px",
-            fontSize: "20px",
-            color: "#006b5f",
-            cursor: "pointer",
-          }}
-        >
-          ＋ 記録する
-        </button>
+  onClick={handleRecord}
+  disabled={isSubmitting}
+  style={{
+    width: "100%",
+    padding: "16px",
+    background: "#cfeeee",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "20px",
+    color: "#006b5f",
+    cursor: isSubmitting ? "not-allowed" : "pointer",
+    opacity: isSubmitting ? 0.6 : 1,
+  }}
+>
+  ＋ 記録する
+</button>
+
 
         <NavBar />
       </main>

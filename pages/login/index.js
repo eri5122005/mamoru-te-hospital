@@ -1,16 +1,36 @@
 "use client";
 
-import { useRouter } from "next/router";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 export default function Login() {
   const router = useRouter();
   const [staffId, setStaffId] = useState("");
 
+  // ★ ログイン画面を開いた瞬間にローカルストレージを強制クリア
+  useEffect(() => {
+    const mode = localStorage.getItem("trainingMode");
+
+    if (mode === "off") {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("staff-")) localStorage.removeItem(key);
+        if (/^\d+$/.test(key)) localStorage.removeItem(key);
+        if (
+          key === "currentStaff" ||
+          key === "loginUser" ||
+          key === "staffList"
+        ) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+  }, []);
+
+  // ★ ログイン処理（ここだけ使う）
   const handleLogin = () => {
     if (!staffId) return;
 
-    // ★ 総合管理者（9999）は初回登録不要
+    // ★ 総合管理者（9999）
     if (staffId === "9999") {
       localStorage.setItem(
         "currentStaff",
@@ -21,52 +41,35 @@ export default function Login() {
           wardId: "",
           workDays: [],
           role: "super",
+          mode: "weight",
+          lastWeight: 1,
+          emptyWeight: 1,
         })
       );
-
       router.replace("/admin");
       return;
     }
 
- const departmentAdmins = {
-  // 外来
-  "2100": "gairai",
-  "2150": "gairai",
-
-  // リハビリ（2200・2201）
-  "2200": "riha",
-  "2201": "riha",
-
-  // 医局
-  "2300": "ikyoku",
-
-  // 透析室
-  "2305": "touseki",
-
-  // 4階
-  "2400": "4f",
-  "2444": "4f",
-
-  // 5階
-  "2500": "5f",
-  "2555": "5f",
-
-  // 6階
-  "2600": "6f",
-  "2666": "6f",
-
-  // 7・8階
-  "2700": "78f",
-  "2777": "78f",
-};
-
-
-
+    // ★ 部署管理者
+    const departmentAdmins = {
+      "2100": "gairai",
+      "2150": "gairai",
+      "2200": "riha",
+      "2201": "riha",
+      "2300": "ikyoku",
+      "2305": "touseki",
+      "2400": "4f",
+      "2444": "4f",
+      "2500": "5f",
+      "2555": "5f",
+      "2600": "6f",
+      "2666": "6f",
+      "2700": "78f",
+      "2777": "78f",
+    };
 
     if (departmentAdmins[staffId]) {
       const dept = departmentAdmins[staffId];
-
-      // currentStaff を保存（部署管理者として）
       localStorage.setItem(
         "currentStaff",
         JSON.stringify({
@@ -76,43 +79,55 @@ export default function Login() {
           wardId: dept,
           workDays: [],
           role: "admin",
+          mode: "weight",
+          lastWeight: 1,
+          emptyWeight: 1,
         })
       );
-
       router.replace(`/admin/ward/${dept}`);
       return;
     }
 
-    // ★ staff-XXXX を読み込む（初回登録データ）
+    // ★ 一般スタッフ（staff-XXXX を使う）
     const raw = localStorage.getItem(`staff-${staffId}`);
 
     if (!raw) {
-      // 初回ログイン → first-login へ
       router.replace(`/first-login?staffId=${staffId}`);
       return;
     }
 
-    // ★ 初回登録済み → currentStaff を保存
     const staffData = JSON.parse(raw);
 
-   localStorage.setItem(
-  "currentStaff",
-  JSON.stringify({
-    staffId: staffData.staffId,
-    name: staffData.name,
-    department: staffData.department,
-    wardId: staffData.wardId,
-    workDays: staffData.workDays,
-    role: staffData.role,
-    mode: staffData.mode,        // ★ 記録方式を保持
-    lastWeight: staffData.lastWeight || null, // ★ 重さ方式の前回値
-    emptyWeight: staffData.emptyWeight || null,
-  })
-);
+    // ★ currentStaff を上書き
+    const current = {
+      staffId: staffData.staffId,
+      name: staffData.name,
+      department: staffData.department,
+      wardId: staffData.wardId,
+      workDays: staffData.workDays,
+      role: staffData.role,
+      mode: staffData.mode ?? null,
+      lastWeight:
+        staffData.lastWeight === undefined ? null : staffData.lastWeight,
+      emptyWeight:
+        staffData.emptyWeight === undefined ? null : staffData.emptyWeight,
+    };
 
+    localStorage.setItem("currentStaff", JSON.stringify(current));
 
-    // ★ 一般スタッフ
-    router.replace("/home");
+    // ★ 初回重さ登録の安全判定（誤判定ゼロ）
+    const needFirstWeight =
+      current.mode !== "weight" ||
+      current.lastWeight === null ||
+      current.emptyWeight === null;
+
+if (needFirstWeight) {
+  router.replace("/first-weight");
+  return;
+}
+
+    // ★ 記録ページへ
+    router.replace("/record");
   };
 
   return (

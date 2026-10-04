@@ -1,15 +1,24 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
 import BackButton from "@/components/BackButton";
-
 import { collection, getDocs } from "firebase/firestore";
 
 export default function UnrecordedList() {
   const router = useRouter();
   const { wardId } = router.query;
+
+  // ★ from=admin を受け取る
+  const searchParams = useSearchParams();
+  const fromAdmin = searchParams.get("from") === "admin";
+
+  // ★ 戻る先を分岐
+  const backTo = fromAdmin
+    ? `/admin/ward/${wardId}?from=admin`
+    : `/admin/ward/${wardId}`;
 
   const [unrecorded, setUnrecorded] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +94,8 @@ export default function UnrecordedList() {
   if (loading) {
     return (
       <main style={{ padding: "24px" }}>
-        <BackButton to={`/admin/ward/${wardId}`} />
+        {/* ★ 修正：backTo を使う */}
+        <BackButton to={backTo} />
         <p style={{ textAlign: "center", color: "#006b5f" }}>読み込み中…🫧</p>
       </main>
     );
@@ -100,9 +110,10 @@ export default function UnrecordedList() {
         fontFamily: "sans-serif",
       }}
     >
-      <BackButton to={`/admin/ward/${wardId}`} />
+      {/* ★ 修正：backTo を使う */}
+      <BackButton to={backTo} />
 
-      {/* ★ タイトル（スマホで崩れない2行固定） */}
+      {/* ★ タイトル */}
       <h1
         style={{
           color: "#006b5f",
@@ -116,7 +127,7 @@ export default function UnrecordedList() {
         }}
       >
         <span style={{ display: "inline-block" }}>
-          🫧 {wardNameMap[wardId]}　7日以上
+          💤 {wardNameMap[wardId]}　7日以上
         </span>
         <br />
         <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
@@ -156,7 +167,6 @@ export default function UnrecordedList() {
                 gap: "6px",
               }}
             >
-              {/* ★ 名前行（折り返し位置を完全制御） */}
               <div
                 style={{
                   fontSize: "20px",
@@ -167,16 +177,10 @@ export default function UnrecordedList() {
                   lineHeight: "1.4",
                 }}
               >
-                <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-                  🫧 {s.name}
-                </span>
-
-                <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-                  （ID: {s.staffId}）
-                </span>
+                <span style={{ whiteSpace: "nowrap" }}>💤 {s.name}</span>
+                <span style={{ whiteSpace: "nowrap" }}>（ID: {s.staffId}）</span>
               </div>
 
-              {/* ★ 最終入力行 */}
               <div
                 style={{
                   fontSize: "14px",
@@ -188,9 +192,7 @@ export default function UnrecordedList() {
               >
                 💧 最終入力：
                 {s.lastDate === "記録なし" ? "記録なし" : s.lastDate}
-                {s.diffDays !== null && (
-                  <span>（{s.diffDays}日前）</span>
-                )}
+                {s.diffDays !== null && <span>（{s.diffDays}日前）</span>}
               </div>
             </div>
           ))}
