@@ -4,7 +4,11 @@ import { useState } from "react";
 import BackButton from "@/components/BackButton";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
-import * as XLSX from "xlsx"; // ★ Excel出力ライブラリ
+
+// ★ Next.js が許可する xlsx の読み込み方法（SSR 無効）
+import dynamic from "next/dynamic";
+const XLSX = dynamic(() => import("xlsx"), { ssr: false });
+
 
 import {
   Chart as ChartJS,
