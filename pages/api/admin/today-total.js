@@ -12,6 +12,7 @@ function normalizeMl(value) {
 
 export default async function handler(req, res) {
   try {
+    // ★ JST 今日の 00:00 と 23:59 を作る
     const now = new Date();
 
     // ★ JST 今日の 00:00〜23:59 を作る
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
         total += normalizeMl(data.ml);
       }
     });
-
+      
     res.status(200).json({ total: Number(total.toFixed(2)) });
 
   } catch (error) {
