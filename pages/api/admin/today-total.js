@@ -1,3 +1,4 @@
+// force rebuild
 export const revalidate = 0;  // ★ Vercel のキャッシュを完全無効化
 
 import { db } from "@/firebaseConfig";
