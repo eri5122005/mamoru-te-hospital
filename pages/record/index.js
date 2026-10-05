@@ -41,8 +41,9 @@ const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 
  useEffect(() => {
-  const local = JSON.parse(localStorage.getItem("currentStaff"));
+  if (typeof window === "undefined") return;
 
+  const local = JSON.parse(localStorage.getItem("currentStaff"));
   if (!local) {
     router.replace("/login");
     return;
@@ -54,7 +55,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
   }
 
   setStaff(local);
-}, []); // ← ここは [] が正解
+}, []);
 
   // ★ 記録保存共通処理
   const saveRecord = async (usedMl, nowWeightValue) => {
@@ -80,19 +81,21 @@ const [isSubmitting, setIsSubmitting] = useState(false);
       return false;
     }
 
-    const history = JSON.parse(localStorage.getItem("history") || "[]");
-    history.push({
-      staffId: staff.staffId,
-      name: staff.name,
-      department: wardNameMap[staff.wardId] || staff.department,
-      wardId: staff.wardId,
-      ml: usedMl,
-      unit: "weight",
-      weightNow: nowWeightValue,
-      weightPrev: staff.lastWeight,
-      date: Timestamp.now(),
-    });
-    localStorage.setItem("history", JSON.stringify(history));
+    if (typeof window !== "undefined") {
+  const history = JSON.parse(localStorage.getItem("history") || "[]");
+  history.push({
+    staffId: staff.staffId,
+    name: staff.name,
+    department: wardNameMap[staff.wardId] || staff.department,
+    wardId: staff.wardId,
+    ml: usedMl,
+    unit: "weight",
+    weightNow: nowWeightValue,
+    weightPrev: staff.lastWeight,
+    date: Timestamp.now(),
+  });
+  localStorage.setItem("history", JSON.stringify(history));
+}
 
     setMessage(
       `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
@@ -136,9 +139,11 @@ const handleExchangeYes = async () => {
   });
 
   // ★ localStorage 更新
+  if (typeof window !== "undefined") {
   const updated = { ...staff, lastWeight: now };
   localStorage.setItem("currentStaff", JSON.stringify(updated));
   setStaff(updated);
+}
 
 } catch (e) {
   setMessage("前回の重さ更新に失敗しました");
@@ -200,13 +205,14 @@ const handleRecord = async () => {
   }
 
   // ★ ボトル交換判定（誤差3gまで許容）
-  if (now > prev + 3) {
-  + setMessage("記録中です…（ボトル交換の確認）");
-    setShowExchangeConfirm(true);
-- setIsSubmitting(false);   // ❌ これが連打の原因
-+ // ★ ロックは維持する（YES/NOで解除する）
+if (now > prev + 3) {
+  setMessage("記録中です…（ボトル交換の確認）");
+  setShowExchangeConfirm(true);
+
+  // ★ ロックは維持する（YES/NOで解除する）
   return;
 }
+
 
   // ★ 使用量計算（異常値を自動補正）
   let usedMl = (prev - now) * ML_PER_GRAM;
