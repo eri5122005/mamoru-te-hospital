@@ -1,18 +1,15 @@
-// ★ 新しい Service Worker を即時反映
-self.addEventListener("install", (event) => {
-  self.skipWaiting(); // ← 待機せず即アクティブ化
-});
-
-// ★ 古い Service Worker を即時置き換え
-self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim()); // ← 全クライアントに即反映
-});
-
-// ★ 最小構成のキャッシュ戦略（オンライン優先）
 self.addEventListener("fetch", (event) => {
+  const url = event.request.url;
+
+  // ★ 今日の使用量APIはキャッシュしない
+  if (url.includes("/api/today") || url.includes("/api/today-total")) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // ★ それ以外はキャッシュ優先
   event.respondWith(
     caches.match(event.request).then((response) => {
-      // キャッシュがあれば使う、なければネットから取得
       return response || fetch(event.request);
     })
   );
