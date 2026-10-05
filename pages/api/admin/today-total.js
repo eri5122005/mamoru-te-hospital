@@ -1,5 +1,5 @@
 import { db } from "@/firebaseConfig";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 function normalizeMl(value) {
   const ml = Number(value);
@@ -14,26 +14,27 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
 
-    // 今日の開始（JST）
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    // 今日の終了（JST）
+    // ★ JST 今日の 00:00〜23:59 を作る
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-    // ★ Firestore は UTC なので Timestamp に変換する
-    const q = query(
-  collection(db, "records"),
-  where("date", ">=", Timestamp.fromDate(start)),
-  where("date", "<=", Timestamp.fromDate(end))
-);
-
-    const snapshot = await getDocs(q);
+    // ★ Firestore 全件取得（UTCズレを完全回避）
+    const snapshot = await getDocs(collection(db, "records"));
 
     let total = 0;
+
     snapshot.forEach(doc => {
-      total += normalizeMl(doc.data().ml);
+      const data = doc.data();
+      const d = data.date.toDate(); // JST として扱われる
+
+      // ★ JST の今日の範囲で判定（院内ランキングと同じ）
+      if (d >= start && d <= end) {
+        total += normalizeMl(data.ml);
+      }
     });
 
-    res.status(200).json({ total });
+    res.status(200).json({ total: Number(total.toFixed(2)) });
+
   } catch (error) {
     console.error("today-total error:", error);
     res.status(500).json({ total: 0 });

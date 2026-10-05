@@ -105,6 +105,7 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ★ ボトル交換 YES（完全修正版）
 const handleExchangeYes = async () => {
+  + setMessage("記録中です…");
   let prev = Number(staff.lastWeight);
 
   // ★ lastWeight が壊れている人を自動初期化
@@ -153,9 +154,10 @@ return;
 
   // ★ ボトル交換 NO
   const handleExchangeNo = () => {
-    setMessage("重さが増えています。正しい重さを入力してください。");
-    setShowExchangeConfirm(false);
-  };
+  setMessage("重さが増えています。正しい重さを入力してください。");
+  setShowExchangeConfirm(false);
++ setIsSubmitting(false);   // ★ ここでロック解除
+};
 
   // ★ 記録処理（重さ方式）完全修正版
 const handleRecord = async () => {
@@ -199,10 +201,12 @@ const handleRecord = async () => {
 
   // ★ ボトル交換判定（誤差3gまで許容）
   if (now > prev + 3) {
+  + setMessage("記録中です…（ボトル交換の確認）");
     setShowExchangeConfirm(true);
-    setIsSubmitting(false);   // ★ これが必須
-    return;
-  }
+- setIsSubmitting(false);   // ❌ これが連打の原因
++ // ★ ロックは維持する（YES/NOで解除する）
+  return;
+}
 
   // ★ 使用量計算（異常値を自動補正）
   let usedMl = (prev - now) * ML_PER_GRAM;
