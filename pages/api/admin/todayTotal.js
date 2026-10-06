@@ -25,7 +25,9 @@ export default async function handler(req, res) {
       23, 59, 59
     );
 
+    // ★ ここで1回だけ宣言する
     const snapshot = await getDocs(collection(db, "records"));
+    console.log("本番が読んでいるコレクション:", "records");
 
     let total = 0;
 
@@ -33,7 +35,6 @@ export default async function handler(req, res) {
       const data = doc.data();
       if (!data.date) return;
 
-      // Firestore の date は JST なのでそのまま使う
       const jstDate = data.date.toDate();
 
       if (jstDate >= start && jstDate <= end) {
