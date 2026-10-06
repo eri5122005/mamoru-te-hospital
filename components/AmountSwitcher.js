@@ -7,21 +7,23 @@ export default function AmountSwitcher() {
   const [total, setTotal] = useState(0);
 
   const loadData = async (type) => {
-    const url =
-      type === "yesterday"
-        ? "/api/admin/amount-yesterday"
-        : "/api/admin/today-total";
+  const url =
+    type === "yesterday"
+      ? "/api/admin/amount-yesterday"   // ← これは eri の仕様で正しい
+      : "/api/admin/todayTotal";        // ← 今日の API 名を正しく修正
 
-    const res = await fetch(url);
-    const json = await res.json();
+  const res = await fetch(url);
+const json = await res.json();
 
-    if (type === "yesterday") {
-      const sum = json.reduce((acc, s) => acc + Number(s.total || 0), 0);
-      setTotal(sum);
-    } else {
-      setTotal(Number(json.total || 0));
-    }
-  };
+console.log("APIの返却データ:", json);   // ← ここに入れる！
+
+  if (type === "yesterday") {
+    const sum = json.reduce((acc, s) => acc + Number(s.total || 0), 0);
+    setTotal(sum);
+  } else {
+    setTotal(Number(json.total || 0));
+  }
+};
 
   useEffect(() => {
     loadData("yesterday");

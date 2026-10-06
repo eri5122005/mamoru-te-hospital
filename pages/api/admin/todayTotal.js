@@ -1,42 +1,39 @@
 // force rebuild
-export const revalidate = 0;  // ★ Vercel のキャッシュを完全無効化
+export const revalidate = 0;
 
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
-function normalizeMl(value) {
-  const ml = Number(value);
-  if (isNaN(ml)) return 0;
-  if (ml < 0.1) return 0;
-  if (ml > 1000) return 0;
-  if (!Number.isFinite(ml)) return 0;
-  return ml;
-}
-
 export default async function handler(req, res) {
   try {
-    // ★ JST 今日の 00:00 と 23:59 を作る
+    // JST 現在時刻
     const now = new Date();
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
-    // ★ JST 今日の 00:00〜23:59 を作る
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    // 今日の 0:00 と 23:59（JST）
+    const start = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate(), 0, 0, 0);
+    const end = new Date(jstNow.getFullYear(), jstNow.getMonth(), jstNow.getDate(), 23, 59, 59);
 
-    // ★ Firestore 全件取得（UTCズレを完全回避）
+    // ★ records を読む
     const snapshot = await getDocs(collection(db, "records"));
+
+    console.log("snapshot size:", snapshot.size);
 
     let total = 0;
 
     snapshot.forEach(doc => {
       const data = doc.data();
-      const d = data.date.toDate(); // JST として扱われる
+      console.log("doc:", data);
 
-      // ★ JST の今日の範囲で判定（院内ランキングと同じ）
+      if (!data.date) return;
+
+      const d = data.date.toDate(); // Timestamp → Date
+
       if (d >= start && d <= end) {
-        total += normalizeMl(data.ml);
+        total += Number(data.ml) || 0;
       }
     });
-      
+
     res.status(200).json({ total: Number(total.toFixed(2)) });
 
   } catch (error) {

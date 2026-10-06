@@ -24,9 +24,11 @@ const wardNameMap = {
 export default function RecordPage() {
   const router = useRouter();
   const EMPTY_WEIGHT = 45;
-  const FULL_WEIGHT = 260;
-  // ★ g → mL 換算係数（263g = 250mL）
-const ML_PER_GRAM = 250 / (263 - 45); // 250 / 218 = 1.147mL
+const FULL_WEIGHT = 263;
+
+// ★ g → mL 換算係数（263g = 250mL）
+const ML_PER_GRAM = 250 / (FULL_WEIGHT - EMPTY_WEIGHT); 
+// = 250 / 218 = 1.147mL
 
   const randomMessage =
     messages[Math.floor(Math.random() * messages.length)];
@@ -60,22 +62,26 @@ const [isSubmitting, setIsSubmitting] = useState(false);
   // ★ 記録保存共通処理
   const saveRecord = async (usedMl, nowWeightValue) => {
     try {
-      await fetch("/api/records", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          staffId: staff.staffId,
-          name: staff.name,
-          department: wardNameMap[staff.wardId] || staff.department,
-          wardId: staff.wardId,
-          ml: usedMl,
-          unit: "weight",
-          mintPoint: 1,
-          weightNow: nowWeightValue,
-          weightPrev: staff.lastWeight,
-          date: Timestamp.now(),
-        }),
-      });
+      const now = new Date();
+const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
+await fetch("/api/records", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    staffId: staff.staffId,
+    name: staff.name,
+    department: wardNameMap[staff.wardId] || staff.department,
+    wardId: staff.wardId,
+    ml: usedMl,
+    unit: "weight",
+    mintPoint: 1,
+    weightNow: nowWeightValue,
+    weightPrev: staff.lastWeight,
+     date: Timestamp.fromDate(jstNow),   // ← ★これが必須
+  }),
+});
+
     } catch (error) {
       setMessage("クラウド保存に失敗しました");
       return false;
@@ -83,6 +89,10 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (typeof window !== "undefined") {
   const history = JSON.parse(localStorage.getItem("history") || "[]");
+
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
   history.push({
     staffId: staff.staffId,
     name: staff.name,
@@ -92,8 +102,9 @@ const [isSubmitting, setIsSubmitting] = useState(false);
     unit: "weight",
     weightNow: nowWeightValue,
     weightPrev: staff.lastWeight,
-    date: Timestamp.now(),
+    date: jstNow,   // ← ★ここが最重要（JSTで保存）
   });
+
   localStorage.setItem("history", JSON.stringify(history));
 }
 
@@ -106,62 +117,57 @@ const [isSubmitting, setIsSubmitting] = useState(false);
     return true;
   };
 
-  // ★ ボトル交換 YES（完全修正版）
-const handleExchangeYes = async () => {
-  + setMessage("記録中です…");
-  let prev = Number(staff.lastWeight);
+ // ★ 交換ダイアログを開くときにロックする
+const openExchangeDialog = () => {
+  setIsSubmitting(true);        // ★ ここでロック
+  setShowExchangeConfirm(true);
+};
 
-  // ★ lastWeight が壊れている人を自動初期化
-  if (isNaN(prev) || prev < EMPTY_WEIGHT || prev > FULL_WEIGHT) {
-    prev = FULL_WEIGHT;
-  }
+
+// ★ ボトル交換 YES（完全版）
+const handleExchangeYes = async () => {
+  if (!isSubmitting) return;    // ★ ロックされていないなら動かさない
+
+  setMessage("記録中です…");
 
   const now = Number(weightNow);
 
-  const prevRemainG = prev - EMPTY_WEIGHT;
-  const nowRemainG = now - EMPTY_WEIGHT;
+  const fullRemainG = FULL_WEIGHT - EMPTY_WEIGHT;
+  const nowRemainG  = now - EMPTY_WEIGHT;
 
-  let usedMl = (prevRemainG - nowRemainG) * ML_PER_GRAM;
-
+  let usedMl = (fullRemainG - nowRemainG) * ML_PER_GRAM;
   if (usedMl < 0) usedMl = 0;
-  if (usedMl < 0.01) usedMl = 0;
   usedMl = Number(usedMl.toFixed(2));
 
- try {
-  // ★ staff コレクション（既存）
-  await updateDoc(doc(db, "staff", staff.staffId), {
-    lastWeight: now,
-  });
+  try {
+    await updateDoc(doc(db, "staff", staff.staffId), { lastWeight: now });
+    await updateDoc(doc(db, "staffs", staff.staffId), { lastWeight: now });
 
-  // ★★★ staffs コレクション（クラウド復旧用）★★★
-  await updateDoc(doc(db, "staffs", staff.staffId), {
-    lastWeight: now,
-  });
+    const updated = { ...staff, lastWeight: now };
+    localStorage.setItem("currentStaff", JSON.stringify(updated));
+    setStaff(updated);
 
-  // ★ localStorage 更新
-  if (typeof window !== "undefined") {
-  const updated = { ...staff, lastWeight: now };
-  localStorage.setItem("currentStaff", JSON.stringify(updated));
-  setStaff(updated);
-}
+  } catch (e) {
+    setMessage("前回の重さ更新に失敗しました");
+    setIsSubmitting(false);
+    return;
+  }
 
-} catch (e) {
-  setMessage("前回の重さ更新に失敗しました");
-  return;
-}
+  await saveRecord(usedMl, now);
 
-// ★ 二重登録防止
-await saveRecord(usedMl, now);
-setIsSubmitting(false);   // ★ 必須
-return;
-    // ★ 必須（多重登録防止）
+  setIsSubmitting(false);       // ★ ロック解除
+  setShowExchangeConfirm(false);
 };
 
-  // ★ ボトル交換 NO
-  const handleExchangeNo = () => {
+
+// ★ ボトル交換 NO（完全版）
+const handleExchangeNo = () => {
+  if (!isSubmitting) return;    // ★ ロックされていないなら動かさない
+
   setMessage("重さが増えています。正しい重さを入力してください。");
   setShowExchangeConfirm(false);
-+ setIsSubmitting(false);   // ★ ここでロック解除
+
+  setIsSubmitting(false);       // ★ ロック解除
 };
 
   // ★ 記録処理（重さ方式）完全修正版

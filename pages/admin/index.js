@@ -7,14 +7,16 @@ export default function AdminTop() {
   const [monthTotal, setMonthTotal] = useState(0);
 
   useEffect(() => {
-    fetch("/api/admin/today-total")
-      .then(res => res.json())
-      .then(data => setTodayTotal(data.total));
+  // 今日の使用量
+  fetch("/api/admin/todayTotal")
+    .then(res => res.json())
+    .then(data => setTodayTotal(data.total));
 
-    fetch("/api/admin/month-total")
-      .then(res => res.json())
-      .then(data => setMonthTotal(data.total));
-  }, []);
+  // 今月の総使用量
+  fetch("/api/admin/month-total")
+    .then(res => res.json())
+    .then(data => setMonthTotal(data.total));
+}, []);
 
   // ====== UI Styles ======
   const Grid = {
