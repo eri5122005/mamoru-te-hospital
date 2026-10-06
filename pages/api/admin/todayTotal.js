@@ -1,22 +1,27 @@
+// force rebuild
+export const revalidate = 0;
+
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
+    // Firestore の Timestamp は JST なのでそのまま使う
     const now = new Date();
-    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
+    // 今日の 0:00（JST）
     const start = new Date(
-      jstNow.getFullYear(),
-      jstNow.getMonth(),
-      jstNow.getDate(),
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       0, 0, 0
     );
 
+    // 今日の 23:59:59（JST）
     const end = new Date(
-      jstNow.getFullYear(),
-      jstNow.getMonth(),
-      jstNow.getDate(),
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       23, 59, 59
     );
 
@@ -28,9 +33,10 @@ export default async function handler(req, res) {
       const data = doc.data();
       if (!data.date) return;
 
-      const d = data.date.toDate();
+      // Firestore の date は JST なのでそのまま使う
+      const jstDate = data.date.toDate();
 
-      if (d >= start && d <= end) {
+      if (jstDate >= start && jstDate <= end) {
         total += Number(data.ml) || 0;
       }
     });
