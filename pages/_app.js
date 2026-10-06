@@ -22,12 +22,26 @@ export default function App({ Component, pageProps }) {
     }
   }, []);
 
-   // ★ 新しいバージョンが適用されたら通知する（今回追加）
+     // ★ 新しいバージョンが適用されたら通知する（今回追加）
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         alert("新しいバージョンが利用可能です。アプリを再起動してください。");
       });
+    }
+  }, []);
+
+  // ★ 強制ポップアップ（確実に出る）
+  const APP_VERSION = "2026.10.06";
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const savedVersion = localStorage.getItem("appVersion");
+
+    if (savedVersion !== APP_VERSION) {
+      alert("アプリが更新されました。再起動してください。");
+      localStorage.setItem("appVersion", APP_VERSION);
+      window.location.reload();
     }
   }, []);
   
