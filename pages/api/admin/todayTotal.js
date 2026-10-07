@@ -6,44 +6,54 @@ import { collection, getDocs } from "firebase/firestore";
 
 export default async function handler(req, res) {
   try {
-    // Firestore の Timestamp は JST なのでそのまま使う
+    // 現在時刻
     const now = new Date();
 
-    // 今日の 0:00（JST）
+    // 現在の「日本時間の日付」を取得
+    const jstParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
+
+    const year = Number(
+      jstParts.find((part) => part.type === "year").value
+    );
+    const month = Number(
+      jstParts.find((part) => part.type === "month").value
+    );
+    const day = Number(
+      jstParts.find((part) => part.type === "day").value
+    );
+
+    // 日本時間 00:00:00 ～ 23:59:59 をUTCのDateとして作成
     const start = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0, 0, 0
+      Date.UTC(year, month - 1, day, -9, 0, 0)
     );
 
-    // 今日の 23:59:59（JST）
     const end = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23, 59, 59
+      Date.UTC(year, month - 1, day, 14, 59, 59, 999)
     );
 
-    // ★ ここで1回だけ宣言する
     const snapshot = await getDocs(collection(db, "records"));
-    console.log("本番が読んでいるコレクション:", "records");
 
     let total = 0;
 
-    snapshot.forEach(doc => {
+    snapshot.forEach((doc) => {
       const data = doc.data();
       if (!data.date) return;
 
-      const jstDate = data.date.toDate();
+      const recordDate = data.date.toDate();
 
-      if (jstDate >= start && jstDate <= end) {
+      if (recordDate >= start && recordDate <= end) {
         total += Number(data.ml) || 0;
       }
     });
 
-    res.status(200).json({ total: Number(total.toFixed(2)) });
-
+    res.status(200).json({
+      total: Number(total.toFixed(2)),
+    });
   } catch (error) {
     console.error("today-total error:", error);
     res.status(500).json({ total: 0 });
