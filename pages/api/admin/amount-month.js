@@ -5,32 +5,50 @@ export default async function handler(req, res) {
   try {
     // スタッフ一覧
     const staffSnap = await getDocs(collection(db, "staff"));
-    const staffList = staffSnap.docs.map(doc => doc.data());
+    const staffList = staffSnap.docs.map((doc) => doc.data());
 
-    // 今日の日付から「今月」を作る
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
+    // 現在時刻
+    const now = new Date();
 
-    const monthPrefix = `${year}-${month}`; // 例: 2026-09
+    // 現在の「日本時間の年月」を取得
+    const jstParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(now);
+
+    const year = Number(
+      jstParts.find((part) => part.type === "year").value
+    );
+
+    const month = Number(
+      jstParts.find((part) => part.type === "month").value
+    );
+
+    // 日本時間の今月1日 00:00
+    const start = new Date(
+      Date.UTC(year, month - 1, 1, -9, 0, 0)
+    );
+
+    // 日本時間の来月1日 00:00
+    const end = new Date(
+      Date.UTC(year, month, 1, -9, 0, 0)
+    );
 
     // records 全件取得
     const recordSnap = await getDocs(collection(db, "records"));
-    const records = recordSnap.docs.map(doc => doc.data());
+    const records = recordSnap.docs.map((doc) => doc.data());
 
+    // staffId ごとに今月の使用量を集計
     const map = {};
 
-    records.forEach(r => {
+    records.forEach((r) => {
       if (!r.date) return;
 
-      // ★ Timestamp → Date → "YYYY-MM" に変換
-      const d = r.date.toDate();
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const ym = `${y}-${m}`;
+      const recordDate = r.date.toDate();
 
-      // ★ 今月だけ合計
-      if (ym === monthPrefix) {
+      // 日本時間の今月の範囲に入っているか判定
+      if (recordDate >= start && recordDate < end) {
         const id = r.staffId;
         const ml = Number(r.ml) || 0;
 
@@ -39,17 +57,20 @@ export default async function handler(req, res) {
       }
     });
 
-    // staff 情報と合体
-    const result = staffList.map(s => ({
+    // staff情報と合体
+    const result = staffList.map((s) => ({
       staffId: s.staffId,
       name: s.name,
-      total: map[s.staffId] || 0,
+      total: Number((map[s.staffId] || 0).toFixed(2)),
     }));
 
     return res.status(200).json(result);
 
   } catch (error) {
     console.error("amount-month error:", error);
-    return res.status(500).json({ error: "Failed to load amount month" });
+
+    return res.status(500).json({
+      error: "Failed to load amount month",
+    });
   }
 }
