@@ -1,6 +1,11 @@
 "use client";
 
-import { messages } from "../../data/messages";
+import {
+  normalMessages,
+  funMessages,
+  mintSpiritMessages,
+  legendaryMintMessages,
+} from "../../data/messages";
 import NavBar from "../../components/NavBar";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
@@ -30,8 +35,31 @@ const FULL_WEIGHT = 263;
 const ML_PER_GRAM = 250 / (FULL_WEIGHT - EMPTY_WEIGHT); 
 // = 250 / 218 = 1.147mL
 
-  const randomMessage =
-    messages[Math.floor(Math.random() * messages.length)];
+  const roll = Math.random();
+
+let randomMessage;
+
+if (roll < 0.01) {
+  // 1%：超レア
+  randomMessage =
+    legendaryMintMessages[
+      Math.floor(Math.random() * legendaryMintMessages.length)
+    ];
+} else if (roll < 0.10) {
+  // 9%：ミントの精霊
+  randomMessage =
+    mintSpiritMessages[
+      Math.floor(Math.random() * mintSpiritMessages.length)
+    ];
+} else if (roll < 0.30) {
+  // 20%：おもしろ・ランキング系
+  randomMessage =
+    funMessages[Math.floor(Math.random() * funMessages.length)];
+} else {
+  // 70%：通常
+  randomMessage =
+    normalMessages[Math.floor(Math.random() * normalMessages.length)];
+}
 
   const [weightNow, setWeightNow] = useState("");
 const [message, setMessage] = useState("");
@@ -302,8 +330,14 @@ if (now > prev + 3) {
     });
 
     const updated = { ...staff, lastWeight: now };
-    localStorage.setItem("currentStaff", JSON.stringify(updated));
-    setStaff(updated);
+
+localStorage.setItem("currentStaff", JSON.stringify(updated));
+localStorage.setItem(
+  `staff-${staff.staffId}`,
+  JSON.stringify(updated)
+);
+
+setStaff(updated);
   } catch (e) {
     setMessage("前回の重さ更新に失敗しました");
     return;

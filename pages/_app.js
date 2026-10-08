@@ -7,6 +7,7 @@ export default function App({ Component, pageProps }) {
     if (!("serviceWorker" in navigator)) return;
 
     let refreshing = false;
+    let registration = null;
 
     // 新しいService Workerに切り替わったら1回だけ再読み込み
     const handleControllerChange = () => {
@@ -16,25 +17,61 @@ export default function App({ Component, pageProps }) {
       window.location.reload();
     };
 
+    // Service Workerの最新版を確認
+    const checkForUpdate = () => {
+      if (!registration) return;
+
+      registration.update().catch((error) => {
+        console.error("Service Worker update check failed:", error);
+      });
+    };
+
+    // アプリが再び前面に戻ったときに最新版を確認
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkForUpdate();
+      }
+    };
+
     navigator.serviceWorker.addEventListener(
       "controllerchange",
       handleControllerChange
     );
 
-    // Service Workerを登録し、最新版がないか確認
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    // Service Workerを登録
     navigator.serviceWorker
       .register("/service-worker.js")
-      .then((registration) => {
-        registration.update();
+      .then((reg) => {
+        registration = reg;
+
+        // アプリ起動時に最新版を確認
+        checkForUpdate();
       })
       .catch((error) => {
         console.error("Service Worker registration failed:", error);
       });
 
+    // 開きっぱなしの場合も30分ごとに最新版を確認
+    const updateInterval = setInterval(() => {
+      checkForUpdate();
+    }, 30 * 60 * 1000);
+
     return () => {
+      clearInterval(updateInterval);
+
       navigator.serviceWorker.removeEventListener(
         "controllerchange",
         handleControllerChange
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
       );
     };
   }, []);
