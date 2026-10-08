@@ -1,45 +1,71 @@
 import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-// ★ ここに normalizeMl を貼る（このままコピペOK）
 function normalizeMl(value) {
   const ml = Number(value);
 
-  if (isNaN(ml)) return 0;      // 数字に変換できない → 0
-  if (ml < 0.1) return 0;       // 異常に小さい値 → 0
-  if (ml > 1000) return 0;      // 異常に大きい値 → 0
-  if (!Number.isFinite(ml)) return 0; // 無限大など → 0
+  if (isNaN(ml)) return 0;
+  if (ml < 0.1) return 0;
+  if (ml > 1000) return 0;
+  if (!Number.isFinite(ml)) return 0;
 
-  return ml; // 正常値
+  return ml;
 }
 
 export default async function handler(req, res) {
   const { staffId } = req.query;
 
   try {
-    // 今日の開始（00:00）
-    const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const now = new Date();
 
-    // 今日の終了（23:59:59）
-    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+    // 現在の「日本の日付」を取得
+    const jstParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Tokyo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now);
 
-   const q = query(
-  collection(db, "records"),
-  where("staffId", "==", staffId),   // ★ 文字列で検索
-  where("date", ">=", start),
-  where("date", "<=", end)
-);
+    const year = Number(
+      jstParts.find((part) => part.type === "year").value
+    );
+
+    const month = Number(
+      jstParts.find((part) => part.type === "month").value
+    );
+
+    const day = Number(
+      jstParts.find((part) => part.type === "day").value
+    );
+
+    // 今日の0:00 JST
+    const start = new Date(
+      Date.UTC(year, month - 1, day, -9, 0, 0)
+    );
+
+    // 今日の23:59:59.999 JST
+    const end = new Date(
+      Date.UTC(year, month - 1, day, 14, 59, 59, 999)
+    );
+
+    const q = query(
+      collection(db, "records"),
+      where("staffId", "==", staffId),
+      where("date", ">=", start),
+      where("date", "<=", end)
+    );
 
     const snap = await getDocs(q);
 
     let total = 0;
-    snap.forEach(doc => {
-      // ★ ここを書き換える（Number → normalizeMl）
+
+    snap.forEach((doc) => {
       total += normalizeMl(doc.data().ml);
     });
 
-    return res.status(200).json({ total });
+    return res.status(200).json({
+      total: Number(total.toFixed(2)),
+    });
 
   } catch (error) {
     console.error("staff-today error:", error);
