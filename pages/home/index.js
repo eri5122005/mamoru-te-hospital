@@ -34,8 +34,8 @@ export default function Home() {
   { icon: "👤", label: "マイページ", path: "/mypage" },
 
   // ★ 修正：staffId を含める
-  { icon: "🏆", label: "院内ランキング TOP5", path: `/staff/${user.staffId}/top5/usage` },
-{ icon: "📈", label: "平均使用量 TOP5", path: `/staff/${user.staffId}/top5/avg` },
+  { icon: "🏆", label: "院内ランキング TOP10", path: `/staff/${user.staffId}/top5/usage` },
+{ icon: "📈", label: "平均使用量 TOP10", path: `/staff/${user.staffId}/top5/avg` },
 
   ...(user.isAdmin
     ? [{ icon: "🛠️", label: "管理者ページ", path: "/admin" }]

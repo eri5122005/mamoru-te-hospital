@@ -117,7 +117,7 @@ return true;
 
       // ソートして TOP5
       result.sort((a, b) => b.totalMl - a.totalMl);
-      setRanking(result.slice(0, 5));
+      setRanking(result.slice(0, 10));
 
       setLoading(false);
     };
@@ -197,7 +197,7 @@ return true;
           color: "#006b5f",
         }}
       >
-        🏆 院内ランキング TOP5（総使用量）
+        🏆 院内ランキング TOP10（総使用量）
       </h1>
 
       {/* タブ */}

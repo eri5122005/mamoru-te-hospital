@@ -78,7 +78,7 @@ export default function AvgTop5Page() {
 
       // ソートして TOP5
       result.sort((a, b) => b.avgMl - a.avgMl);
-      setRanking(result.slice(0, 5));
+      setRanking(result.slice(0, 10));
 
       setLoading(false);
     };
@@ -158,7 +158,7 @@ export default function AvgTop5Page() {
           color: "#006b5f",
         }}
       >
-        📈 平均使用量ランキング TOP5
+        📈 平均使用量ランキング TOP10
       </h1>
 
       {/* タブ */}
