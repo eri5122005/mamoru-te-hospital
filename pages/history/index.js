@@ -75,10 +75,7 @@ setRecords(list);
     setSelectedRecord(null);
   };
 
-  const handleEdit = () => {
-    if (!selectedRecord) return;
-    router.push(`/history/edit?id=${selectedRecord}`);
-  };
+  
 
   if (!staff) return <p>読み込み中…</p>;
 
@@ -123,23 +120,7 @@ setRecords(list);
 
       {selectedRecord && (
         <>
-          <button
-            onClick={handleEdit}
-            style={{
-              background: "#cfeeee",
-              color: "#006b5f",
-              padding: "14px",
-              borderRadius: "12px",
-              border: "none",
-              width: "100%",
-              marginTop: "10px",
-              fontSize: "18px",
-              cursor: "pointer",
-            }}
-          >
-            選択した記録を修正する
-          </button>
-
+          
           <button
             onClick={handleDelete}
             style={{
@@ -150,6 +131,7 @@ setRecords(list);
               border: "none",
               width: "100%",
               marginTop: "10px",
+              marginBottom: "80px",
               fontSize: "18px",
               cursor: "pointer",
             }}

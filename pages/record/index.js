@@ -60,7 +60,11 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 }, []);
 
   // ★ 記録保存共通処理
-  const saveRecord = async (usedMl, nowWeightValue) => {
+  const saveRecord = async (
+  usedMl,
+  nowWeightValue,
+  isBottleExchange = false
+) => {
     try {
       const now = new Date();
 const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -77,8 +81,9 @@ await fetch("/api/records", {
     unit: "weight",
     mintPoint: 1,
     weightNow: nowWeightValue,
-    weightPrev: staff.lastWeight,
-     date: Timestamp.fromDate(jstNow),   // ← ★これが必須
+weightPrev: staff.lastWeight,
+isBottleExchange: isBottleExchange,
+date: Timestamp.fromDate(jstNow),   // ← ★これが必須
   }),
 });
 
@@ -101,8 +106,9 @@ await fetch("/api/records", {
     ml: usedMl,
     unit: "weight",
     weightNow: nowWeightValue,
-    weightPrev: staff.lastWeight,
-    date: jstNow,   // ← ★ここが最重要（JSTで保存）
+weightPrev: staff.lastWeight,
+isBottleExchange: isBottleExchange,
+date: jstNow,   // ← ★ここが最重要（JSTで保存）
   });
 
   localStorage.setItem("history", JSON.stringify(history));
@@ -126,25 +132,75 @@ const openExchangeDialog = () => {
 
 // ★ ボトル交換 YES（完全版）
 const handleExchangeYes = async () => {
-  if (!isSubmitting) return;    // ★ ロックされていないなら動かさない
+  if (!isSubmitting) return;
 
   setMessage("記録中です…");
 
   const now = Number(weightNow);
+  const prev = Number(staff.lastWeight);
 
-  const fullRemainG = FULL_WEIGHT - EMPTY_WEIGHT;
-  const nowRemainG  = now - EMPTY_WEIGHT;
+  // 入力値の安全確認
+  if (
+    !Number.isFinite(now) ||
+    now <= EMPTY_WEIGHT ||
+    now > FULL_WEIGHT
+  ) {
+    setMessage(
+      `重さは${EMPTY_WEIGHT + 1}g～${FULL_WEIGHT}gの範囲で入力してください。`
+    );
+    setIsSubmitting(false);
+    setShowExchangeConfirm(false);
+    return;
+  }
 
-  let usedMl = (fullRemainG - nowRemainG) * ML_PER_GRAM;
+  // 前回重量の安全確認
+  if (
+    !Number.isFinite(prev) ||
+    prev < EMPTY_WEIGHT ||
+    prev > FULL_WEIGHT
+  ) {
+    setMessage("前回の重さに異常があります。記録できませんでした。");
+    setIsSubmitting(false);
+    setShowExchangeConfirm(false);
+    return;
+  }
+
+  // 旧ボトル：
+  // 前回重量から空ボトル45gになるまで使用した分
+  const oldBottleUsedG = prev - EMPTY_WEIGHT;
+
+  // 新ボトル：
+  // 満タン263gから今回重量まで使用した分
+  const newBottleUsedG = FULL_WEIGHT - now;
+
+  // 旧ボトル分 ＋ 新ボトル分
+  const totalUsedG = oldBottleUsedG + newBottleUsedG;
+
+  let usedMl = totalUsedG * ML_PER_GRAM;
+
   if (usedMl < 0) usedMl = 0;
+
   usedMl = Number(usedMl.toFixed(2));
 
   try {
-    await updateDoc(doc(db, "staff", staff.staffId), { lastWeight: now });
-    await updateDoc(doc(db, "staffs", staff.staffId), { lastWeight: now });
+    await updateDoc(doc(db, "staff", staff.staffId), {
+      lastWeight: now,
+    });
 
-    const updated = { ...staff, lastWeight: now };
-    localStorage.setItem("currentStaff", JSON.stringify(updated));
+    await updateDoc(doc(db, "staffs", staff.staffId), {
+      lastWeight: now,
+    });
+
+    const updated = {
+      ...staff,
+      lastWeight: now,
+    };
+
+    localStorage.setItem(
+      "currentStaff",
+      JSON.stringify(updated)
+    );
+
     setStaff(updated);
 
   } catch (e) {
@@ -153,9 +209,14 @@ const handleExchangeYes = async () => {
     return;
   }
 
-  await saveRecord(usedMl, now);
+  const saved = await saveRecord(usedMl, now, true);
 
-  setIsSubmitting(false);       // ★ ロック解除
+  if (!saved) {
+    setIsSubmitting(false);
+    return;
+  }
+
+  setIsSubmitting(false);
   setShowExchangeConfirm(false);
 };
 
@@ -187,12 +248,20 @@ const handleRecord = async () => {
     return;
   }
 
-  // ★ 45g以下は絶対にあり得ない
-  if (Number(weightNow) <= 45) {
-    setMessage("45g以下はあり得ない値です。入力を確認してください。");
-    setIsSubmitting(false);
-    return;
-  }
+  // ★ ボトル重量としてあり得ない値を防止
+const inputWeight = Number(weightNow);
+
+if (
+  !Number.isFinite(inputWeight) ||
+  inputWeight <= EMPTY_WEIGHT ||
+  inputWeight > FULL_WEIGHT
+) {
+  setMessage(
+    `重さは${EMPTY_WEIGHT + 1}g～${FULL_WEIGHT}gの範囲で入力してください。`
+  );
+  setIsSubmitting(false);
+  return;
+}
 
   // ★ 登録前の確認ポップアップ
   const ok = confirm(`${weightNow} g で登録してよろしいですか？`);

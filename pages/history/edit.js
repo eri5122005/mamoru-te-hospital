@@ -8,18 +8,18 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 export default function EditRecord() {
   const router = useRouter();
   const params = useSearchParams();
-  const id = params.get("id"); // ← Firestore の document ID
+  const id = params.get("id");
 
   const [record, setRecord] = useState(null);
-  const [raw, setRaw] = useState("");
-
-  const ML_PER_CM = 23.8;
+  const [ml, setMl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
 
     const load = async () => {
       const snap = await getDoc(doc(db, "records", id));
+
       if (!snap.exists()) {
         alert("記録が見つかりません");
         router.push("/history");
@@ -27,34 +27,56 @@ export default function EditRecord() {
       }
 
       const data = snap.data();
+
       setRecord(data);
-      setRaw(data.amount); // ← cm or g の元の値
+
+      // 現在保存されている「使用量」をそのまま表示
+      setMl(String(data.ml ?? ""));
     };
 
     load();
-  }, [id]);
+  }, [id, router]);
 
   const saveEdit = async () => {
-    if (!record) return;
+    if (!record || isSaving) return;
 
-    let newMl = 0;
+    const newMl = Number(ml);
 
-    if (record.unit === "cm") {
-      newMl = Number((raw * ML_PER_CM).toFixed(1));
-    } else {
-      newMl = Number((raw / 0.864).toFixed(1));
+    if (!Number.isFinite(newMl)) {
+      alert("使用量を数字で入力してください");
+      return;
     }
 
-    await updateDoc(doc(db, "records", id), {
-      amount: Number(raw),
-      ml: newMl,
-      updatedAt: new Date(),
-    });
+    if (newMl < 0) {
+      alert("使用量は0mL以上で入力してください");
+      return;
+    }
 
-    router.push("/history");
+    const ok = confirm(
+      `使用量を ${newMl.toFixed(2)} mL に修正してよろしいですか？`
+    );
+
+    if (!ok) return;
+
+    setIsSaving(true);
+
+    try {
+      await updateDoc(doc(db, "records", id), {
+        ml: Number(newMl.toFixed(2)),
+        updatedAt: new Date(),
+      });
+
+      router.push("/history");
+    } catch (error) {
+      console.error("記録修正エラー:", error);
+      alert("記録の修正に失敗しました");
+      setIsSaving(false);
+    }
   };
 
-  if (!record) return <p>読み込み中…</p>;
+  if (!record) {
+    return <p>読み込み中…</p>;
+  }
 
   return (
     <main
@@ -66,33 +88,53 @@ export default function EditRecord() {
         margin: "0 auto",
       }}
     >
-      <h1 style={{ color: "#006b5f", marginBottom: "24px", textAlign: "center" }}>
+      <h1
+        style={{
+          color: "#006b5f",
+          marginBottom: "24px",
+          textAlign: "center",
+        }}
+      >
         ✏️ 記録の修正
       </h1>
 
-      <p style={{ marginBottom: "12px", color: "#006b5f" }}>
+      <p
+        style={{
+          marginBottom: "12px",
+          color: "#006b5f",
+        }}
+      >
         日付：{record.date.toDate().toLocaleString()}
       </p>
 
-      <p style={{ marginBottom: "12px", color: "#006b5f" }}>
-        入力モード：{record.unit === "cm" ? "cm" : "g"}
+      <p
+        style={{
+          marginBottom: "8px",
+          color: "#006b5f",
+        }}
+      >
+        使用量（mL）
       </p>
 
       <input
         type="number"
-        value={raw}
-        onChange={(e) => setRaw(e.target.value)}
+        step="0.01"
+        min="0"
+        value={ml}
+        onChange={(e) => setMl(e.target.value)}
         style={{
           width: "100%",
           padding: "12px",
           borderRadius: "10px",
           border: "1px solid #cfeeee",
           marginBottom: "20px",
+          fontSize: "18px",
         }}
       />
 
       <button
         onClick={saveEdit}
+        disabled={isSaving}
         style={{
           background: "#4BB5C1",
           color: "white",
@@ -100,11 +142,12 @@ export default function EditRecord() {
           borderRadius: "12px",
           border: "none",
           fontSize: "18px",
-          cursor: "pointer",
+          cursor: isSaving ? "not-allowed" : "pointer",
           width: "100%",
+          opacity: isSaving ? 0.6 : 1,
         }}
       >
-        修正を保存する
+        {isSaving ? "保存中…" : "修正を保存する"}
       </button>
 
       <div
