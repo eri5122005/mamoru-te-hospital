@@ -11,14 +11,15 @@ export default function UsageTop5Page() {
   const { staffId } = router.query;
 
   const [ranking, setRanking] = useState([]);
-  const [mode, setMode] = useState("week"); // week / month / year
+  const [mode, setMode] = useState("today"); // today / week / month / year
   const [loading, setLoading] = useState(true);
 
   const modeLabel = {
-    week: "今週",
-    month: "今月",
-    year: "今年",
-  };
+  today: "今日",
+  week: "今週",
+  month: "今月",
+  year: "今年",
+};
 
   useEffect(() => {
     if (!staffId) return;
@@ -34,66 +35,117 @@ export default function UsageTop5Page() {
       const recSnap = await getDocs(collection(db, "records"));
       const records = recSnap.docs.map((d) => d.data());
 
+      // 現在時刻をJSTとして扱うための情報を取得
       const now = new Date();
 
-     // 週の開始（日曜 0:00）
-const startOfWeek = new Date(
-  now.getFullYear(),
-  now.getMonth(),
-  now.getDate() - now.getDay()
-);
+      const getJstParts = (date) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Tokyo",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+        }).formatToParts(date);
 
+        const getPart = (type) =>
+          parts.find((part) => part.type === type)?.value;
+
+        const weekdayMap = {
+          Sun: 0,
+          Mon: 1,
+          Tue: 2,
+          Wed: 3,
+          Thu: 4,
+          Fri: 5,
+          Sat: 6,
+        };
+
+        return {
+          year: Number(getPart("year")),
+          month: Number(getPart("month")),
+          day: Number(getPart("day")),
+          weekday: weekdayMap[getPart("weekday")],
+        };
+      };
+
+      const nowJst = getJstParts(now);
+
+      // JSTで今週の日曜日を求める
+      const todayAsUtc = new Date(
+        Date.UTC(nowJst.year, nowJst.month - 1, nowJst.day)
+      );
+
+      todayAsUtc.setUTCDate(
+        todayAsUtc.getUTCDate() - nowJst.weekday
+      );
+
+      const startOfWeek = {
+        year: todayAsUtc.getUTCFullYear(),
+        month: todayAsUtc.getUTCMonth() + 1,
+        day: todayAsUtc.getUTCDate(),
+      };
+
+      // YYYYMMDD の数値にして日付を比較する
+      const toDateNumber = (year, month, day) =>
+        year * 10000 + month * 100 + day;
+
+      const todayNumber = toDateNumber(
+        nowJst.year,
+        nowJst.month,
+        nowJst.day
+      );
+
+      const startOfWeekNumber = toDateNumber(
+        startOfWeek.year,
+        startOfWeek.month,
+        startOfWeek.day
+      );
 
       // 期間フィルタ
       const filtered = records.filter((r) => {
-        if (!r.date) return false;
+        if (!r.date || typeof r.date.toDate !== "function") {
+          return false;
+        }
 
-        // Firestore Timestamp → JS Date
-        const t = r.date.toDate();
+        // Firestore Timestamp → 絶対時刻 → JSTの日付情報へ変換
+        const recordDate = r.date.toDate();
+        const recordJst = getJstParts(recordDate);
 
-        // JST に変換
-        const jst = t; // Firestore Timestamp はすでに JST
+        if (mode === "today") {
+  const recordNumber = toDateNumber(
+    recordJst.year,
+    recordJst.month,
+    recordJst.day
+  );
 
-
-        // 日付だけに揃える（時刻ズレ対策）
-        const jstDateOnly = new Date(jst.getFullYear(), jst.getMonth(), jst.getDate());
-        const startDateOnly = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate());
-        const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
+  return recordNumber === todayNumber;
+}
+        
         if (mode === "week") {
-  // 日付だけに揃える（時刻ズレ対策）
-  const jstDateOnly = new Date(
-    jst.getFullYear(),
-    jst.getMonth(),
-    jst.getDate()
-  );
-  const startDateOnly = new Date(
-    startOfWeek.getFullYear(),
-    startOfWeek.getMonth(),
-    startOfWeek.getDate()
-  );
-  const nowDateOnly = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
+          const recordNumber = toDateNumber(
+            recordJst.year,
+            recordJst.month,
+            recordJst.day
+          );
 
-  return jstDateOnly >= startDateOnly && jstDateOnly <= nowDateOnly;
-}
+          return (
+            recordNumber >= startOfWeekNumber &&
+            recordNumber <= todayNumber
+          );
+        }
 
-if (mode === "month") {
-  return (
-    jst.getFullYear() === now.getFullYear() &&
-    jst.getMonth() === now.getMonth()
-  );
-}
+        if (mode === "month") {
+          return (
+            recordJst.year === nowJst.year &&
+            recordJst.month === nowJst.month
+          );
+        }
 
-if (mode === "year") {
-  return jst.getFullYear() === now.getFullYear();
-}
+        if (mode === "year") {
+          return recordJst.year === nowJst.year;
+        }
 
-return true;
-
+        return true;
       });
 
       // スタッフごとに集計
@@ -102,11 +154,10 @@ return true;
           (r) => String(r.staffId) === String(s.staffId)
         );
 
-       const totalMl = myRecords.reduce(
-  (sum, r) => sum + Number(r.ml || 0),
-  0
-);
-
+        const totalMl = myRecords.reduce(
+          (sum, r) => sum + Number(r.ml || 0),
+          0
+        );
 
         return {
           staffId: s.staffId,
@@ -115,7 +166,7 @@ return true;
         };
       });
 
-      // ソートして TOP5
+      // ソートして TOP10
       result.sort((a, b) => b.totalMl - a.totalMl);
       setRanking(result.slice(0, 10));
 
@@ -127,7 +178,13 @@ return true;
 
   if (loading) {
     return (
-      <main style={{ padding: "24px", textAlign: "center", color: "#006b5f" }}>
+      <main
+        style={{
+          padding: "24px",
+          textAlign: "center",
+          color: "#006b5f",
+        }}
+      >
         読み込み中…🫧
       </main>
     );
@@ -201,17 +258,41 @@ return true;
       </h1>
 
       {/* タブ */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(mode === "week")} onClick={() => setMode("week")}>
-          今週
-        </button>
-        <button style={tabStyle(mode === "month")} onClick={() => setMode("month")}>
-          今月
-        </button>
-        <button style={tabStyle(mode === "year")} onClick={() => setMode("year")}>
-          今年
-        </button>
-      </div>
+      <div
+  style={{
+    display: "flex",
+    gap: "8px",
+    marginBottom: "20px",
+  }}
+>
+  <button
+    style={tabStyle(mode === "today")}
+    onClick={() => setMode("today")}
+  >
+    今日
+  </button>
+
+  <button
+    style={tabStyle(mode === "week")}
+    onClick={() => setMode("week")}
+  >
+    今週
+  </button>
+
+  <button
+    style={tabStyle(mode === "month")}
+    onClick={() => setMode("month")}
+  >
+    今月
+  </button>
+
+  <button
+    style={tabStyle(mode === "year")}
+    onClick={() => setMode("year")}
+  >
+    今年
+  </button>
+</div>
 
       {/* ランキング */}
       {ranking.map((item, index) => (
@@ -219,10 +300,23 @@ return true;
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
 
           <div>
-            <p style={{ margin: 0, fontWeight: "bold", fontSize: "18px" }}>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: "bold",
+                fontSize: "18px",
+              }}
+            >
               {index + 1} 位：{item.name}
             </p>
-            <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#008b75",
+                fontWeight: "bold",
+              }}
+            >
               {item.totalMl.toFixed(1)} mL
             </p>
           </div>

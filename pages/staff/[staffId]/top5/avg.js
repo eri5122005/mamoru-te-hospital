@@ -28,28 +28,106 @@ export default function AvgTop5Page() {
       const recSnap = await getDocs(collection(db, "records"));
       const records = recSnap.docs.map((d) => d.data());
 
+      // 現在時刻をJSTとして扱うための情報を取得
       const now = new Date();
 
-      // 週の開始（日曜）
-      const startOfWeek = new Date();
-      startOfWeek.setDate(now.getDate() - now.getDay());
+      const getJstParts = (date) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Tokyo",
+          year: "numeric",
+          month: "numeric",
+          day: "numeric",
+          weekday: "short",
+        }).formatToParts(date);
+
+        const getPart = (type) =>
+          parts.find((part) => part.type === type)?.value;
+
+        const weekdayMap = {
+          Sun: 0,
+          Mon: 1,
+          Tue: 2,
+          Wed: 3,
+          Thu: 4,
+          Fri: 5,
+          Sat: 6,
+        };
+
+        return {
+          year: Number(getPart("year")),
+          month: Number(getPart("month")),
+          day: Number(getPart("day")),
+          weekday: weekdayMap[getPart("weekday")],
+        };
+      };
+
+      const nowJst = getJstParts(now);
+
+      // JSTで今週の日曜日を求める
+      const todayAsUtc = new Date(
+        Date.UTC(nowJst.year, nowJst.month - 1, nowJst.day)
+      );
+
+      todayAsUtc.setUTCDate(
+        todayAsUtc.getUTCDate() - nowJst.weekday
+      );
+
+      const startOfWeek = {
+        year: todayAsUtc.getUTCFullYear(),
+        month: todayAsUtc.getUTCMonth() + 1,
+        day: todayAsUtc.getUTCDate(),
+      };
+
+      // YYYYMMDD の数値にして日付を比較する
+      const toDateNumber = (year, month, day) =>
+        year * 10000 + month * 100 + day;
+
+      const todayNumber = toDateNumber(
+        nowJst.year,
+        nowJst.month,
+        nowJst.day
+      );
+
+      const startOfWeekNumber = toDateNumber(
+        startOfWeek.year,
+        startOfWeek.month,
+        startOfWeek.day
+      );
 
       // 期間フィルタ
       const filtered = records.filter((r) => {
-        const jst = r.date.toDate(); // Firestore Timestamp はすでに JST
+        if (!r.date || typeof r.date.toDate !== "function") {
+          return false;
+        }
+
+        // Firestore Timestamp → 絶対時刻 → JSTの日付情報へ変換
+        const recordDate = r.date.toDate();
+        const recordJst = getJstParts(recordDate);
 
         if (mode === "week") {
-          return jst >= startOfWeek && jst <= now;
-        }
-        if (mode === "month") {
+          const recordNumber = toDateNumber(
+            recordJst.year,
+            recordJst.month,
+            recordJst.day
+          );
+
           return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
+            recordNumber >= startOfWeekNumber &&
+            recordNumber <= todayNumber
           );
         }
-        if (mode === "year") {
-          return jst.getFullYear() === now.getFullYear();
+
+        if (mode === "month") {
+          return (
+            recordJst.year === nowJst.year &&
+            recordJst.month === nowJst.month
+          );
         }
+
+        if (mode === "year") {
+          return recordJst.year === nowJst.year;
+        }
+
         return true;
       });
 
@@ -76,7 +154,7 @@ export default function AvgTop5Page() {
         };
       });
 
-      // ソートして TOP5
+      // ソートして TOP10
       result.sort((a, b) => b.avgMl - a.avgMl);
       setRanking(result.slice(0, 10));
 
@@ -88,7 +166,13 @@ export default function AvgTop5Page() {
 
   if (loading) {
     return (
-      <main style={{ padding: "24px", textAlign: "center", color: "#006b5f" }}>
+      <main
+        style={{
+          padding: "24px",
+          textAlign: "center",
+          color: "#006b5f",
+        }}
+      >
         読み込み中…🫧
       </main>
     );
@@ -162,14 +246,31 @@ export default function AvgTop5Page() {
       </h1>
 
       {/* タブ */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(mode === "week")} onClick={() => setMode("week")}>
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          marginBottom: "20px",
+        }}
+      >
+        <button
+          style={tabStyle(mode === "week")}
+          onClick={() => setMode("week")}
+        >
           今週
         </button>
-        <button style={tabStyle(mode === "month")} onClick={() => setMode("month")}>
+
+        <button
+          style={tabStyle(mode === "month")}
+          onClick={() => setMode("month")}
+        >
           今月
         </button>
-        <button style={tabStyle(mode === "year")} onClick={() => setMode("year")}>
+
+        <button
+          style={tabStyle(mode === "year")}
+          onClick={() => setMode("year")}
+        >
           今年
         </button>
       </div>
@@ -180,14 +281,35 @@ export default function AvgTop5Page() {
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
 
           <div>
-            <p style={{ margin: 0, fontWeight: "bold", fontSize: "18px" }}>
+            <p
+              style={{
+                margin: 0,
+                fontWeight: "bold",
+                fontSize: "18px",
+              }}
+            >
               {index + 1} 位：{item.name}
             </p>
-            <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
+
+            <p
+              style={{
+                margin: 0,
+                color: "#008b75",
+                fontWeight: "bold",
+              }}
+            >
               平均 {item.avgMl.toFixed(1)} mL / 日
             </p>
-            <p style={{ margin: 0, fontSize: "12px", color: "#006b5f" }}>
-              （総使用量: {item.totalMl.toFixed(1)} mL / 勤務日数: {item.workDays} 日）
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "12px",
+                color: "#006b5f",
+              }}
+            >
+              （総使用量: {item.totalMl.toFixed(1)} mL / 勤務日数:{" "}
+              {item.workDays} 日）
             </p>
           </div>
         </div>
