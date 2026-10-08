@@ -52,21 +52,22 @@ export default function Login() {
 
     // ★ 部署管理者
     const departmentAdmins = {
-      "2100": "gairai",
-      "2150": "gairai",
-      "2200": "riha",
-      "2201": "riha",
-      "2300": "ikyoku",
-      "2305": "touseki",
-      "2400": "4f",
-      "2444": "4f",
-      "2500": "5f",
-      "2555": "5f",
-      "2600": "6f",
-      "2666": "6f",
-      "2700": "78f",
-      "2777": "78f",
-    };
+  "2100": "gairai",
+  "2150": "gairai",
+  "2200": "riha",
+  "2201": "riha",
+  "2300": "ikyoku",
+  "2305": "touseki",
+  "2400": "4f",
+  "2444": "4f",
+  "2500": "5f",
+  "2555": "5f",
+  "2600": "6f",
+  "2666": "6f",
+  "2700": "78f",
+  "2777": "78f",
+  "2900": "shisetsu",
+};
 
     if (departmentAdmins[staffId]) {
       const dept = departmentAdmins[staffId];
