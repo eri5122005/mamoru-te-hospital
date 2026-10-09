@@ -64,6 +64,11 @@ export default function RankingMenu() {
   院内部署ランキング
 </div>
 
+          <div onClick={() => router.push("/ranking/department-avg")} style={mintCard}>
+  <span style={iconStyle}>⚖️</span>
+  部署別平均ランキング
+</div>
+
           <div onClick={() => router.push("/ranking/avg")} style={mintCard}>
             <span style={iconStyle}>⏱️</span>
             勤務日数を考慮した平均使用量ランキング
