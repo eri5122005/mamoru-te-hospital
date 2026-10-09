@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { db } from "../../firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function Login() {
   const router = useRouter();
@@ -27,7 +29,7 @@ export default function Login() {
   }, []);
 
   // ★ ログイン処理（ここだけ使う）
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!staffId) return;
 
     // ★ 総合管理者（9999）
@@ -89,46 +91,55 @@ export default function Login() {
       return;
     }
 
-    // ★ 一般スタッフ（staff-XXXX を使う）
-    const raw = localStorage.getItem(`staff-${staffId}`);
+    // ★ 一般スタッフ（Firestore の staff を基準にする）
+try {
+  const staffRef = doc(db, "staff", staffId);
+  const staffSnap = await getDoc(staffRef);
 
-    if (!raw) {
-      router.replace(`/first-login?staffId=${staffId}`);
-      return;
-    }
+  // Firestore に存在しないスタッフだけ初回登録へ
+  if (!staffSnap.exists()) {
+    router.replace(`/first-login?staffId=${staffId}`);
+    return;
+  }
 
-    const staffData = JSON.parse(raw);
+  const staffData = staffSnap.data();
 
-    // ★ currentStaff を上書き
-    const current = {
-      staffId: staffData.staffId,
-      name: staffData.name,
-      department: staffData.department,
-      wardId: staffData.wardId,
-      workDays: staffData.workDays,
-      role: staffData.role,
-      mode: staffData.mode ?? null,
-      lastWeight:
-        staffData.lastWeight === undefined ? null : staffData.lastWeight,
-      emptyWeight:
-        staffData.emptyWeight === undefined ? null : staffData.emptyWeight,
-    };
+  // ★ Firestore の最新情報から currentStaff を作成
+  const current = {
+    staffId: staffData.staffId ?? staffId,
+    name: staffData.name,
+    department: staffData.department,
+    wardId: staffData.wardId,
+    workDays: staffData.workDays,
+    role: staffData.role,
+    mode: staffData.mode ?? null,
+    lastWeight:
+      staffData.lastWeight === undefined ? null : staffData.lastWeight,
+    emptyWeight:
+      staffData.emptyWeight === undefined ? null : staffData.emptyWeight,
+  };
 
-    localStorage.setItem("currentStaff", JSON.stringify(current));
+  // ★ この端末の情報も Firestore の最新状態にそろえる
+  localStorage.setItem("currentStaff", JSON.stringify(current));
+  localStorage.setItem(`staff-${staffId}`, JSON.stringify(current));
 
-    // ★ 初回重さ登録の安全判定（誤判定ゼロ）
-    const needFirstWeight =
-      current.mode !== "weight" ||
-      current.lastWeight === null ||
-      current.emptyWeight === null;
+  // ★ 初回重さ登録が必要か確認
+  const needFirstWeight =
+    current.mode !== "weight" ||
+    current.lastWeight === null ||
+    current.emptyWeight === null;
 
-if (needFirstWeight) {
-  router.replace("/first-weight");
+  if (needFirstWeight) {
+    router.replace("/first-weight");
+    return;
+  }
+
+  // ★ 記録ページへ
+  router.replace("/record");
+} catch (error) {
+  console.error("スタッフ情報の取得に失敗しました", error);
   return;
 }
-
-    // ★ 記録ページへ
-    router.replace("/record");
   };
 
   return (
