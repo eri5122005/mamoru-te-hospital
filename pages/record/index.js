@@ -35,34 +35,11 @@ const FULL_WEIGHT = 263;
 const ML_PER_GRAM = 250 / (FULL_WEIGHT - EMPTY_WEIGHT); 
 // = 250 / 218 = 1.147mL
 
-  const roll = Math.random();
-
-let randomMessage;
-
-if (roll < 0.01) {
-  // 1%：超レア
-  randomMessage =
-    legendaryMintMessages[
-      Math.floor(Math.random() * legendaryMintMessages.length)
-    ];
-} else if (roll < 0.10) {
-  // 9%：ミントの精霊
-  randomMessage =
-    mintSpiritMessages[
-      Math.floor(Math.random() * mintSpiritMessages.length)
-    ];
-} else if (roll < 0.30) {
-  // 20%：おもしろ・ランキング系
-  randomMessage =
-    funMessages[Math.floor(Math.random() * funMessages.length)];
-} else {
-  // 70%：通常
-  randomMessage =
-    normalMessages[Math.floor(Math.random() * normalMessages.length)];
-}
+  
 
   const [weightNow, setWeightNow] = useState("");
 const [message, setMessage] = useState("");
+const [messageType, setMessageType] = useState("normal");
 const [staff, setStaff] = useState(null);
 
 const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
@@ -142,9 +119,39 @@ date: jstNow,   // ← ★ここが最重要（JSTで保存）
   localStorage.setItem("history", JSON.stringify(history));
 }
 
-    setMessage(
-      `記録しました：${nowWeightValue}g → ${usedMl}mL（ミントポイント +1）\n${randomMessage}`
-    );
+// ★ 記録成功時にメッセージを抽選
+const roll = Math.random();
+let randomMessage;
+
+if (roll < 0.01) {
+  // 1%：伝説級
+  setMessageType("legendary");
+  randomMessage =
+    legendaryMintMessages[
+      Math.floor(Math.random() * legendaryMintMessages.length)
+    ];
+} else if (roll < 0.10) {
+  // 9%：ミントの精霊
+  setMessageType("mint");
+  randomMessage =
+    mintSpiritMessages[
+      Math.floor(Math.random() * mintSpiritMessages.length)
+    ];
+} else if (roll < 0.30) {
+  // 20%：おもしろ・ランキング系
+  setMessageType("fun");
+  randomMessage =
+    funMessages[Math.floor(Math.random() * funMessages.length)];
+} else {
+  // 70%：通常
+  setMessageType("normal");
+  randomMessage =
+    normalMessages[Math.floor(Math.random() * normalMessages.length)];
+}
+
+setMessage(
+  `記録しました：${nowWeightValue}g → ${usedMl}mL\n${randomMessage}`
+);
 
     setWeightNow("");
     setTimeout(() => setMessage(""), 3000);
@@ -464,22 +471,72 @@ setStaff(updated);
         </div>
 
         {message && (
-          <div
-            style={{
-              background: "#dffef5",
-              color: "#008b75",
-              padding: "16px",
-              borderRadius: "16px",
-              textAlign: "center",
-              marginBottom: "20px",
-              fontSize: "18px",
-              fontWeight: "bold",
-              boxShadow: "0 0 8px rgba(0, 150, 130, 0.15)",
-            }}
-          >
-            {message}
-          </div>
-        )}
+  <div
+    style={{
+      background:
+        messageType === "legendary"
+          ? "linear-gradient(135deg, #fff7c2, #ffe08a, #fff7c2)"
+          : messageType === "mint"
+          ? "linear-gradient(135deg, #e8fff8, #c9f7e8)"
+          : "#dffef5",
+
+      color:
+        messageType === "legendary"
+          ? "#8a6500"
+          : "#008b75",
+
+      padding:
+        messageType === "legendary" || messageType === "mint"
+          ? "20px 16px"
+          : "16px",
+
+      borderRadius: "16px",
+      textAlign: "center",
+      marginBottom: "20px",
+      fontSize: "18px",
+      fontWeight: "bold",
+      whiteSpace: "pre-line",
+
+      border:
+        messageType === "legendary"
+          ? "2px solid #e4b93f"
+          : messageType === "mint"
+          ? "2px solid #74d9bd"
+          : "none",
+
+      boxShadow:
+        messageType === "legendary"
+          ? "0 0 18px rgba(218, 165, 32, 0.45)"
+          : messageType === "mint"
+          ? "0 0 14px rgba(0, 180, 150, 0.25)"
+          : "0 0 8px rgba(0, 150, 130, 0.15)",
+    }}
+  >
+    {messageType === "legendary" && (
+      <div
+        style={{
+          fontSize: "21px",
+          marginBottom: "8px",
+        }}
+      >
+        👑✨ 伝説のミントの精霊 降臨！ ✨👑
+      </div>
+    )}
+
+    {messageType === "mint" && (
+      <div
+        style={{
+          fontSize: "20px",
+          marginBottom: "8px",
+        }}
+      >
+        ✨🧚 ミントの精霊が現れた！ 🧚✨
+      </div>
+    )}
+
+    {message}
+  </div>
+)}
 
         <button
   onClick={handleRecord}
