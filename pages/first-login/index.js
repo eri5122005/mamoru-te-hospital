@@ -8,34 +8,12 @@ import NavBar from "../../components/NavBar";
 import { db } from "../../firebaseConfig";
 import { setDoc, doc, getDoc } from "firebase/firestore";
 
-// ★ Safariでも確実に動く名前整形ロジック
-function formatName(name) {
-  if (!name) return "";
-
-  // 全角スペース → 半角スペース
-  let cleaned = name.replace(/　/g, " ");
-
-  // 連続スペースを1つに
-  cleaned = cleaned.replace(/\s+/g, " ").trim();
-
-  // すでにスペースがある場合 → 1つに統一して返す
-  if (cleaned.includes(" ")) {
-    return cleaned.replace(/\s+/g, " ");
-  }
-
-  // スペースが無い場合 → 苗字と名前の間にスペースを入れる
-  if (cleaned.length >= 3) {
-    return cleaned.slice(0, cleaned.length - 2) + " " + cleaned.slice(cleaned.length - 2);
-  }
-
-  return cleaned;
-}
-
 export default function FirstLogin() {
   const router = useRouter();
 
   const [realStaffId, setRealStaffId] = useState("");
-  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+const [firstName, setFirstName] = useState("");
   const [department, setDepartment] = useState("");
   const [workDays, setWorkDays] = useState("");
 
@@ -70,9 +48,10 @@ export default function FirstLogin() {
 }, [router.isReady]);
   
   const handleRegister = async () => {
-    if (!name || !department || !workDays) return;
+  if (!lastName || !firstName || !department || !workDays) return;
 
-    const formattedName = formatName(name);
+  const formattedName =
+    `${lastName.trim()} ${firstName.trim()}`;
 
     const wardMap = {
       "4階": "4f",
@@ -162,12 +141,48 @@ export default function FirstLogin() {
           <input type="text" value={realStaffId} readOnly style={inputStyle} />
 
           <label style={{ color: "#006b5f", fontSize: "14px" }}>氏名</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            style={inputStyle}
-          />
+
+<div style={{ display: "flex", gap: "10px" }}>
+  <div style={{ flex: 1 }}>
+    <label
+      style={{
+        color: "#006b5f",
+        fontSize: "12px",
+        display: "block",
+        marginBottom: "4px",
+      }}
+    >
+      姓
+    </label>
+    <input
+      type="text"
+      value={lastName}
+      onChange={(e) => setLastName(e.target.value)}
+      placeholder="山田"
+      style={inputStyle}
+    />
+  </div>
+
+  <div style={{ flex: 1 }}>
+    <label
+      style={{
+        color: "#006b5f",
+        fontSize: "12px",
+        display: "block",
+        marginBottom: "4px",
+      }}
+    >
+      名
+    </label>
+    <input
+      type="text"
+      value={firstName}
+      onChange={(e) => setFirstName(e.target.value)}
+      placeholder="太郎"
+      style={inputStyle}
+    />
+  </div>
+</div>
 
           <label style={{ color: "#006b5f", fontSize: "14px" }}>部署</label>
           <select
