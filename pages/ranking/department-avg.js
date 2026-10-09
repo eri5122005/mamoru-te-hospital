@@ -114,11 +114,10 @@ export default function DepartmentAverageRanking() {
           }
 
           if (period === "year") {
-            return recordYear === currentYear;
-          }
+  return recordYear === currentYear;
+}
 
-          // 累計
-          return true;
+return false;
         });
 
         // -----------------------------
@@ -204,7 +203,6 @@ export default function DepartmentAverageRanking() {
     today: "今日",
     month: "今月",
     year: "今年",
-    all: "累計",
   };
 
   return (
@@ -271,8 +269,7 @@ export default function DepartmentAverageRanking() {
           ["today", "今日"],
           ["month", "今月"],
           ["year", "今年"],
-          ["all", "累計"],
-        ].map(([key, label]) => (
+                  ].map(([key, label]) => (
           <button
             key={key}
             onClick={() => setPeriod(key)}
