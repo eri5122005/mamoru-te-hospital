@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import RankingHeader from "../../components/RankingHeader";
+import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function AvgRanking() {
+  const router = useRouter();
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
 
@@ -53,7 +54,7 @@ export default function AvgRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🫧";
+    return "⏱️";
   };
 
   useEffect(() => {
@@ -165,7 +166,42 @@ export default function AvgRanking() {
         margin: "0 auto",
       }}
     >
-      <RankingHeader title="平均使用量ランキング（mL/日）" icon="🫧" />
+      <button
+  onClick={() => router.push("/ranking")}
+  style={{
+    background: "#cfeeee",
+    color: "#006b5f",
+    border: "none",
+    padding: "10px 16px",
+    borderRadius: "12px",
+    fontSize: "16px",
+    cursor: "pointer",
+    marginBottom: "20px",
+    width: "100%",
+  }}
+>
+  ← ランキングメニューに戻る
+</button>
+
+<h1
+  style={{
+    color: "#006b5f",
+    marginBottom: "10px",
+    textAlign: "center",
+    fontSize: "26px",
+    fontWeight: "600",
+  }}
+>
+  <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+    ⏱️ 平均使用量
+  </span>
+  <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+    ランキング
+  </span>
+  <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+    （mL/日）
+  </span>
+</h1>
 
       {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>

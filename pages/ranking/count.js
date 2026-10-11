@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import RankingHeader from "../../components/RankingHeader";
+import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function CountRanking() {
+  const router = useRouter();
   const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
 
@@ -116,9 +117,8 @@ export default function CountRanking() {
     if (index === 0) return "🥇";
     if (index === 1) return "🥈";
     if (index === 2) return "🥉";
-    return "🫧"; // 4位以下はミントアイコン
-  };
-
+    return "📝"; // 4位以下は記録回数ランキングのアイコン
+};
   return (
     <main
       style={{
@@ -130,7 +130,34 @@ export default function CountRanking() {
         margin: "0 auto",
       }}
     >
-      <RankingHeader title="記録回数ランキング" icon="🫧" />
+      <button
+  onClick={() => router.push("/ranking")}
+  style={{
+    background: "#cfeeee",
+    color: "#006b5f",
+    border: "none",
+    padding: "10px 16px",
+    borderRadius: "12px",
+    fontSize: "16px",
+    cursor: "pointer",
+    marginBottom: "20px",
+    width: "100%",
+  }}
+>
+  ← ランキングメニューに戻る
+</button>
+
+<h1
+  style={{
+    color: "#006b5f",
+    marginBottom: "10px",
+    textAlign: "center",
+    fontSize: "26px",
+    fontWeight: "600",
+  }}
+>
+  📝 記録回数ランキング
+</h1>
 
       {/* タブ */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>

@@ -254,7 +254,15 @@ export default function UsageTop5Page() {
           color: "#006b5f",
         }}
       >
-        🏆 院内ランキング TOP10（総使用量）
+        <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+  🏆 院内ランキング
+</span>{" "}
+<span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+  TOP10
+</span>
+<span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+  （総使用量）
+</span>
       </h1>
 
       {/* タブ */}
