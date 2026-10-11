@@ -7,7 +7,7 @@ import {
   legendaryMintMessages,
 } from "../../data/messages";
 import NavBar from "../../components/NavBar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
@@ -46,6 +46,11 @@ const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
 // ★ 二重登録防止フラグ（ここに追加）
 const [isSubmitting, setIsSubmitting] = useState(false);
+// ★ ボトル交換の二重実行を同期的に防止
+const exchangeLockRef = useRef(false);
+
+// ★ ボトル交換処理中のボタン無効化
+const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
 
  useEffect(() => {
   if (typeof window === "undefined") return;
@@ -167,10 +172,16 @@ const openExchangeDialog = () => {
 
 // ★ ボトル交換 YES（完全版）
 const handleExchangeYes = async () => {
+  // ★ すでに交換処理中なら2回目は実行しない
+  if (exchangeLockRef.current) return;
   if (!isSubmitting) return;
 
-  setMessage("記録中です…");
+  // ★ awaitより前にロックする
+  exchangeLockRef.current = true;
+  setIsExchangeProcessing(true);
 
+  try {
+    setMessage("記録中です…");
   const now = Number(weightNow);
   const prev = Number(staff.lastWeight);
 
@@ -251,19 +262,27 @@ const handleExchangeYes = async () => {
     return;
   }
 
-  setIsSubmitting(false);
+    setIsSubmitting(false);
   setShowExchangeConfirm(false);
+
+  } finally {
+    // ★ 成功・失敗にかかわらず交換用ロックを解除
+    exchangeLockRef.current = false;
+    setIsExchangeProcessing(false);
+  }
 };
 
 
 // ★ ボトル交換 NO（完全版）
 const handleExchangeNo = () => {
-  if (!isSubmitting) return;    // ★ ロックされていないなら動かさない
+  // ★「はい」の処理中なら「いいえ」は実行しない
+  if (exchangeLockRef.current) return;
+  if (!isSubmitting) return;
 
   setMessage("重さが増えています。正しい重さを入力してください。");
   setShowExchangeConfirm(false);
 
-  setIsSubmitting(false);       // ★ ロック解除
+  setIsSubmitting(false);
 };
 
   // ★ 記録処理（重さ方式）完全修正版
@@ -391,8 +410,9 @@ setStaff(updated);
             </p>
 
             <button
-              onClick={handleExchangeYes}
-              style={{
+  onClick={handleExchangeYes}
+  disabled={isExchangeProcessing}
+  style={{
                 background: "#2AAE9E",
                 color: "white",
                 padding: "10px 16px",
@@ -405,8 +425,9 @@ setStaff(updated);
             </button>
 
             <button
-              onClick={handleExchangeNo}
-              style={{
+  onClick={handleExchangeNo}
+  disabled={isExchangeProcessing}
+  style={{
                 background: "#ccc",
                 color: "#333",
                 padding: "10px 16px",
