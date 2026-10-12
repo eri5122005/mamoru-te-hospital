@@ -290,7 +290,10 @@ export default function AvgTop5Page() {
                 fontSize: "18px",
               }}
             >
-              {index + 1} 位：{item.name}（{item.department}）
+              {index + 1} 位：{item.name}
+            </p>
+            <p style={{ margin: 0, fontSize: "14px", whiteSpace: "nowrap" }}>
+              （{item.department}）
             </p>
 
             <p

@@ -192,7 +192,10 @@ const iconBoxStyle = {
 
       <div style={{ marginLeft: "20px", minWidth: 0, overflowWrap: "anywhere" }}>
         <div style={{ fontSize: "18px", color: "#006b5f", fontWeight: "bold" }}>
-          {index + 1} 位：{item.name}（{item.department}）
+          {index + 1} 位：{item.name}
+        </div>
+        <div style={{ fontSize: "14px", color: "#006b5f", whiteSpace: "nowrap" }}>
+          （{item.department}）
         </div>
         <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>
           <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>
