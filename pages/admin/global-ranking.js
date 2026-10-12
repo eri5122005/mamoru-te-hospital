@@ -76,6 +76,7 @@ export default function GlobalRanking() {
       // ★ 勤務日数を staff コレクションから反映
       staffList.forEach(s => {
         if (totals[s.staffId]) {
+          totals[s.staffId].department = s.department;
           totals[s.staffId].workDays = s.workDays || 0;
           totals[s.staffId].avgMl =
             s.workDays ? totals[s.staffId].totalMl / s.workDays : 0;
@@ -185,13 +186,13 @@ const iconBoxStyle = {
       marginBottom: "16px",
 
     }}>
-      <div style={{ marginLeft: "24px", fontSize: "40px" }}>
+      <div style={{ marginLeft: "24px", fontSize: "40px", flexShrink: 0 }}>
         {medal}
       </div>
 
-      <div style={{ marginLeft: "20px" }}>
-        <div style={{ fontSize: "22px", color: "#006b5f", fontWeight: "600" }}>
-          {index + 1} 位：{item.name}
+      <div style={{ marginLeft: "20px", minWidth: 0, overflowWrap: "anywhere" }}>
+        <div style={{ fontSize: "18px", color: "#006b5f", fontWeight: "bold" }}>
+          {index + 1} 位：{item.name}（{item.department}）
         </div>
         <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>
           <div style={{ fontSize: "28px", fontWeight: "700", color: "#006b5f" }}>

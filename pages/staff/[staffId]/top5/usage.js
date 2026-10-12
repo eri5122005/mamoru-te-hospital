@@ -162,6 +162,7 @@ export default function UsageTop5Page() {
         return {
           staffId: s.staffId,
           name: s.name,
+          department: s.department,
           totalMl,
         };
       });
@@ -217,6 +218,7 @@ export default function UsageTop5Page() {
     background: "#cfeeee",
     color: "#006b5f",
     width: "48px",
+    flexShrink: 0,
     height: "48px",
     borderRadius: "12px",
     display: "flex",
@@ -307,7 +309,7 @@ export default function UsageTop5Page() {
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
 
-          <div>
+          <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
             <p
               style={{
                 margin: 0,
@@ -315,7 +317,7 @@ export default function UsageTop5Page() {
                 fontSize: "18px",
               }}
             >
-              {index + 1} 位：{item.name}
+              {index + 1} 位：{item.name}（{item.department}）
             </p>
 
             <p

@@ -148,6 +148,7 @@ export default function AvgTop5Page() {
         return {
           staffId: s.staffId,
           name: s.name,
+          department: s.department,
           avgMl,
           totalMl,
           workDays,
@@ -205,6 +206,7 @@ export default function AvgTop5Page() {
     background: "#cfeeee",
     color: "#006b5f",
     width: "48px",
+    flexShrink: 0,
     height: "48px",
     borderRadius: "12px",
     display: "flex",
@@ -280,7 +282,7 @@ export default function AvgTop5Page() {
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>
 
-          <div>
+          <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
             <p
               style={{
                 margin: 0,
@@ -288,7 +290,7 @@ export default function AvgTop5Page() {
                 fontSize: "18px",
               }}
             >
-              {index + 1} 位：{item.name}
+              {index + 1} 位：{item.name}（{item.department}）
             </p>
 
             <p
