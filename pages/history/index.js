@@ -80,7 +80,23 @@ export default function HistoryPage() {
         margin: "0 auto",
       }}
     >
-      <Link href="/mypage" style={{ display: "block", color: "#006b5f", marginBottom: "16px" }}>← マイページへ戻る</Link>
+      <Link
+        href="/mypage"
+        style={{
+          display: "block",
+          textAlign: "center",
+          background: "#cfeeee",
+          color: "#006b5f",
+          border: "none",
+          padding: "10px 16px",
+          borderRadius: "12px",
+          marginBottom: "20px",
+          cursor: "pointer",
+          width: "100%",
+        }}
+      >
+        ← マイページへ戻る
+      </Link>
 
       <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>履歴</h1>
 
