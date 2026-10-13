@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getRecordDate } from "@/utils/getRecordDate";
 import { getMypageMonthSummary, getMonthlyInputStatus, getMypageUsageTrend } from "@/utils/getMypageMonthSummary";
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip } from "chart.js";
-import { Line } from "react-chartjs-2";
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from "chart.js";
+import { Bar } from "react-chartjs-2";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 export default function MyPage() {
   const [user, setUser] = useState(null);
@@ -158,7 +158,7 @@ export default function MyPage() {
           usageTrend.length === 0 ? <p>今月の記録はまだありません</p> : (
             <>
               <div style={{ position: "relative", height: "240px", width: "100%", minWidth: 0 }}>
-                <Line
+                <Bar
                   role="img"
                   aria-label="今月の記録ごとの使用量"
                   data={{
@@ -168,8 +168,6 @@ export default function MyPage() {
                       data: usageTrend.map((point) => point.ml),
                       borderColor: "#00a39a",
                       backgroundColor: "#00a39a",
-                      pointRadius: 4,
-                      pointHoverRadius: 6,
                       borderWidth: 2,
                     }],
                   }}
