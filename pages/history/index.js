@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { getRecordDate } from "@/utils/getRecordDate";
 import { useRouter } from "next/navigation";
 import NavBar from "../../components/NavBar";
 import { db } from "../../firebaseConfig";
@@ -28,28 +30,16 @@ export default function HistoryPage() {
       );
 
       const snap = await getDocs(q);
-     const list = snap.docs.map(d => ({
-  id: d.id,
-  ...d.data()
-}));
+      const list = snap.docs.map((d) => {
+        const data = d.data();
+        return { id: d.id, ...data, date: getRecordDate(data.date) };
+      });
 
-// ★ 新しい順に並び替え（Timestamp と文字列の両方に対応）
-list.sort((a, b) => {
-  const dateA =
-    a.date instanceof Object && typeof a.date.toDate === "function"
-      ? a.date.toDate()
-      : new Date(a.date);
-
-  const dateB =
-    b.date instanceof Object && typeof b.date.toDate === "function"
-      ? b.date.toDate()
-      : new Date(b.date);
-
-  return dateB - dateA;
-});
-
-// ★ 並び替えたデータをセット
-setRecords(list);
+      // 新しい順。不正・未設定の日付は末尾に表示する。
+      list.sort((a, b) =>
+        (b.date?.getTime() ?? -Infinity) - (a.date?.getTime() ?? -Infinity)
+      );
+      setRecords(list);
 
     };
 
@@ -90,6 +80,8 @@ setRecords(list);
         margin: "0 auto",
       }}
     >
+      <Link href="/mypage" style={{ display: "block", color: "#006b5f", marginBottom: "16px" }}>← マイページへ戻る</Link>
+
       <h1 style={{ color: "#006b5f", marginBottom: "20px" }}>履歴</h1>
 
       <p style={{ color: "#006b5f", marginBottom: "16px", fontSize: "18px" }}>
@@ -114,7 +106,7 @@ setRecords(list);
             color: "#006b5f",
           }}
         >
-          {item.date.toDate().toLocaleString()} / {Number(item.ml).toFixed(2)} mL
+          {item.date ? item.date.toLocaleString("ja-JP") : "日付不明"} / {Number(item.ml).toFixed(2)} mL
         </div>
       ))}
 

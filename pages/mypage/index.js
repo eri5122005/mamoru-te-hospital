@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { getRecordDate } from "@/utils/getRecordDate";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -17,27 +19,6 @@ export default function MyPage() {
   const [totalMl, setTotalMl] = useState(0);
 
   const [totalPoint, setTotalPoint] = useState(0);
-  const [rank, setRank] = useState("");
-
-  const getRank = (pt) => {
-    if (pt >= 100) return "Sランク（神レベル）";
-    if (pt >= 50) return "Aランク（優秀）";
-    if (pt >= 20) return "Bランク（しっかり者）";
-    if (pt >= 10) return "Cランク（がんばってる）";
-    return "Dランク（これから！）";
-  };
-
-  const getRankColor = (rank) => {
-    switch (rank[0]) {
-      case "S": return "#b3f5ff";
-      case "A": return "#c8fff0";
-      case "B": return "#d9fff5";
-      case "C": return "#e8fffa";
-      case "D": return "#f2fffd";
-      default: return "#e8fffa";
-    }
-  };
-
   useEffect(() => {
     const raw = localStorage.getItem("currentStaff");
     if (!raw) return;
@@ -59,7 +40,7 @@ export default function MyPage() {
       return {
         id: doc.id,
         ...data,
-        date: data.date.toDate(),
+        date: getRecordDate(data.date),
       };
     });
 
@@ -69,12 +50,12 @@ export default function MyPage() {
     const todayStr = today.toLocaleDateString("ja-JP");
 
     const todayList = list.filter(
-      (r) => r.date.toLocaleDateString("ja-JP") === todayStr
+      (r) => r.date?.toLocaleDateString("ja-JP") === todayStr
     );
 
     const monthList = list.filter(
       (r) =>
-        r.date.getFullYear() === today.getFullYear() &&
+        r.date && r.date.getFullYear() === today.getFullYear() &&
         r.date.getMonth() === today.getMonth()
     );
 
@@ -89,8 +70,11 @@ export default function MyPage() {
     const pt = list.reduce((sum, r) => sum + (r.mintPoint ?? 0), 0);
     setTotalPoint(pt);
 
-    setRank(getRank(pt));
   };
+
+  const recentRecords = [...records]
+    .sort((a, b) => (b.date?.getTime() ?? -Infinity) - (a.date?.getTime() ?? -Infinity))
+    .slice(0, 5);
 
   if (!user) return <div>ログイン情報がありません。ログインし直してください。</div>;
 
@@ -175,45 +159,30 @@ export default function MyPage() {
 
       {/* ミントポイントカード */}
       <InfoCard
-        title="ミントポイント"
+        title="累計ミントポイント"
         icon="🍃"
         content={<p>累計：{totalPoint} pt</p>}
       />
 
-      {/* ランクカード */}
-      <div
-        style={{
-          background: getRankColor(rank),
-          padding: "16px",
-          borderRadius: "14px",
-          marginTop: "20px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h2 style={{ margin: 0 }}>🏆 ランク</h2>
-        <p style={{ fontSize: "20px", marginTop: "6px" }}>{rank}</p>
+      {/* 最近の記録（集計は全履歴を使用） */}
+      <h2 style={{ marginTop: "30px", fontSize: "20px" }}>📚 最近の記録</h2>
+      <div style={{ background: "#fff", border: "1px solid #cfeeee", borderRadius: "14px", padding: "4px 12px" }}>
+        {recentRecords.length === 0 && <p>まだ記録がありません。</p>}
+        {recentRecords.map((r, index) => (
+          <div
+            key={r.id}
+            style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "6px 12px", padding: "12px 0", borderTop: index > 0 ? "1px solid #e8f6f6" : "none", fontSize: "14px" }}
+          >
+            <span style={{ whiteSpace: "nowrap" }}>
+              {r.date ? r.date.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "日付不明"}
+            </span>
+            <span style={{ whiteSpace: "nowrap", fontWeight: "bold" }}>💧 使用量：{r.ml} mL</span>
+          </div>
+        ))}
       </div>
-
-      {/* 記録一覧 */}
-      <h2 style={{ marginTop: "30px" }}>📚 記録一覧</h2>
-
-      {records.map((r) => (
-        <div
-          key={r.id}
-          style={{
-            background: "#fff",
-            padding: "12px",
-            marginBottom: "10px",
-            borderRadius: "10px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-          }}
-        >
-          <p>⏰ {r.date.toLocaleString("ja-JP")}</p>
-          <p>📏 使用量：{r.amount} cm</p>
-          <p>💧 ml換算：{r.ml} ml</p>
-          <p>🍃 ミントポイント：{r.mintPoint ?? 0}</p>
-        </div>
-      ))}
+      <Link href="/history" style={{ display: "block", textAlign: "center", background: "#cfeeee", color: "#006b5f", padding: "14px 10px", borderRadius: "12px", marginTop: "12px", fontSize: "15px" }}>
+        すべての履歴を見る ＞
+      </Link>
     </main>
   );
 }
