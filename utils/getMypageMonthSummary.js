@@ -10,6 +10,31 @@ function getParts(date) {
   return { year: part("year"), month: part("month"), day: part("day") };
 }
 
+export function getMypageUsageTrend(records, now = new Date()) {
+  const current = getParts(now);
+  const monthlyRecords = records.map((record) => ({
+    date: getRecordDate(record.date), ml: Number(record.ml ?? 0),
+  })).filter(({ date, ml }) => {
+    if (!date || !Number.isFinite(ml)) return false;
+    const parts = getParts(date);
+    return parts.year === current.year && parts.month === current.month;
+  }).sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const points = [];
+  let cumulativeMl = 0;
+  monthlyRecords.forEach(({ date, ml }) => {
+    cumulativeMl += ml;
+    const { month, day } = getParts(date);
+    const label = `${month}/${day}`;
+    if (points.length && points[points.length - 1].label === label) {
+      points[points.length - 1].ml = cumulativeMl;
+    } else {
+      points.push({ label, ml: cumulativeMl });
+    }
+  });
+  return points;
+}
+
 export function getMonthlyInputStatus(recordedDays, workDays) {
   const value = typeof workDays === "number" ||
     (typeof workDays === "string" && workDays.trim()) ? Number(workDays) : NaN;

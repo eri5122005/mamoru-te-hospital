@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getRecordDate } from "@/utils/getRecordDate";
-import { getMypageMonthSummary, getMonthlyInputStatus } from "@/utils/getMypageMonthSummary";
+import { getMypageMonthSummary, getMonthlyInputStatus, getMypageUsageTrend } from "@/utils/getMypageMonthSummary";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip } from "chart.js";
+import { Line } from "react-chartjs-2";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip);
 
 export default function MyPage() {
   const [user, setUser] = useState(null);
@@ -69,6 +73,7 @@ export default function MyPage() {
     .sort((a, b) => (b.date?.getTime() ?? -Infinity) - (a.date?.getTime() ?? -Infinity))
     .slice(0, 5);
   const monthly = getMypageMonthSummary(records);
+  const usageTrend = getMypageUsageTrend(records);
   const inputStatus = getMonthlyInputStatus(monthly.recordedDays, user?.workDays);
   const comparisonMessage = monthly.previousRecordCount === 0
     ? "先月同時期の記録はありません"
@@ -147,6 +152,69 @@ export default function MyPage() {
       />
 
       <InfoCard
+        title="今月の使用量推移"
+        icon="📈"
+        content={
+          usageTrend.length === 0 ? <p>今月の記録はまだありません</p> : (
+            <>
+              <p>今月の記録済み使用量<br />
+                <strong style={{ fontSize: "24px" }}>{usageTrend[usageTrend.length - 1].ml.toFixed(1)} mL</strong>
+              </p>
+              <div style={{ position: "relative", height: "240px", width: "100%", minWidth: 0 }}>
+                <Line
+                  role="img"
+                  aria-label="今月の記録済み累積使用量"
+                  data={{
+                    labels: usageTrend.map((point) => point.label),
+                    datasets: [{
+                      label: "累積使用量（mL）",
+                      data: usageTrend.map((point) => point.ml),
+                      borderColor: "#00a39a",
+                      backgroundColor: "#00a39a",
+                      pointRadius: 4,
+                      pointHoverRadius: 6,
+                      borderWidth: 2,
+                      stepped: true,
+                    }],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: {
+                      callbacks: { label: (context) => `累積 ${context.parsed.y.toFixed(1)} mL` },
+                    } },
+                    scales: {
+                      x: { title: { display: true, text: "記録日" }, ticks: { maxRotation: 0, maxTicksLimit: 6 } },
+                      y: { beginAtZero: true, title: { display: true, text: "累積使用量（mL）" } },
+                    },
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: "12px", lineHeight: 1.6 }}>
+                使用量は前回計測から今回計測までの量です。横ばいの期間は使用量0ではなく、記録の追加がない期間です。0mLの記録がある場合も累積値は増えません。
+              </p>
+            </>
+          )
+        }
+      />
+
+      <InfoCard
+        title="先月同時期との比較"
+        icon="📊"
+        content={
+          <>
+            <p style={{ fontSize: "13px" }}>
+              今月：{monthly.currentMonth}/1～{monthly.currentMonth}/{monthly.currentEndDay}<br />
+              先月：{monthly.previousMonth}/1～{monthly.previousMonth}/{monthly.previousEndDay}
+            </p>
+            <p>今月：{monthly.currentMl.toFixed(1)} mL</p>
+            <p>先月同時期：{monthly.previousRecordCount === 0 ? "記録なし" : `${monthly.previousMl.toFixed(1)} mL`}</p>
+            <p style={{ fontWeight: "bold" }}>{comparisonMessage}</p>
+          </>
+        }
+      />
+
+      <InfoCard
         title="今月の入力状況"
         icon="📝"
         content={
@@ -167,22 +235,6 @@ export default function MyPage() {
                 <div style={{ background: "#00a39a", height: "100%", width: `${inputStatus.rate}%` }} />
               </div>
             )}
-          </>
-        }
-      />
-
-      <InfoCard
-        title="先月同時期との比較"
-        icon="📊"
-        content={
-          <>
-            <p style={{ fontSize: "13px" }}>
-              今月：{monthly.currentMonth}/1～{monthly.currentMonth}/{monthly.currentEndDay}<br />
-              先月：{monthly.previousMonth}/1～{monthly.previousMonth}/{monthly.previousEndDay}
-            </p>
-            <p>今月：{monthly.currentMl.toFixed(1)} mL</p>
-            <p>先月同時期：{monthly.previousRecordCount === 0 ? "記録なし" : `${monthly.previousMl.toFixed(1)} mL`}</p>
-            <p style={{ fontWeight: "bold" }}>{comparisonMessage}</p>
           </>
         }
       />
