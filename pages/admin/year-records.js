@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 
@@ -81,13 +83,14 @@ export default function YearRecordsPage() {
   };
 
   // ★ スタッフランキング
-  const mlRanking = [...data.staffStats].sort((a, b) => b.totalMl - a.totalMl);
+  const mlRanking = data.staffStats.filter((s) => isRankingUsageVisible(s.totalMl)).sort((a, b) => b.totalMl - a.totalMl);
   const countRanking = [...data.staffStats].sort((a, b) => b.count - a.count);
   const avgRanking = [...data.staffStats]
     .map((s) => ({
       ...s,
       avg: s.count === 0 ? 0 : Math.round(s.totalMl / s.count),
     }))
+    .filter((s) => isRankingUsageVisible(s.avg))
     .sort((a, b) => b.avg - a.avg);
 
   // ★ 病棟別年間ランキング（ここで作る）
@@ -186,6 +189,7 @@ export default function YearRecordsPage() {
       <div style={cardStyle}>
         <h2 style={titleStyle}>🔥 年間使用量ランキング（多い順）</h2>
         <ul style={{ listStyle: "none", padding: 0 }}>
+          {mlRanking.length === 0 && <li>対象期間に使用量のある職員はいません</li>}
           {mlRanking.map((s, i) => (
             <li key={s.staffId} style={{ marginBottom: "10px" }}>
               {i + 1} 位：{s.name}（{s.totalMl} mL）
@@ -208,6 +212,7 @@ export default function YearRecordsPage() {
       <div style={cardStyle}>
         <h2 style={titleStyle}>💧 平均使用量ランキング（1回あたり）</h2>
         <ul style={{ listStyle: "none", padding: 0 }}>
+          {avgRanking.length === 0 && <li>対象期間に使用量のある職員はいません</li>}
           {avgRanking.map((s, i) => (
             <li key={s.staffId} style={{ marginBottom: "10px" }}>
               {i + 1} 位：{s.name}（平均 {s.avg} mL）

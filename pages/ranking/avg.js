@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { db } from "../../firebaseConfig";
@@ -147,6 +149,7 @@ export default function AvgRanking() {
           workDays: s.workDays,
           avgMl: s.workDays > 0 ? s.totalMl / s.workDays : 0,
         }))
+        .filter((item) => isRankingUsageVisible(item.avgMl))
         .sort((a, b) => b.avgMl - a.avgMl);
 
       setRanking(rankingData);
@@ -212,6 +215,10 @@ export default function AvgRanking() {
       </div>
 
       {/* ランキングカード */}
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
+
       {ranking.map((s, i) => (
         <div key={s.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(i)}</div>

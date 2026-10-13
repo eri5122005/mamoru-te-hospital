@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/router";
 import BackButton from "@/components/BackButton";
@@ -111,6 +113,7 @@ export default function AvgRanking() {
             avgMl: workDays > 0 ? s.totalMl / workDays : 0,
           };
         })
+        .filter((item) => isRankingUsageVisible(item.avgMl))
         .sort((a, b) => b.avgMl - a.avgMl);
 
       setRanking(rankingData);
@@ -194,6 +197,10 @@ export default function AvgRanking() {
         <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
+
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
 
       {ranking.map((s, i) => (
         <div key={s.staffId} style={cardStyle}>

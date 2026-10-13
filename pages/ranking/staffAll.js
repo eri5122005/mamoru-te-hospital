@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { db } from "../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
@@ -63,6 +65,7 @@ export default function StaffAllRanking() {
             avg: staff?.workDays ? obj.total / staff.workDays : obj.total
           };
         })
+        .filter((item) => isRankingUsageVisible(item.total))
         .sort((a, b) => b.total - a.total);
 
       setData(ranking);
@@ -109,6 +112,10 @@ export default function StaffAllRanking() {
           </span>
         </div>
       </h1>
+
+      {data.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
 
       {data.map((item, index) => {
         let bg = "#e8f6f6";

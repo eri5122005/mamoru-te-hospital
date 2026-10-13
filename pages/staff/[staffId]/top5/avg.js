@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import BackButton from "@/components/BackButton";
@@ -153,7 +155,7 @@ export default function AvgTop5Page() {
           totalMl,
           workDays,
         };
-      });
+      }).filter((item) => isRankingUsageVisible(item.avgMl));
 
       // ソートして TOP10
       result.sort((a, b) => b.avgMl - a.avgMl);
@@ -278,6 +280,10 @@ export default function AvgTop5Page() {
       </div>
 
       {/* ランキング */}
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
+
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(index)}</div>

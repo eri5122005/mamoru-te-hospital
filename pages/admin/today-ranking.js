@@ -43,7 +43,7 @@ export default function TodayRanking() {
       </h1>
 
       {ranking.length === 0 && (
-        <div>今日の入力者はまだいません。</div>
+        <div>対象期間に使用量のある職員はいません</div>
       )}
 
       {ranking.map((staff, index) => (

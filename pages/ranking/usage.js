@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
@@ -71,7 +73,9 @@ export default function UsageRanking() {
         totals[id].totalMl += Number(item.ml || 0);
       });
 
-      const sorted = Object.values(totals).sort(
+      const sorted = Object.values(totals)
+      .filter((item) => isRankingUsageVisible(item.totalMl))
+      .sort(
         (a, b) => b.totalMl - a.totalMl
       );
 
@@ -168,6 +172,10 @@ export default function UsageRanking() {
         <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
+
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
 
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>

@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";   // ← ★ useParams を削除してこれだけ使う
 
@@ -39,7 +41,9 @@ export default function StaffRankingPage() {
       map[item.staffId].totalMl += Number(item.ml);
     });
 
-    const sorted = Object.values(map).sort(
+    const sorted = Object.values(map)
+      .filter((item) => isRankingUsageVisible(item.totalMl))
+      .sort(
       (a, b) => b.totalMl - a.totalMl
     );
 
@@ -52,6 +56,10 @@ export default function StaffRankingPage() {
     <main style={{ padding: "20px" }}>
       <h1>{staff.name} さんの部署内ランキング</h1>
       <p>部署：{staff.department}</p>
+
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
 
       {ranking.map((item, index) => (
         <div key={item.staffId}>

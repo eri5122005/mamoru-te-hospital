@@ -1,3 +1,5 @@
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -23,7 +25,7 @@ export default async function handler(req, res) {
     wardName: doc.data().wardName,
     amount: Number(doc.data().ml) || 0,
     time: doc.data().time || null,
-  }));
+  })).filter((item) => isRankingUsageVisible(item.amount));
 
   // 使用量でソート（ランキング）
   list.sort((a, b) => b.amount - a.amount);

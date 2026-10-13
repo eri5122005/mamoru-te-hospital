@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useEffect, useState } from "react";
 import { db } from "../../../../firebaseConfig";
@@ -95,7 +97,7 @@ export default function WardStaffRanking() {
           department: wardNameMap[staff.wardId] || staff.department,
           totalMl,
         };
-      });
+      }).filter((item) => isRankingUsageVisible(item.totalMl));
 
       result.sort((a, b) => b.totalMl - a.totalMl);
 
@@ -196,6 +198,10 @@ export default function WardStaffRanking() {
         <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
       </div>
+
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
 
       {ranking.map((item, index) => (
         <div key={item.staffId} style={cardStyle}>

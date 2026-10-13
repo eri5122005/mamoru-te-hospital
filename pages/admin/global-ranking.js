@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
@@ -84,7 +86,9 @@ export default function GlobalRanking() {
       });
 
       // ★ 使用量ランキング
-      const sorted = Object.values(totals).sort(
+      const sorted = Object.values(totals)
+      .filter((item) => isRankingUsageVisible(item.totalMl))
+      .sort(
         (a, b) => b.totalMl - a.totalMl
       );
 
@@ -161,7 +165,11 @@ const iconBoxStyle = {
       </div>
 
       {/* ランキング（華やか版） */}
-{ranking.map((item, index) => {
+{ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
+
+      {ranking.map((item, index) => {
   const medal =
     index === 0 ? "🥇" :
     index === 1 ? "🥈" :

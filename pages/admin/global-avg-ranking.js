@@ -1,5 +1,7 @@
 "use client";
 
+import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
@@ -83,7 +85,9 @@ export default function GlobalAvgRanking() {
       });
 
       // ★ 平均ランキング（勤務日数考慮）
-      const sorted = Object.values(totals).sort(
+      const sorted = Object.values(totals)
+      .filter((item) => isRankingUsageVisible(item.avgMl))
+      .sort(
         (a, b) => b.avgMl - a.avgMl
       );
 
@@ -175,6 +179,10 @@ export default function GlobalAvgRanking() {
       </div>
 
       {/* ランキングカード */}
+      {ranking.length === 0 && (
+        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+      )}
+
       {ranking.map((s, i) => (
         <div key={s.staffId} style={cardStyle}>
           <div style={iconBoxStyle}>{getRankIcon(i)}</div>
