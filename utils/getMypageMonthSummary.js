@@ -20,13 +20,13 @@ export function getMypageUsageTrend(records, now = new Date()) {
     return parts.year === current.year && parts.month === current.month;
   }).sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  return monthlyRecords.map(({ date, ml }) => {
+  const dailyPoints = new Map();
+  monthlyRecords.forEach(({ date, ml }) => {
     const { month, day } = getParts(date);
-    const time = date.toLocaleTimeString("ja-JP", {
-      timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false,
-    });
-    return { label: `${month}/${day}`, dateTime: `${month}/${day} ${time}`, ml };
+    const label = `${month}/${day}`;
+    dailyPoints.set(label, (dailyPoints.get(label) ?? 0) + ml);
   });
+  return Array.from(dailyPoints, ([label, ml]) => ({ label, ml }));
 }
 
 export function getMonthlyInputStatus(recordedDays, workDays) {

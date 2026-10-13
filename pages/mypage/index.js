@@ -153,14 +153,14 @@ export default function MyPage() {
 
       <InfoCard
         title="使用量の推移"
-        icon="📈"
+        icon="📊"
         content={
           usageTrend.length === 0 ? <p>今月の記録はまだありません</p> : (
             <>
               <div style={{ position: "relative", height: "240px", width: "100%", minWidth: 0 }}>
                 <Bar
                   role="img"
-                  aria-label="今月の記録ごとの使用量"
+                  aria-label="今月の記録日ごとの使用量合計"
                   data={{
                     labels: usageTrend.map((point) => point.label),
                     datasets: [{
@@ -176,19 +176,19 @@ export default function MyPage() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false }, tooltip: {
                       callbacks: {
-                        title: (items) => items.length ? usageTrend[items[0].dataIndex].dateTime : "",
+                        title: (items) => items.length ? usageTrend[items[0].dataIndex].label : "",
                         label: (context) => `${context.parsed.y.toFixed(1)} mL`,
                       },
                     } },
                     scales: {
-                      x: { title: { display: true, text: "記録日時" }, ticks: { maxRotation: 0, maxTicksLimit: 6 } },
+                      x: { title: { display: true, text: "記録日" }, ticks: { maxRotation: 0, maxTicksLimit: 6 } },
                       y: { beginAtZero: true, title: { display: true, text: "使用量（mL）" } },
                     },
                   }}
                 />
               </div>
               <p style={{ fontSize: "12px", lineHeight: 1.6 }}>
-                各値は、前回計測から今回計測までに使用した量です。
+                同じ日に記録した使用量を合計して表示しています。
               </p>
             </>
           )
