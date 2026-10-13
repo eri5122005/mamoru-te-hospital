@@ -20,19 +20,13 @@ export function getMypageUsageTrend(records, now = new Date()) {
     return parts.year === current.year && parts.month === current.month;
   }).sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const points = [];
-  let cumulativeMl = 0;
-  monthlyRecords.forEach(({ date, ml }) => {
-    cumulativeMl += ml;
+  return monthlyRecords.map(({ date, ml }) => {
     const { month, day } = getParts(date);
-    const label = `${month}/${day}`;
-    if (points.length && points[points.length - 1].label === label) {
-      points[points.length - 1].ml = cumulativeMl;
-    } else {
-      points.push({ label, ml: cumulativeMl });
-    }
+    const time = date.toLocaleTimeString("ja-JP", {
+      timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false,
+    });
+    return { label: `${month}/${day}`, dateTime: `${month}/${day} ${time}`, ml };
   });
-  return points;
 }
 
 export function getMonthlyInputStatus(recordedDays, workDays) {

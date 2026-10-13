@@ -152,46 +152,45 @@ export default function MyPage() {
       />
 
       <InfoCard
-        title="今月の使用量推移"
+        title="使用量の推移"
         icon="📈"
         content={
           usageTrend.length === 0 ? <p>今月の記録はまだありません</p> : (
             <>
-              <p>今月の記録済み使用量<br />
-                <strong style={{ fontSize: "24px" }}>{usageTrend[usageTrend.length - 1].ml.toFixed(1)} mL</strong>
-              </p>
               <div style={{ position: "relative", height: "240px", width: "100%", minWidth: 0 }}>
                 <Line
                   role="img"
-                  aria-label="今月の記録済み累積使用量"
+                  aria-label="今月の記録ごとの使用量"
                   data={{
                     labels: usageTrend.map((point) => point.label),
                     datasets: [{
-                      label: "累積使用量（mL）",
+                      label: "使用量（mL）",
                       data: usageTrend.map((point) => point.ml),
                       borderColor: "#00a39a",
                       backgroundColor: "#00a39a",
                       pointRadius: 4,
                       pointHoverRadius: 6,
                       borderWidth: 2,
-                      stepped: true,
                     }],
                   }}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false }, tooltip: {
-                      callbacks: { label: (context) => `累積 ${context.parsed.y.toFixed(1)} mL` },
+                      callbacks: {
+                        title: (items) => items.length ? usageTrend[items[0].dataIndex].dateTime : "",
+                        label: (context) => `${context.parsed.y.toFixed(1)} mL`,
+                      },
                     } },
                     scales: {
-                      x: { title: { display: true, text: "記録日" }, ticks: { maxRotation: 0, maxTicksLimit: 6 } },
-                      y: { beginAtZero: true, title: { display: true, text: "累積使用量（mL）" } },
+                      x: { title: { display: true, text: "記録日時" }, ticks: { maxRotation: 0, maxTicksLimit: 6 } },
+                      y: { beginAtZero: true, title: { display: true, text: "使用量（mL）" } },
                     },
                   }}
                 />
               </div>
               <p style={{ fontSize: "12px", lineHeight: 1.6 }}>
-                使用量は前回計測から今回計測までの量です。横ばいの期間は使用量0ではなく、記録の追加がない期間です。0mLの記録がある場合も累積値は増えません。
+                各値は、前回計測から今回計測までに使用した量です。
               </p>
             </>
           )
