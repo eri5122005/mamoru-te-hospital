@@ -1,5 +1,7 @@
 "use client";
 
+import { withNursingDepartment } from "@/utils/withNursingDepartment";
+
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
@@ -18,7 +20,7 @@ export default function WardList() {
       }));
 
       wardList.sort((a, b) => Number(a.order) - Number(b.order));
-      setWards(wardList);
+      setWards(withNursingDepartment(wardList));
     };
 
     fetchWards();

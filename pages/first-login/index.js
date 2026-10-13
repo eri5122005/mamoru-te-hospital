@@ -54,6 +54,7 @@ const [firstName, setFirstName] = useState("");
     `${lastName.trim()} ${firstName.trim()}`;
 
     const wardMap = {
+      "看護部": "nursing",
       "4階": "4f",
       "5階": "5f",
       "6階": "6f",
@@ -200,6 +201,7 @@ const [firstName, setFirstName] = useState("");
             <option value="リハビリ">リハビリ</option>
             <option value="医局">医局</option>
             <option value="施設管理">施設管理</option>
+            <option value="看護部">看護部</option>
           </select>
 
           <label style={{ color: "#006b5f", fontSize: "14px" }}>

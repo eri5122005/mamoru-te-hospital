@@ -15,6 +15,7 @@ export default async function handler(req, res) {
       staffId,   // データ内にも staffId を保存（統一）
       name,
       wardId,
+      ...(wardId === "nursing" ? { department: "看護部" } : {}),
       createdAt: new Date(),   // 追加しておくと便利
     });
 

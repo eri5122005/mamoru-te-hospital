@@ -1,3 +1,5 @@
+import { withNursingDepartment } from "@/utils/withNursingDepartment";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "@/components/BackButton";
@@ -14,7 +16,7 @@ export default function StaffSettings() {
 
   useEffect(() => {
     const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
-    setWards(savedWards);
+    setWards(withNursingDepartment(savedWards));
 
     // ★ Firestore からスタッフ一覧を取得
     const fetchStaff = async () => {

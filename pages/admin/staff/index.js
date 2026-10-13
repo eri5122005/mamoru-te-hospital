@@ -1,5 +1,7 @@
 "use client";
 
+import { withNursingDepartment } from "@/utils/withNursingDepartment";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/AdminLayout";
@@ -23,7 +25,7 @@ export default function StaffManagePage() {
       name: d.data().name,
       order: d.data().order,
     }));
-    setWards(list);
+    setWards(withNursingDepartment(list));
   };
 
   const loadStaff = async () => {

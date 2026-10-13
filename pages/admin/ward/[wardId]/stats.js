@@ -48,6 +48,7 @@ export default function WardStatsPage() {
   const [mode, setMode] = useState("daily");
 
   const wardNameMap = {
+    "nursing": "看護部",
     "4f": "4階",
     "5f": "5階",
     "6f": "6階",

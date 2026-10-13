@@ -1,5 +1,7 @@
 "use client";
 
+import { withNursingDepartment } from "@/utils/withNursingDepartment";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "@/components/BackButton";
@@ -21,7 +23,7 @@ export default function AddStaff() {
     const savedWards = JSON.parse(localStorage.getItem("wards") || "[]");
     const savedStaff = JSON.parse(localStorage.getItem("staffList") || "[]");
 
-    setWards(savedWards);
+    setWards(withNursingDepartment(savedWards));
     setStaffList(savedStaff);
   }, []);
 
@@ -36,7 +38,8 @@ export default function AddStaff() {
     const staffData = {
       staffId: newStaffId,
       name,
-      wardId: Number(wardId),
+      wardId: wardId === "nursing" ? "nursing" : Number(wardId),
+      ...(wardId === "nursing" ? { department: "看護部" } : {}),
       workDays: `${workDays}日`,
       role: "staff",
       isActive: true, // ★ 在職者として登録

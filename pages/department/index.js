@@ -44,6 +44,7 @@ export default function DepartmentPage() {
   const missing = deptStaff.filter(s => !todayRecordIds.includes(s.staffId));
 
   const departments = [
+    "看護部",
     "4階病棟",
     "5階病棟",
     "6階病棟",

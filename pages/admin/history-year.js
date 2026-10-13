@@ -21,6 +21,7 @@ ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Legend, 
 
 // ★ 病棟ID → 表示名
 const wardNameMap = {
+    "nursing": "看護部",
   "4f": "4階",
   "5f": "5階",
   "6f": "6階",
@@ -34,6 +35,7 @@ const wardNameMap = {
 
 // ★ 病棟ID → 色
 const wardColors = {
+  "nursing": "#008b75",
   "4f": "#006b5f",
   "5f": "#00a89b",
   "6f": "#26a69a",

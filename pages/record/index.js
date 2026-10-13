@@ -15,6 +15,7 @@ import { Timestamp } from "firebase/firestore";
 
 // ★ 病棟ID → 表示名マップ
 const wardNameMap = {
+    "nursing": "看護部",
   "6f": "6階",
   "5f": "5階",
   "4f": "4階",
