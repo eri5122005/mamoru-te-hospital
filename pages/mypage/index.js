@@ -11,10 +11,6 @@ export default function MyPage() {
   const [user, setUser] = useState(null);
   const [records, setRecords] = useState([]);
 
-  const [todayCount, setTodayCount] = useState(0);
-  const [monthCount, setMonthCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-
   const [todayMl, setTodayMl] = useState(0);
   const [monthMl, setMonthMl] = useState(0);
   const [totalMl, setTotalMl] = useState(0);
@@ -59,10 +55,6 @@ export default function MyPage() {
         r.date && r.date.getFullYear() === today.getFullYear() &&
         r.date.getMonth() === today.getMonth()
     );
-
-    setTodayCount(todayList.length);
-    setMonthCount(monthList.length);
-    setTotalCount(list.length);
 
     setTodayMl(todayList.reduce((sum, r) => sum + (r.ml || 0), 0));
     setMonthMl(monthList.reduce((sum, r) => sum + (r.ml || 0), 0));
@@ -150,19 +142,6 @@ export default function MyPage() {
             <p>今日：{todayMl.toFixed(1)} ml</p>
             <p>今月：{monthMl.toFixed(1)} ml</p>
             <p>累計：{totalMl.toFixed(1)} ml</p>
-          </>
-        }
-      />
-
-      {/* 記録回数カード */}
-      <InfoCard
-        title="記録回数"
-        icon="📝"
-        content={
-          <>
-            <p>今日：{todayCount} 回</p>
-            <p>今月：{monthCount} 回</p>
-            <p>累計：{totalCount} 回</p>
           </>
         }
       />
