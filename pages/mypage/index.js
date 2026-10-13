@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getRecordDate } from "@/utils/getRecordDate";
-import { getMypageMonthSummary } from "@/utils/getMypageMonthSummary";
+import { getMypageMonthSummary, getMonthlyInputStatus } from "@/utils/getMypageMonthSummary";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -77,8 +77,11 @@ export default function MyPage() {
     .sort((a, b) => (b.date?.getTime() ?? -Infinity) - (a.date?.getTime() ?? -Infinity))
     .slice(0, 5);
   const monthly = getMypageMonthSummary(records);
-  const comparisonMessage = monthly.difference > 0
-    ? `先月同時期より ${monthly.difference.toFixed(1)} mL 増えています`
+  const inputStatus = getMonthlyInputStatus(monthly.recordedDays, user?.workDays);
+  const comparisonMessage = monthly.previousRecordCount === 0
+    ? "先月同時期の記録はありません"
+    : monthly.difference > 0
+    ? `✨ 先月同時期より ${monthly.difference.toFixed(1)} mL 増えています`
     : monthly.difference < 0
       ? `先月同時期より ${Math.abs(monthly.difference).toFixed(1)} mL 少なくなっています`
       : "先月同時期と同じ使用量です";
@@ -165,24 +168,26 @@ export default function MyPage() {
       />
 
       <InfoCard
-        title="今月のチャレンジ"
-        icon="🏆"
+        title="今月の入力状況"
+        icon="📝"
         content={
           <>
-            <p style={{ fontWeight: "bold", fontSize: "18px" }}>{monthly.challenge.title}</p>
-            <p>{monthly.challenge.detail}</p>
-            {monthly.recordedDays < 20 && <p>今月 {monthly.recordedDays}日記録</p>}
-            <div
-              role="progressbar"
-              aria-label="今月の記録日数（20日で達成）"
-              aria-valuemin={0}
-              aria-valuemax={20}
-              aria-valuenow={Math.min(monthly.recordedDays, 20)}
-              aria-valuetext={`今月${monthly.recordedDays}日記録`}
-              style={{ background: "#cfeeee", height: "10px", borderRadius: "10px", overflow: "hidden" }}
-            >
-              <div style={{ background: "#00a39a", height: "100%", width: `${monthly.challenge.progress}%` }} />
-            </div>
+            <p>記録日数：{monthly.recordedDays}{inputStatus.workDays === null ? "日" : ` / ${inputStatus.workDays}日`}</p>
+            <p>入力率：{inputStatus.rate === null ? "—" : `${inputStatus.rate}%`}</p>
+            {inputStatus.workDays === null ? (
+              <p style={{ fontSize: "14px" }}>基本月間勤務日数が未設定、または正しく設定されていないため、入力率を表示できません。</p>
+            ) : (
+              <div
+                role="progressbar"
+                aria-label="今月の入力率"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={inputStatus.rate}
+                style={{ background: "#cfeeee", height: "10px", borderRadius: "10px", overflow: "hidden" }}
+              >
+                <div style={{ background: "#00a39a", height: "100%", width: `${inputStatus.rate}%` }} />
+              </div>
+            )}
           </>
         }
       />
@@ -197,7 +202,7 @@ export default function MyPage() {
               先月：{monthly.previousMonth}/1～{monthly.previousMonth}/{monthly.previousEndDay}
             </p>
             <p>今月：{monthly.currentMl.toFixed(1)} mL</p>
-            <p>先月同時期：{monthly.previousMl.toFixed(1)} mL</p>
+            <p>先月同時期：{monthly.previousRecordCount === 0 ? "記録なし" : `${monthly.previousMl.toFixed(1)} mL`}</p>
             <p style={{ fontWeight: "bold" }}>{comparisonMessage}</p>
           </>
         }

@@ -10,20 +10,13 @@ function getParts(date) {
   return { year: part("year"), month: part("month"), day: part("day") };
 }
 
-export function getMonthlyChallenge(days) {
-  const stages = [
-    { days: 5, icon: "🌱" }, { days: 10, icon: "🌿" },
-    { days: 15, icon: "🍀" }, { days: 20, icon: "🏆" },
-  ];
-  const achieved = stages.filter((stage) => days >= stage.days).pop();
-  const next = stages.find((stage) => days < stage.days);
-  return {
-    title: achieved ? `${achieved.icon} ${achieved.days}日達成！` : "🌱 はじめの一手",
-    detail: !achieved ? `🌱 最初の「5日記録」まであと${5 - days}日`
-      : next ? `次の「${next.icon} ${next.days}日」まであと${next.days - days}日`
-        : `今月 ${days}日記録`,
-    progress: Math.min(days / 20 * 100, 100),
-  };
+export function getMonthlyInputStatus(recordedDays, workDays) {
+  const value = typeof workDays === "number" ||
+    (typeof workDays === "string" && workDays.trim()) ? Number(workDays) : NaN;
+  if (!Number.isInteger(value) || value <= 0) {
+    return { workDays: null, rate: null };
+  }
+  return { workDays: value, rate: Math.min(100, Math.round(recordedDays / value * 100)) };
 }
 
 export function getMypageMonthSummary(records, now = new Date()) {
@@ -36,6 +29,7 @@ export function getMypageMonthSummary(records, now = new Date()) {
   const recordedDays = new Set();
   let currentMl = 0;
   let previousMl = 0;
+  let previousRecordCount = 0;
 
   records.forEach((record) => {
     const date = getRecordDate(record.date);
@@ -47,13 +41,15 @@ export function getMypageMonthSummary(records, now = new Date()) {
       if (parts.day <= current.day && Number.isFinite(ml)) currentMl += ml;
     }
     if (parts.year === previous.year && parts.month === previous.month &&
-        parts.day <= previousEndDay && Number.isFinite(ml)) previousMl += ml;
+        parts.day <= previousEndDay) {
+      previousRecordCount += 1;
+      if (Number.isFinite(ml)) previousMl += ml;
+    }
   });
 
   return {
     recordedDays: recordedDays.size,
-    challenge: getMonthlyChallenge(recordedDays.size),
-    currentMl, previousMl,
+    currentMl, previousMl, previousRecordCount,
     difference: Number((currentMl - previousMl).toFixed(1)),
     currentMonth: current.month, currentEndDay: current.day,
     previousMonth: previous.month, previousEndDay,
