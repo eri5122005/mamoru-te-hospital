@@ -75,13 +75,29 @@ export default function MyPage() {
   const monthly = getMypageMonthSummary(records);
   const usageTrend = getMypageUsageTrend(records);
   const inputStatus = getMonthlyInputStatus(monthly.recordedDays, user?.workDays);
-  const comparisonMessage = monthly.previousRecordCount === 0
-    ? "先月同時期の記録はありません"
+  const comparisonFeedback = monthly.previousRecordCount === 0
+    ? {
+      title: "✨ 今月も守る一手、記録中！",
+      body: "先月同時期は比較できる記録がありません。",
+      encouragement: "記録を続けて、自分の使用量の変化を確認していきましょう。",
+    }
     : monthly.difference > 0
-    ? `✨ 先月同時期より ${monthly.difference.toFixed(1)} mL 増えています`
+    ? {
+      title: "🌿 守る一手、積み重なっています！",
+      body: `先月同時期より ${monthly.difference.toFixed(1)}mL増えています。`,
+      encouragement: "この調子で、日々の手指衛生を続けていきましょう。",
+    }
     : monthly.difference < 0
-      ? `先月同時期より ${Math.abs(monthly.difference).toFixed(1)} mL 少なくなっています`
-      : "先月同時期と同じ使用量です";
+      ? {
+        title: "🫧 今月の使用量を振り返ってみましょう",
+        body: `先月同時期より ${Math.abs(monthly.difference).toFixed(1)}mL少なくなっています。`,
+        encouragement: "日々の手指衛生を意識するきっかけにしていきましょう。",
+      }
+      : {
+        title: "🌿 守る一手、記録中！",
+        body: "先月同時期と同じ使用量です。",
+        encouragement: "この調子で、日々の手指衛生を続けていきましょう。",
+      };
 
   if (!user) return <div>ログイン情報がありません。ログインし直してください。</div>;
 
@@ -206,7 +222,15 @@ export default function MyPage() {
             </p>
             <p>今月：{monthly.currentMl.toFixed(1)} mL</p>
             <p>先月同時期：{monthly.previousRecordCount === 0 ? "記録なし" : `${monthly.previousMl.toFixed(1)} mL`}</p>
-            <p style={{ fontWeight: "bold" }}>{comparisonMessage}</p>
+            <div style={{ marginTop: "16px", lineHeight: 1.8, overflowWrap: "anywhere" }}>
+              <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: "0 0 8px" }}>
+                {comparisonFeedback.title}
+              </h2>
+              <p style={{ fontSize: "14px", margin: 0 }}>
+                {comparisonFeedback.body}<br />
+                {comparisonFeedback.encouragement}
+              </p>
+            </div>
           </>
         }
       />
