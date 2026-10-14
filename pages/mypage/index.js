@@ -222,7 +222,7 @@ export default function MyPage() {
             </p>
             <p>今月：{monthly.currentMl.toFixed(1)} mL</p>
             <p>先月同時期：{monthly.previousRecordCount === 0 ? "記録なし" : `${monthly.previousMl.toFixed(1)} mL`}</p>
-            <div style={{ marginTop: "16px", lineHeight: 1.8, overflowWrap: "anywhere" }}>
+            <div style={{ marginTop: "16px", lineHeight: 1.8 }}>
               <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: "0 0 8px" }}>
                 {comparisonFeedback.title}
               </h2>
