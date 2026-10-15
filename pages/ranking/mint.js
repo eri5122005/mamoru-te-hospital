@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { getMintRanking } from "@/utils/getMintPoints";
 import { db } from "../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -23,53 +24,7 @@ export default function MintRanking() {
       const snap = await getDocs(q);
       const records = snap.docs.map(doc => doc.data());
 
-      const now = new Date();
-
-      const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
-
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
-
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-
-        return true;
-      });
-
-      const points = {};
-      filtered.forEach(item => {
-        if (!points[item.staffId]) {
-          points[item.staffId] = {
-            staffId: item.staffId,
-            name: item.name,
-            department: item.wardId,   // ← ★ 修正済み
-            mintPoint: 0
-          };
-        }
-        points[item.staffId].mintPoint += Number(item.mintPoint || 0);
-      });
-
-      const sorted = Object.values(points).sort(
-        (a, b) => b.mintPoint - a.mintPoint
-      );
+      const sorted = getMintRanking(records, period);
 
       setRanking(sorted);
     };

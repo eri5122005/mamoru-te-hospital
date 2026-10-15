@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getRecordDate } from "@/utils/getRecordDate";
+import { getMintPoints } from "@/utils/getMintPoints";
 import { getMypageMonthSummary, getMonthlyInputStatus, getMypageUsageTrend } from "@/utils/getMypageMonthSummary";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from "chart.js";
 import { Bar } from "react-chartjs-2";
@@ -64,7 +65,7 @@ export default function MyPage() {
     setMonthMl(monthList.reduce((sum, r) => sum + (r.ml || 0), 0));
     setTotalMl(list.reduce((sum, r) => sum + (r.ml || 0), 0));
 
-    const pt = list.reduce((sum, r) => sum + (r.mintPoint ?? 0), 0);
+    const pt = getMintPoints(list);
     setTotalPoint(pt);
 
   };
