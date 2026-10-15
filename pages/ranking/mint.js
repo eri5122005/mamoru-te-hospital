@@ -8,7 +8,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function MintRanking() {
   const router = useRouter();
-  const [period, setPeriod] = useState("today");
+  const [period, setPeriod] = useState("month");
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
@@ -120,7 +120,6 @@ export default function MintRanking() {
 </h1>
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
         <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
         <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
         <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
