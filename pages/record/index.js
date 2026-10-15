@@ -49,6 +49,14 @@ const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 const [isSubmitting, setIsSubmitting] = useState(false);
 // ★ ボトル交換の二重実行を同期的に防止
 const exchangeLockRef = useRef(false);
+const recordLockRef = useRef(false);
+const messageTimerRef = useRef(null);
+const clearMessageTimer = () => {
+  clearTimeout(messageTimerRef.current);
+  messageTimerRef.current = null;
+};
+const weightUpdateWarning = "次回計算用の重量がすでに更新されている可能性があります。\n入力をやり直したり、再登録したりせず、管理者に確認してください。";
+useEffect(() => () => clearTimeout(messageTimerRef.current), []);
 
 // ★ ボトル交換処理中のボタン無効化
 const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
@@ -80,7 +88,7 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
       const now = new Date();
 const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
-await fetch("/api/records", {
+const response = await fetch("/api/records", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -98,11 +106,25 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
   }),
 });
 
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const body = await response.json();
+          if (typeof body?.error === "string" && body.error.trim()) {
+            detail = `\n詳細：${body.error}`;
+          }
+        } catch {
+          // 空・HTML・不正JSONの応答でも共通の案内を表示する。
+        }
+        setMessage(`記録を保存できませんでした。${detail}\n${weightUpdateWarning}`);
+        return false;
+      }
     } catch (error) {
-      setMessage("クラウド保存に失敗しました");
+      setMessage(`保存結果を確認できませんでした。\n${weightUpdateWarning}`);
       return false;
     }
 
+    try {
     if (typeof window !== "undefined") {
   const history = JSON.parse(localStorage.getItem("history") || "[]");
 
@@ -124,6 +146,10 @@ date: jstNow,   // ← ★ここが最重要（JSTで保存）
 
   localStorage.setItem("history", JSON.stringify(history));
 }
+    } catch {
+      setMessage("記録は保存されましたが、端末内の処理に失敗しました。\n再登録せず、管理者に確認してください。");
+      return false;
+    }
 
 // ★ 記録成功時にメッセージを抽選
 const roll = Math.random();
@@ -160,7 +186,7 @@ setMessage(
 );
 
     setWeightNow("");
-    setTimeout(() => setMessage(""), 3000);
+    messageTimerRef.current = setTimeout(() => setMessage(""), 3000);
     return true;
   };
 
@@ -182,6 +208,8 @@ const handleExchangeYes = async () => {
   setIsExchangeProcessing(true);
 
   try {
+    clearMessageTimer();
+    setMessageType("normal");
     setMessage("記録中です…");
   const now = Number(weightNow);
   const prev = Number(staff.lastWeight);
@@ -251,7 +279,7 @@ const handleExchangeYes = async () => {
     setStaff(updated);
 
   } catch (e) {
-    setMessage("前回の重さ更新に失敗しました");
+    setMessage(`前回の重さ更新に失敗しました。\n${weightUpdateWarning}`);
     setIsSubmitting(false);
     return;
   }
@@ -266,7 +294,12 @@ const handleExchangeYes = async () => {
     setIsSubmitting(false);
   setShowExchangeConfirm(false);
 
+  } catch {
+    setMessage(`処理を完了できませんでした。\n${weightUpdateWarning}`);
   } finally {
+    setIsSubmitting(false);
+    recordLockRef.current = false;
+    setShowExchangeConfirm(false);
     // ★ 成功・失敗にかかわらず交換用ロックを解除
     exchangeLockRef.current = false;
     setIsExchangeProcessing(false);
@@ -284,6 +317,7 @@ const handleExchangeNo = () => {
   setShowExchangeConfirm(false);
 
   setIsSubmitting(false);
+  recordLockRef.current = false;
 };
 
   // ★ 記録処理（重さ方式）完全修正版
@@ -291,9 +325,14 @@ const handleRecord = async () => {
   if (!staff) return;
 
   // ★ 連打防止（2回目を絶対に走らせない）
-  if (isSubmitting) return;
+  if (recordLockRef.current || isSubmitting) return;
+  recordLockRef.current = true;
   setIsSubmitting(true);
+  let awaitingExchangeConfirmation = false;
 
+  try {
+  clearMessageTimer();
+  setMessageType("normal");
   // ★ 押した瞬間に反応させる（現場向け）
   setMessage("記録中です…");
 
@@ -340,6 +379,7 @@ if (now > prev + 3) {
   setShowExchangeConfirm(true);
 
   // ★ ロックは維持する（YES/NOで解除する）
+  awaitingExchangeConfirmation = true;
   return;
 }
 
@@ -366,14 +406,21 @@ localStorage.setItem(
 
 setStaff(updated);
   } catch (e) {
-    setMessage("前回の重さ更新に失敗しました");
+    setMessage(`前回の重さ更新に失敗しました。\n${weightUpdateWarning}`);
     return;
   }
 
   // ★ 二重登録防止（return を必ず入れる）
-  await saveRecord(usedMl, now);
-  setIsSubmitting(false);
-  return;
+  const saved = await saveRecord(usedMl, now);
+  if (!saved) return;
+  } catch {
+    setMessage(`処理を完了できませんでした。\n${weightUpdateWarning}`);
+  } finally {
+    if (!awaitingExchangeConfirmation) {
+      setIsSubmitting(false);
+      recordLockRef.current = false;
+    }
+  }
   };
 
 
