@@ -195,7 +195,7 @@ export default function AvgRanking() {
             </p>
             <p style={{ margin: 0 }}>勤務日数：{s.workDays} 日</p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              補正使用量：{s.avgMl.toFixed(1)} mL／登録勤務日
+              勤務日数考慮：{s.avgMl.toFixed(1)} mL
             </p>
           </div>
         </div>
