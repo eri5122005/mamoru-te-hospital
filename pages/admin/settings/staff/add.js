@@ -33,6 +33,12 @@ export default function AddStaff() {
       return;
     }
 
+    const workDayCount = Number(workDays);
+    if (!Number.isInteger(workDayCount) || workDayCount <= 0) {
+      alert("勤務日数は1以上の整数で入力してください");
+      return;
+    }
+
     const newStaffId = Date.now(); // 職員番号として利用
 
     const staffData = {
@@ -40,7 +46,7 @@ export default function AddStaff() {
       name,
       wardId: wardId === "nursing" ? "nursing" : Number(wardId),
       ...(wardId === "nursing" ? { department: "看護部" } : {}),
-      workDays: `${workDays}日`,
+      workDays: workDayCount,
       role: "staff",
       isActive: true, // ★ 在職者として登録
     };
