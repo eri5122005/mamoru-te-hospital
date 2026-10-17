@@ -9,20 +9,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function AvgRanking() {
   const router = useRouter();
-  const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
-
-  // ★ タブのデザイン（あなたのミント系そのまま）
-  const tabStyle = (active) => ({
-    flex: 1,
-    padding: "10px 0",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    background: active ? "#006b5f" : "#cfeeee",
-    color: active ? "#ffffff" : "#006b5f",
-    fontSize: "14px",
-  });
 
   // ★ ランキングカードのデザイン（あなたのまま）
   const cardStyle = {
@@ -90,26 +77,10 @@ export default function AvgRanking() {
           return false;
         }
 
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
-
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-
-        return true;
+        return (
+          jst.getFullYear() === now.getFullYear() &&
+          jst.getMonth() === now.getMonth()
+        );
       });
 
       // ★ 合計使用量を集計
@@ -140,7 +111,7 @@ export default function AvgRanking() {
         }
       });
 
-      // ★ 平均使用量を計算
+      // ★ 登録月間勤務日数で補正した使用量を計算
       const rankingData = Object.values(totals)
         .map(s => ({
           staffId: s.staffId,
@@ -156,7 +127,7 @@ export default function AvgRanking() {
     };
 
     load();
-  }, [period]);
+  }, []);
 
   return (
     <main
@@ -196,27 +167,22 @@ export default function AvgRanking() {
   }}
 >
   <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-    ⏱️ 平均使用量
+    ⏱️ 勤務日数を考慮した
   </span>
   <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-    ランキング
-  </span>
-  <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
-    （mL/日）
+    使用量ランキング
   </span>
 </h1>
 
-      {/* タブ */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
-        <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
-        <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
-        <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
-      </div>
+      <p style={{ textAlign: "center", fontWeight: "bold", margin: "12px 0 8px" }}>今月</p>
+      <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
+        今月の使用量を、登録されている月の勤務日数で割った参考値です。
+        実際の1勤務あたり使用量を示すものではありません。
+      </p>
 
       {/* ランキングカード */}
       {ranking.length === 0 && (
-        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+        <p style={{ color: "#006b5f" }}>今月に使用量のある職員はいません</p>
       )}
 
       {ranking.map((s, i) => (
@@ -229,7 +195,7 @@ export default function AvgRanking() {
             </p>
             <p style={{ margin: 0 }}>勤務日数：{s.workDays} 日</p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              平均使用量：{s.avgMl.toFixed(1)} mL/日
+              補正使用量：{s.avgMl.toFixed(1)} mL／登録勤務日
             </p>
           </div>
         </div>
