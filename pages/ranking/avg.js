@@ -1,6 +1,7 @@
 "use client";
 
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
+import { getRecordDate } from "@/utils/getRecordDate";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -64,23 +65,19 @@ export default function AvgRanking() {
       const records = recSnap.docs.map(doc => doc.data());
 
       const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "numeric",
+      }).formatToParts(now);
+      const part = (type) => Number(parts.find((item) => item.type === type).value);
+      const year = part("year");
+      const month = part("month");
+      const monthStart = new Date(Date.UTC(year, month - 1, 1, -9));
+      const monthEnd = new Date(Date.UTC(year, month, 1, -9));
 
-      // ★ 日付フィルタ（Timestamp と文字列両対応）
+      // ★ 日本時間の月初以上・翌月月初未満
       const filtered = records.filter(item => {
-        let jst;
-
-        if (item.date?.toDate) {
-          jst = item.date.toDate();
-        } else if (typeof item.date === "string") {
-          jst = new Date(item.date);
-        } else {
-          return false;
-        }
-
-        return (
-          jst.getFullYear() === now.getFullYear() &&
-          jst.getMonth() === now.getMonth()
-        );
+        const date = getRecordDate(item.date);
+        return date !== null && date >= monthStart && date < monthEnd;
       });
 
       // ★ 合計使用量を集計
