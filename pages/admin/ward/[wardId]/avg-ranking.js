@@ -27,19 +27,21 @@ export default function AvgRanking() {
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
+    if (!router.isReady || typeof wardId !== "string" || !wardId) return;
+
     const load = async () => {
       const staff = JSON.parse(localStorage.getItem("currentStaff"));
       if (!staff) return;
 
       const q = query(
         collection(db, "records"),
-        where("wardId", "==", staff.wardId)
+        where("wardId", "==", wardId)
       );
       const snap = await getDocs(q);
       const records = snap.docs.map(doc => doc.data());
 
       const staffSnap = await getDocs(
-        query(collection(db, "staff"), where("wardId", "==", staff.wardId))
+        query(collection(db, "staff"), where("wardId", "==", wardId))
       );
       const staffList = staffSnap.docs.map(doc => doc.data());
       const staffMap = {};
@@ -120,7 +122,7 @@ export default function AvgRanking() {
     };
 
     load();
-  }, [period]);
+  }, [period, router.isReady, wardId]);
 
   const tabStyle = (active) => ({
     flex: 1,
