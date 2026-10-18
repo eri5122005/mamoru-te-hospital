@@ -219,7 +219,7 @@ const [firstName, setFirstName] = useState("");
             月の勤務日数
           </label>
           <p id="workDays-help" style={{ margin: "8px 0 12px", color: "#526763", fontSize: "14px", lineHeight: 1.6 }}>
-            1か月の勤務日数を入力してください
+            月20日勤務の方は、下のボタンを押してください
           </p>
           <button
             type="button"
@@ -239,10 +239,7 @@ const [firstName, setFirstName] = useState("");
           >
             20日を入力
           </button>
-          <p style={{ margin: "8px 0 16px", textAlign: "center", color: "#526763", fontSize: "14px", lineHeight: 1.6 }}>
-            月20日勤務の方はこちら
-          </p>
-          <p style={{ margin: "0 0 8px", textAlign: "center", color: "#526763", fontSize: "14px" }}>または</p>
+          <p style={{ margin: "16px 0 8px", textAlign: "center", color: "#526763", fontSize: "14px" }}>または</p>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <input
               id="workDays"
