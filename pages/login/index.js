@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
+import { normalizeStaffId } from "../../utils/normalizeStaffId";
 
 export default function Login() {
   const router = useRouter();
@@ -30,10 +31,11 @@ export default function Login() {
 
   // ★ ログイン処理（ここだけ使う）
   const handleLogin = async () => {
-    if (!staffId) return;
+    const normalizedStaffId = normalizeStaffId(staffId);
+    if (!normalizedStaffId) return;
 
     // ★ 総合管理者（9999）
-    if (staffId === "9999") {
+    if (normalizedStaffId === "9999") {
       localStorage.setItem(
         "currentStaff",
         JSON.stringify({
@@ -71,12 +73,12 @@ export default function Login() {
   "2900": "shisetsu",
 };
 
-    if (departmentAdmins[staffId]) {
-      const dept = departmentAdmins[staffId];
+    if (departmentAdmins[normalizedStaffId]) {
+      const dept = departmentAdmins[normalizedStaffId];
       localStorage.setItem(
         "currentStaff",
         JSON.stringify({
-          staffId,
+          staffId: normalizedStaffId,
           name: "部署管理者",
           department: dept,
           wardId: dept,
@@ -93,12 +95,12 @@ export default function Login() {
 
     // ★ 一般スタッフ（Firestore の staff を基準にする）
 try {
-  const staffRef = doc(db, "staff", staffId);
+  const staffRef = doc(db, "staff", normalizedStaffId);
   const staffSnap = await getDoc(staffRef);
 
   // Firestore に存在しないスタッフだけ初回登録へ
   if (!staffSnap.exists()) {
-    router.replace(`/first-login?staffId=${staffId}`);
+    router.replace(`/first-login?staffId=${encodeURIComponent(normalizedStaffId)}`);
     return;
   }
 
@@ -106,7 +108,7 @@ try {
 
   // ★ Firestore の最新情報から currentStaff を作成
   const current = {
-    staffId: staffData.staffId ?? staffId,
+    staffId: normalizedStaffId,
     name: staffData.name,
     department: staffData.department,
     wardId: staffData.wardId,
@@ -121,7 +123,7 @@ try {
 
   // ★ この端末の情報も Firestore の最新状態にそろえる
   localStorage.setItem("currentStaff", JSON.stringify(current));
-  localStorage.setItem(`staff-${staffId}`, JSON.stringify(current));
+  localStorage.setItem(`staff-${normalizedStaffId}`, JSON.stringify(current));
 
   // ★ 初回重さ登録が必要か確認
   const needFirstWeight =
