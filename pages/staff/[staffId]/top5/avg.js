@@ -13,7 +13,6 @@ export default function AvgTop5Page() {
   const { staffId } = router.query;
 
   const [ranking, setRanking] = useState([]);
-  const [mode, setMode] = useState("week"); // week / month / year
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,63 +37,18 @@ export default function AvgTop5Page() {
           timeZone: "Asia/Tokyo",
           year: "numeric",
           month: "numeric",
-          day: "numeric",
-          weekday: "short",
         }).formatToParts(date);
 
         const getPart = (type) =>
           parts.find((part) => part.type === type)?.value;
 
-        const weekdayMap = {
-          Sun: 0,
-          Mon: 1,
-          Tue: 2,
-          Wed: 3,
-          Thu: 4,
-          Fri: 5,
-          Sat: 6,
-        };
-
         return {
           year: Number(getPart("year")),
           month: Number(getPart("month")),
-          day: Number(getPart("day")),
-          weekday: weekdayMap[getPart("weekday")],
         };
       };
 
       const nowJst = getJstParts(now);
-
-      // JSTで今週の日曜日を求める
-      const todayAsUtc = new Date(
-        Date.UTC(nowJst.year, nowJst.month - 1, nowJst.day)
-      );
-
-      todayAsUtc.setUTCDate(
-        todayAsUtc.getUTCDate() - nowJst.weekday
-      );
-
-      const startOfWeek = {
-        year: todayAsUtc.getUTCFullYear(),
-        month: todayAsUtc.getUTCMonth() + 1,
-        day: todayAsUtc.getUTCDate(),
-      };
-
-      // YYYYMMDD の数値にして日付を比較する
-      const toDateNumber = (year, month, day) =>
-        year * 10000 + month * 100 + day;
-
-      const todayNumber = toDateNumber(
-        nowJst.year,
-        nowJst.month,
-        nowJst.day
-      );
-
-      const startOfWeekNumber = toDateNumber(
-        startOfWeek.year,
-        startOfWeek.month,
-        startOfWeek.day
-      );
 
       // 期間フィルタ
       const filtered = records.filter((r) => {
@@ -106,34 +60,13 @@ export default function AvgTop5Page() {
         const recordDate = r.date.toDate();
         const recordJst = getJstParts(recordDate);
 
-        if (mode === "week") {
-          const recordNumber = toDateNumber(
-            recordJst.year,
-            recordJst.month,
-            recordJst.day
-          );
-
-          return (
-            recordNumber >= startOfWeekNumber &&
-            recordNumber <= todayNumber
-          );
-        }
-
-        if (mode === "month") {
-          return (
-            recordJst.year === nowJst.year &&
-            recordJst.month === nowJst.month
-          );
-        }
-
-        if (mode === "year") {
-          return recordJst.year === nowJst.year;
-        }
-
-        return true;
+        return (
+          recordJst.year === nowJst.year &&
+          recordJst.month === nowJst.month
+        );
       });
 
-      // スタッフごとに集計（平均使用量 = 総使用量 / 勤務日数）
+      // 職員ごとに今月の使用量を登録月間勤務日数で補正
       const result = staffList.map((s) => {
         const myRecords = filtered.filter(
           (r) => String(r.staffId) === String(s.staffId)
@@ -144,8 +77,10 @@ export default function AvgTop5Page() {
           0
         );
 
-        const workDays = Number(s.workDays || 1); // 勤務日数が 0 の人を防ぐ
-        const avgMl = totalMl / workDays;
+        const workDays = Number(s.workDays);
+        const avgMl = Number.isFinite(workDays) && workDays > 0
+          ? totalMl / workDays
+          : 0;
 
         return {
           staffId: s.staffId,
@@ -165,7 +100,7 @@ export default function AvgTop5Page() {
     };
 
     load();
-  }, [staffId, mode]);
+  }, [staffId]);
 
   if (loading) {
     return (
@@ -180,17 +115,6 @@ export default function AvgTop5Page() {
       </main>
     );
   }
-
-  const tabStyle = (active) => ({
-    flex: 1,
-    padding: "10px 0",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    background: active ? "#006b5f" : "#cfeeee",
-    color: active ? "#ffffff" : "#006b5f",
-    fontSize: "14px",
-  });
 
   const cardStyle = {
     background: "#ffffff",
@@ -246,42 +170,18 @@ export default function AvgTop5Page() {
           color: "#006b5f",
         }}
       >
-        📈 平均使用量ランキング TOP10
+        📈 院内 勤務日数考慮 TOP10
       </h1>
 
-      {/* タブ */}
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          marginBottom: "20px",
-        }}
-      >
-        <button
-          style={tabStyle(mode === "week")}
-          onClick={() => setMode("week")}
-        >
-          今週
-        </button>
-
-        <button
-          style={tabStyle(mode === "month")}
-          onClick={() => setMode("month")}
-        >
-          今月
-        </button>
-
-        <button
-          style={tabStyle(mode === "year")}
-          onClick={() => setMode("year")}
-        >
-          今年
-        </button>
-      </div>
+      <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8px" }}>今月</p>
+      <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
+        今月の使用量を、登録されている月の勤務日数で割った参考値です。
+        実際の1勤務あたり使用量を示すものではありません。
+      </p>
 
       {/* ランキング */}
       {ranking.length === 0 && (
-        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+        <p style={{ color: "#006b5f" }}>今月に使用量のある職員はいません</p>
       )}
 
       {ranking.map((item, index) => (
@@ -309,7 +209,7 @@ export default function AvgTop5Page() {
                 fontWeight: "bold",
               }}
             >
-              平均 {item.avgMl.toFixed(1)} mL / 日
+              勤務日数考慮：{item.avgMl.toFixed(1)} mL
             </p>
 
             <p
