@@ -8,7 +8,6 @@ import { collection, getDocs } from "firebase/firestore";
 import BackButton from "@/components/BackButton";
 
 export default function GlobalAvgRanking() {
-  const [period, setPeriod] = useState("today");
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
@@ -23,34 +22,21 @@ export default function GlobalAvgRanking() {
 
       const now = new Date();
 
-      // ★ 期間フィルタ（個人画面と同じ）
+      const japanMonth = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "numeric",
+      });
+      const getJstMonth = (date) => {
+        const parts = japanMonth.formatToParts(date);
+        const part = (type) => parts.find((item) => item.type === type).value;
+        return `${part("year")}-${part("month")}`;
+      };
+      const currentMonth = getJstMonth(now);
+
+      // ★ 日本時間で今月の記録だけを集計
       const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
-
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
-
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-
-        return true; // 累計
+        if (typeof item.date?.toDate !== "function") return false;
+        const date = item.date.toDate();
+        return Number.isFinite(date.getTime()) && getJstMonth(date) === currentMonth;
       });
 
       // ★ 個人ごとに集計
@@ -78,13 +64,16 @@ export default function GlobalAvgRanking() {
       // ★ staff コレクションから勤務日数を反映
       staffList.forEach(s => {
         if (totals[s.staffId]) {
-          totals[s.staffId].workDays = s.workDays || 0;
+          const workDays = Number(s.workDays);
+          totals[s.staffId].workDays = workDays;
           totals[s.staffId].avgMl =
-            s.workDays ? totals[s.staffId].totalMl / s.workDays : 0;
+            Number.isFinite(workDays) && workDays > 0
+              ? totals[s.staffId].totalMl / workDays
+              : 0;
         }
       });
 
-      // ★ 平均ランキング（勤務日数考慮）
+      // ★ 勤務日数考慮ランキング
       const sorted = Object.values(totals)
       .filter((item) => isRankingUsageVisible(item.avgMl))
       .sort(
@@ -95,18 +84,7 @@ export default function GlobalAvgRanking() {
     };
 
     load();
-  }, [period]);
-
-  const tabStyle = (active) => ({
-    flex: 1,
-    padding: "10px 0",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    background: active ? "#006b5f" : "#cfeeee",
-    color: active ? "#ffffff" : "#006b5f",
-    fontSize: "14px",
-  });
+  }, []);
 
   const cardStyle = {
   background: "#e8f6f6",
@@ -163,24 +141,21 @@ export default function GlobalAvgRanking() {
     color: "#006b5f",
   }}
 >
-  📊 勤務日数を考慮した<br />
-  平均使用量ランキング<br />
-  （mL/日）
+  📊 院内 勤務日数を考慮した<br />
+  使用量ランキング
 </h1>
 
 
 
-      {/* タブ */}
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
-        <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
-        <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
-        <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
-      </div>
+      <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8px" }}>今月</p>
+      <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
+        今月の使用量を、登録されている月の勤務日数で割った参考値です。
+        実際の1勤務あたり使用量を示すものではありません。
+      </p>
 
       {/* ランキングカード */}
       {ranking.length === 0 && (
-        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+        <p style={{ color: "#006b5f" }}>今月に使用量のある職員はいません</p>
       )}
 
       {ranking.map((s, i) => (
@@ -193,7 +168,7 @@ export default function GlobalAvgRanking() {
             </p>
             <p style={{ margin: 0 }}>勤務日数：{s.workDays} 日</p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              平均使用量：{s.avgMl.toFixed(1)} mL/日
+              勤務日数考慮：{s.avgMl.toFixed(1)} mL
             </p>
           </div>
         </div>
