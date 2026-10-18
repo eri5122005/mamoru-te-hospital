@@ -17,8 +17,20 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const japanDate = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit",
+    });
+    const getJstParts = (date) => {
+      const parts = japanDate.formatToParts(date);
+      const part = (type) => parts.find((item) => item.type === type).value;
+      return { year: part("year"), month: part("month"), day: part("day") };
+    };
+    const current = getJstParts(now);
+    const year = Number(current.year);
+    const month = Number(current.month);
+    // JST midnight is 15:00 UTC on the previous day. UTC arithmetic handles year rollover.
+    const monthStart = new Date(Date.UTC(year, month - 1, 1, -9));
+    const monthEnd = new Date(Date.UTC(year, month, 1, -9));
 
     const q = query(
       collection(db, "records"),
@@ -39,7 +51,8 @@ export default async function handler(req, res) {
       total += normalizeMl(data.ml);
 
       // ★ 記録日（YYYY-MM-DD）をセットに追加
-      const dayStr = data.date.toDate().toISOString().split("T")[0];
+      const parts = getJstParts(data.date.toDate());
+      const dayStr = `${parts.year}-${parts.month}-${parts.day}`;
       recordDays.add(dayStr);
     });
 

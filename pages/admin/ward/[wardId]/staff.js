@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
+import { getMonthlyInputStatus } from "@/utils/getMypageMonthSummary";
 import BackButton from "@/components/BackButton";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -58,20 +59,15 @@ export default function StaffList() {
         const monthData = await monthRes.json();
 
         const recordDayCount = monthData.recordDayCount ?? 0;
-const workDayCount = s.workDays ?? 0;
-
-const inputRate =
-  workDayCount > 0
-    ? Math.round((recordDayCount / workDayCount) * 100)
-    : 0;
+const inputStatus = getMonthlyInputStatus(recordDayCount, s.workDays);
 
 return {
   ...s,
   todayTotal: todayData.total,
   monthTotal: monthData.total,
-  inputRate,          // 入力率（勤務日数ベース）
+  inputRate: inputStatus.rate, // 入力率（登録月間勤務日数ベース、最大100%）
   recordDayCount,     // ★ 表示に必要
-  workDays: workDayCount, // ★ 表示に必要
+  workDays: inputStatus.workDays, // 正規化済み勤務日数。不正・未設定はnull
 };
 
       })
@@ -186,7 +182,15 @@ return {
                 gap: "6px",
               }}
             >
-              ✨ 入力率：{s.inputRate ?? 0}%（{s.recordDayCount ?? 0}日 / {s.workDays ?? 0}日）
+              <span>
+                ✨ 入力率：{s.inputRate === null ? "—" : `${s.inputRate}%`}
+                （{s.recordDayCount ?? 0}日{s.workDays === null ? "" : ` / ${s.workDays}日`}）
+                {s.workDays === null && (
+                  <span style={{ display: "block", fontSize: "12px", marginTop: "4px" }}>
+                    基本月間勤務日数が未設定、または正しく設定されていないため、入力率を表示できません。
+                  </span>
+                )}
+              </span>
             </div>
           </div>
         ))}
