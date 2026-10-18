@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { withNursingDepartment } from "@/utils/withNursingDepartment";
 import { getWorkDays } from "@/utils/getWorkDays";
 
@@ -32,7 +34,7 @@ export default function StaffManagePage() {
   const loadStaff = async () => {
     try {
       const snapshot = await getDocs(collection(db, "staff"));
-      const list = snapshot.docs.map((d) => d.data());
+      const list = snapshot.docs.map((d) => d.data()).filter(isActiveStaff);
       setStaffList(list);
     } catch (error) {
       console.error("Firestore エラー:", error);

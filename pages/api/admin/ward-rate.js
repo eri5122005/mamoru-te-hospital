@@ -1,3 +1,4 @@
+import { isActiveStaff } from "@/utils/isActiveStaff";
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
@@ -18,14 +19,7 @@ export default async function handler(req, res) {
 
     // スタッフ一覧
     const staffSnap = await getDocs(collection(db, "staff"));
-    const staffList = staffSnap.docs.map(doc => doc.data());
-
-    const wardStaffCount = {};
-    staffList.forEach(s => {
-      const ward = s.wardId;
-      if (!wardStaffCount[ward]) wardStaffCount[ward] = 0;
-      wardStaffCount[ward]++;
-    });
+    const staffList = staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff);
 
     // 今日の開始・終了
     const now = new Date();
@@ -43,18 +37,24 @@ export default async function handler(req, res) {
 
     const records = recordSnap.docs.map(doc => doc.data());
 
-    const wardUsedCount = {};
+    const wardActiveIds = {};
+    staffList.forEach(s => {
+      const ward = s.wardId;
+      if (!wardActiveIds[ward]) wardActiveIds[ward] = new Set();
+      wardActiveIds[ward].add(s.staffId);
+    });
+    const wardEnteredIds = {};
     records.forEach(r => {
       const ward = r.wardId;
-      if (!ward) return;
-      if (!wardUsedCount[ward]) wardUsedCount[ward] = 0;
-      wardUsedCount[ward]++;
+      if (!wardActiveIds[ward]?.has(r.staffId)) return;
+      if (!wardEnteredIds[ward]) wardEnteredIds[ward] = new Set();
+      wardEnteredIds[ward].add(r.staffId);
     });
 
     // 入力率計算
-    const wardRate = Object.keys(wardStaffCount).map(ward => {
-      const total = wardStaffCount[ward];
-      const used = wardUsedCount[ward] || 0;
+    const wardRate = Object.keys(wardActiveIds).map(ward => {
+      const total = wardActiveIds[ward].size;
+      const used = wardEnteredIds[ward]?.size || 0;
       const rate = total === 0 ? 0 : Math.round((used / total) * 100);
 
       return {

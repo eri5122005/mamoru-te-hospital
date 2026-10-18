@@ -1,3 +1,4 @@
+import { isActiveStaff } from "@/utils/isActiveStaff";
 import { db } from "../../../firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -25,11 +26,12 @@ export default async function handler(req, res) {
       enteredStaffIds.add(doc.data().staffId);
     });
 
-    const enteredCount = enteredStaffIds.size;
-
-    // 全スタッフ数
     const staffSnap = await getDocs(collection(db, "staff"));
-    const totalStaff = staffSnap.size;
+    const activeIds = new Set(
+      staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff).map(s => s.staffId)
+    );
+    const enteredCount = [...activeIds].filter(id => enteredStaffIds.has(id)).length;
+    const totalStaff = activeIds.size;
 
     const rate =
       totalStaff === 0 ? 0 : Math.round((enteredCount / totalStaff) * 100);

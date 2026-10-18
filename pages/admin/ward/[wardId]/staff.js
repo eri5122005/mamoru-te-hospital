@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -45,7 +47,7 @@ export default function StaffList() {
     staffId: d.id,   // ★ 本物の staffId を使う
     ...d.data(),
   }))
-  .filter((s) => s.wardId === wardId && s.isActive);
+  .filter((s) => s.wardId === wardId && isActiveStaff(s));
 
     // ★ ここで今日・今月の使用量を追加する
     const staffWithUsage = await Promise.all(

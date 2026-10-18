@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { useSearchParams } from "next/navigation";   // ★ 追加
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -43,7 +45,7 @@ export default function UnrecordedList() {
       const staffSnap = await getDocs(collection(db, "staff"));
       const staff = staffSnap.docs
         .map((d) => d.data())
-        .filter((s) => s.wardId === wardId && s.isActive);
+        .filter((s) => s.wardId === wardId && isActiveStaff(s));
 
       const recSnap = await getDocs(collection(db, "records"));
       const records = recSnap.docs.map((d) => d.data());

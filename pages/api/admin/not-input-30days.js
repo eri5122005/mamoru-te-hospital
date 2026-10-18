@@ -1,3 +1,4 @@
+import { isActiveStaff } from "@/utils/isActiveStaff";
 import { db } from "../../../firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -5,7 +6,7 @@ export default async function handler(req, res) {
   try {
     // スタッフ一覧
     const staffSnap = await getDocs(collection(db, "staff"));
-    const staffList = staffSnap.docs.map(doc => doc.data());
+    const staffList = staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff);
 
     // 今日の日付
     const today = new Date();
@@ -33,7 +34,9 @@ export default async function handler(req, res) {
     );
 
     // 30日以上未入力者を抽出
-    const notInput = staffList.filter(s => !usedSet.has(s.staffId));
+    const activeIds = new Set(staffList.map(s => s.staffId));
+    const enteredIds = new Set([...activeIds].filter(id => usedSet.has(id)));
+    const notInput = staffList.filter(s => !enteredIds.has(s.staffId));
 
     return res.status(200).json(notInput);
 

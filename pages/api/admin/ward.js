@@ -1,3 +1,4 @@
+import { isActiveStaff } from "@/utils/isActiveStaff";
 import { db } from "../../../firebaseConfig";
 
 import {
@@ -59,11 +60,13 @@ export default async function handler(req, res) {
       staffList.some((s) => s.staffId === r.staffId)
     );
 
-    // ⑤ 未入力者
-    const recordedStaffIds = wardRecords.map((r) => r.staffId);
-    const notEntered = staffList.filter(
-      (s) => !recordedStaffIds.includes(s.staffId)
+    // 現役の入力状況と、退職者を含む部署実績は分けて集計する。
+    const activeStaff = staffList.filter(isActiveStaff);
+    const activeIds = new Set(activeStaff.map(s => s.staffId));
+    const enteredIds = new Set(
+      wardRecords.filter(r => activeIds.has(r.staffId)).map(r => r.staffId)
     );
+    const notEntered = activeStaff.filter(s => !enteredIds.has(s.staffId));
 
     // ⑥ 病棟の合計使用量（★ normalizeMl に変更）
     const totalMl = wardRecords.reduce(
@@ -72,7 +75,9 @@ export default async function handler(req, res) {
     );
 
     return res.status(200).json({
-      staff: staffList,
+      staff: activeStaff,
+      enteredCount: enteredIds.size,
+      activeCount: activeIds.size,
       records: wardRecords,
       notEntered,
       totalMl,

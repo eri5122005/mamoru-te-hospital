@@ -42,8 +42,8 @@ export default function WardRatePage() {
   };
 
   // ★ 今日の入力率（クラウド版）
-  const totalStaff = data.staff.length;
-  const todayCount = data.records.length;
+  const totalStaff = data.activeCount;
+  const todayCount = data.enteredCount;
   const todayRate =
     totalStaff === 0 ? 0 : Math.round((todayCount / totalStaff) * 100);
 
