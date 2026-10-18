@@ -1,5 +1,6 @@
 "use client";
 
+import { getRecordDate } from "@/utils/getRecordDate";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useEffect, useState } from "react";
@@ -23,34 +24,30 @@ export default function GlobalRanking() {
 
       const now = new Date();
 
-      // ★ 期間フィルタ（個人画面と同じ）
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric",
+      }).formatToParts(now);
+      const part = (type) => Number(parts.find((item) => item.type === type).value);
+      const year = part("year");
+      const month = part("month");
+      const day = part("day");
+      let start, end;
+      if (period === "today") {
+        start = new Date(Date.UTC(year, month - 1, day, -9));
+        end = new Date(Date.UTC(year, month - 1, day + 1, -9));
+      } else if (period === "month") {
+        start = new Date(Date.UTC(year, month - 1, 1, -9));
+        end = new Date(Date.UTC(year, month, 1, -9));
+      } else if (period === "year") {
+        start = new Date(Date.UTC(year, 0, 1, -9));
+        end = new Date(Date.UTC(year + 1, 0, 1, -9));
+      }
+
+      // ★ JSTの開始以上・終了未満。累計は日付による除外をしない。
       const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
-
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
-
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-
-        return true; // 累計
+        if (period === "all") return true;
+        const date = getRecordDate(item.date);
+        return date !== null && date >= start && date < end;
       });
 
       // ★ 個人ごとに集計
@@ -66,8 +63,6 @@ export default function GlobalRanking() {
             name,
             totalMl: 0,
             count: 0,
-            workDays: 0,
-            avgMl: 0,
           };
         }
 
@@ -75,13 +70,10 @@ export default function GlobalRanking() {
         totals[id].count += 1;
       });
 
-      // ★ 勤務日数を staff コレクションから反映
+      // ★ 部署名を staff コレクションから反映
       staffList.forEach(s => {
         if (totals[s.staffId]) {
           totals[s.staffId].department = s.department;
-          totals[s.staffId].workDays = s.workDays || 0;
-          totals[s.staffId].avgMl =
-            s.workDays ? totals[s.staffId].totalMl / s.workDays : 0;
         }
       });
 
@@ -210,9 +202,6 @@ const iconBoxStyle = {
   {item.totalMl.toFixed(1)} mL
 </div>
 
-<div style={{ fontSize: "20px", fontWeight: "600", color: "#008b75" }}>
-  （平均 {item.avgMl.toFixed(1)} mL）
-</div>
 
         </div>
       </div>
