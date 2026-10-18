@@ -48,7 +48,13 @@ const [firstName, setFirstName] = useState("");
 }, [router.isReady]);
   
   const handleRegister = async () => {
-  if (!lastName || !firstName || !department || !workDays) return;
+  if (!lastName || !firstName || !department) return;
+
+  const workDayCount = Number(workDays);
+  if (!Number.isInteger(workDayCount) || workDayCount <= 0) {
+    alert("勤務日数は1以上の整数で入力してください。");
+    return;
+  }
 
   const formattedName =
     `${lastName.trim()} ${firstName.trim()}`;
@@ -73,7 +79,7 @@ const [firstName, setFirstName] = useState("");
       name: formattedName,
       department,
       wardId,
-      workDays,
+      workDays: workDayCount,
       role: "staff",
       isActive: true,
       mode: "weight",
