@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { normalizeStaffId } from "../../utils/normalizeStaffId";
+import { isActiveStaff } from "../../utils/isActiveStaff";
 
 export default function Login() {
   const router = useRouter();
@@ -105,6 +106,10 @@ try {
   }
 
   const staffData = staffSnap.data();
+  if (!isActiveStaff(staffData)) {
+    alert("この職員番号は現在利用できません。管理者に確認してください。");
+    return;
+  }
 
   // ★ Firestore の最新情報から currentStaff を作成
   const current = {

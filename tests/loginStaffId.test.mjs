@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
+import { isActiveStaff } from '../utils/isActiveStaff.js';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const page = read('pages/login/index.js');
@@ -13,14 +14,16 @@ function mocks(exists = true, data = {}) {
   const reads = [];
   const stored = new Map();
   const routes = [];
+  const alerts = [];
   const context = {
-    normalizeStaffId, db: {}, console: { error() {} },
+    normalizeStaffId, isActiveStaff, db: {}, console: { error() {} },
+    alert: message => alerts.push(message),
     doc: (_, collection, id) => { reads.push([collection, id]); return id; },
     getDoc: async () => ({ exists: () => exists, data: () => data }),
     localStorage: { setItem: (key, value) => stored.set(key, JSON.parse(value)) },
     router: { replace: (url) => routes.push(url) },
   };
-  return { context, reads, stored, routes };
+  return { context, reads, stored, routes, alerts };
 }
 
 async function login(staffId, exists = true, data = {}) {
@@ -68,8 +71,8 @@ test('existing first-weight route remains available', async () => {
   assert.deepEqual(routes, ['/first-weight']);
 });
 
-async function api(body, exists = true, method = 'POST') {
-  const result = mocks(exists, { staffId: 'stored-ID', name: 'Staff' });
+async function api(body, exists = true, method = 'POST', data = {}) {
+  const result = mocks(exists, { staffId: 'stored-ID', name: 'Staff', ...data });
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await vm.runInNewContext(`${apiSource}\nhandler(req, res)`, { ...result.context, req: { method, body }, res });
   return { ...result, res };
@@ -99,4 +102,53 @@ test('API handles missing body, method and unknown staff', async () => {
   assert.equal(missing.res.code, 200);
   assert.equal(missing.res.body.firstLogin, true);
   assert.deepEqual(missing.reads, [['staff', '9815']]);
+});
+
+for (const data of [{ isActive: true }, {}, { isActive: null }, { isActive: 0 }, { isActive: 'false' }]) {
+  test(`page and API allow legacy active status ${JSON.stringify(data)}`, async () => {
+    const run = await login('０１３７', true, data);
+    assert.deepEqual(run.routes, ['/record']);
+    assert.equal(run.stored.get('currentStaff').staffId, '0137');
+    assert.equal(run.alerts.length, 0);
+    const { res } = await api({ staffId: '０１３７' }, true, 'POST', data);
+    assert.equal(res.code, 200);
+    assert.equal(res.body.firstLogin, false);
+  });
+}
+for (const input of ['9815', ' ９８１５ ', '０１３７']) {
+  for (const lastWeight of [100, null]) {
+    test(`retired ${input}, weight ${lastWeight}: no successful storage or navigation`, async () => {
+      const run = await login(input, true, { isActive: false, lastWeight });
+      assert.deepEqual(run.reads, [['staff', normalizeStaffId(input)]]);
+      assert.equal(run.stored.size, 0);
+      assert.deepEqual(run.routes, []);
+      assert.deepEqual(run.alerts, ['この職員番号は現在利用できません。管理者に確認してください。']);
+      const { reads, res } = await api({ staffId: input }, true, 'POST', { isActive: false });
+      assert.deepEqual(reads, [['staff', normalizeStaffId(input)]]);
+      assert.equal(res.code, 403);
+      assert.equal(Object.hasOwn(res.body, 'staff'), false);
+      assert.equal(Object.hasOwn(res.body, 'firstLogin'), false);
+      assert.match(res.body.error, /現在利用できません/);
+    });
+  }
+}
+test('retired rejection does not overwrite or clear existing localStorage', async () => {
+  for (const previousId of ['9815', 'other-active-user']) {
+    const run = mocks(true, { isActive: false });
+    run.stored.set('currentStaff', { staffId: previousId });
+    run.stored.set('unrelated-setting', { value: 1 });
+    const before = JSON.stringify([...run.stored]);
+    await vm.runInNewContext(`${loginSource}\nhandleLogin()`, { ...run.context, staffId: '９８１５' });
+    assert.equal(JSON.stringify([...run.stored]), before);
+    assert.equal(run.alerts.length, 1);
+    assert.deepEqual(run.routes, []);
+  }
+});
+test('special admin branches do not read or inspect general staff status', async () => {
+  for (const [input, route] of [['９９９９', '/admin'], ['２６００', '/admin/ward/6f']]) {
+    const run = await login(input, true, { isActive: false });
+    assert.equal(run.reads.length, 0);
+    assert.equal(run.alerts.length, 0);
+    assert.deepEqual(run.routes, [route]);
+  }
 });

@@ -1,6 +1,7 @@
 import { db } from "../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { normalizeStaffId } from "../../utils/normalizeStaffId";
+import { isActiveStaff } from "../../utils/isActiveStaff";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -25,9 +26,16 @@ export default async function handler(req, res) {
       return res.status(200).json({ firstLogin: true });
     }
 
+    const staffData = staffSnap.data();
+    if (!isActiveStaff(staffData)) {
+      return res.status(403).json({
+        error: "この職員番号は現在利用できません。管理者に確認してください。",
+      });
+    }
+
     return res.status(200).json({
       firstLogin: false,
-      staff: staffSnap.data(),
+      staff: staffData,
     });
 
   } catch (error) {
