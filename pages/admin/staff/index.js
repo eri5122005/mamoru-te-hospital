@@ -156,9 +156,14 @@ export default function StaffManagePage() {
                   cursor: "pointer",
                 }}
               >
-                <span>
-                  {s.name}（ID: {s.staffId}）／勤務日数: {workDays === null ? "未設定" : `${workDays}日`}
-                </span>
+                <div style={{ minWidth: 0, width: "100%", lineHeight: 1.6 }}>
+                  <div style={{ overflowWrap: "break-word" }}>
+                    {s.name}（ID: {s.staffId}）
+                  </div>
+                  <div style={{ marginTop: "4px" }}>
+                    勤務日数: {workDays === null ? "未設定" : `${workDays}日`}
+                  </div>
+                </div>
               </div>
               );
             })}
