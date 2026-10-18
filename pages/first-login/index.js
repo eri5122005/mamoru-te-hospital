@@ -215,37 +215,53 @@ const [firstName, setFirstName] = useState("");
             <option value="看護部">看護部</option>
           </select>
 
-          <label style={{ color: "#006b5f", fontSize: "14px" }}>
+          <label htmlFor="workDays" style={{ color: "#006b5f", fontSize: "14px" }}>
             月の勤務日数
           </label>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <p id="workDays-help" style={{ margin: "8px 0 12px", color: "#526763", fontSize: "14px", lineHeight: 1.6 }}>
+            1か月の勤務日数を入力してください
+          </p>
+          <button
+            type="button"
+            onClick={() => setWorkDays(20)}
+            style={{
+              width: "100%",
+              minHeight: "48px",
+              padding: "12px 16px",
+              background: "#DFF7F2",
+              color: "#006b5f",
+              border: "2px solid #83c9bb",
+              borderRadius: "10px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            20日を入力
+          </button>
+          <p style={{ margin: "8px 0 16px", textAlign: "center", color: "#526763", fontSize: "14px", lineHeight: 1.6 }}>
+            月20日勤務の方はこちら
+          </p>
+          <p style={{ margin: "0 0 8px", textAlign: "center", color: "#526763", fontSize: "14px" }}>または</p>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <input
+              id="workDays"
+              aria-describedby="workDays-help"
               type="number"
               value={workDays}
               onChange={(e) => setWorkDays(e.target.value)}
               placeholder="勤務日数"
               style={{
                 ...inputStyle,
+                boxSizing: "border-box",
                 width: "120px",
+                maxWidth: "100%",
+                minWidth: 0,
+                marginTop: 0,
                 marginBottom: 0,
               }}
             />
-
-            <button
-              onClick={() => setWorkDays(20)}
-              style={{
-                background: "#DFF7F2",
-                color: "#006b5f",
-                border: "1px solid #cfeeee",
-                borderRadius: "20px",
-                padding: "6px 12px",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
-            >
-              常勤（20日）
-            </button>
+            <span style={{ color: "#006b5f", flexShrink: 0 }}>日</span>
           </div>
 
           <button
