@@ -150,7 +150,7 @@ export default function MyPage() {
           <>
             <p>🆔 職員番号：{user.staffId}</p>
             <p>🏥 病棟：{user.department}</p>
-            <p>📅 勤務日数：{user.workDays} 日</p>
+            <p>📅 勤務日数：{inputStatus.workDays === null ? "未設定" : `${inputStatus.workDays}日`}</p>
           </>
         }
       />
