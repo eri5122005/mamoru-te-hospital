@@ -1,6 +1,7 @@
 "use client";
 
 import { withNursingDepartment } from "@/utils/withNursingDepartment";
+import { getWorkDays } from "@/utils/getWorkDays";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -137,7 +138,9 @@ export default function StaffManagePage() {
               🏥 {wardName}
             </h2>
 
-            {grouped[wardId].map((s) => (
+            {grouped[wardId].map((s) => {
+              const workDays = getWorkDays(s.workDays);
+              return (
               <div
                 key={s.staffId}
                 onClick={() => setSelectedStaffId(s.staffId)}
@@ -154,10 +157,11 @@ export default function StaffManagePage() {
                 }}
               >
                 <span>
-                  {s.name}（ID: {s.staffId}）／勤務日数: {s.workDays}
+                  {s.name}（ID: {s.staffId}）／勤務日数: {workDays === null ? "未設定" : `${workDays}日`}
                 </span>
               </div>
-            ))}
+              );
+            })}
           </div>
         );
       })}
