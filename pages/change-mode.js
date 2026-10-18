@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { db } from "../firebaseConfig";
-
-import { doc, updateDoc } from "firebase/firestore";
+import { requestStaffWeightSettings } from "../utils/requestStaffWeightSettings";
 
 export default function ModeChangePage() {
   const router = useRouter();
@@ -13,6 +11,9 @@ export default function ModeChangePage() {
   const [newMode, setNewMode] = useState(null);
   const [weight, setWeight] = useState("");
   const [message, setMessage] = useState("");
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const data = JSON.parse(localStorage.getItem("currentStaff"));
@@ -30,56 +31,39 @@ export default function ModeChangePage() {
     setNewMode("weight");
   };
 
-  // ★ 重さ → cm に切り替える処理
-  const handleSwitchToCm = async () => {
+  const saveMode = async (mode) => {
+    if (submittingRef.current) return;
+    if (mode === "weight" && !weight) { setMessage("現在の重さを入力してください"); return; }
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    setMessage("");
+    let committed = false;
+    let navigating = false;
     try {
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        mode: "cm",
+      const saved = await requestStaffWeightSettings("/api/staff/change-mode", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: staff.staffId, mode, ...(mode === "weight" ? { weight } : {}) }),
       });
-
-      const updated = { ...staff, mode: "cm" };
+      committed = true;
+      const updated = { ...staff, ...saved };
       localStorage.setItem("currentStaff", JSON.stringify(updated));
       setStaff(updated);
-
-      setMessage("cm方式に切り替えました");
+      setMessage(mode === "cm" ? "cm方式に切り替えました" : "重さ方式に切り替えました");
       setTimeout(() => router.replace("/record"), 1500);
-    } catch (e) {
-      setMessage("切り替えに失敗しました");
+      navigating = true;
+    } catch (error) {
+      setMessage(committed
+        ? "設定は保存されましたが、端末内の処理に失敗しました。再登録せず、管理者に確認してください。"
+        : error.message || "保存結果を確認できませんでした。再登録せず、管理者に確認してください。");
+    } finally {
+      if (!navigating) {
+        submittingRef.current = false;
+        setIsSubmitting(false);
+      }
     }
   };
-
-  // ★ 重さ方式へ切り替える（重さ登録必須）
-  const handleRegisterWeight = async () => {
-    if (!weight) {
-      setMessage("現在の重さを入力してください");
-      return;
-    }
-
-    const now = Number(weight);
-
-    try {
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        mode: "weight",
-        lastWeight: now,
-        emptyWeight: 46,
-      });
-
-      const updated = {
-        ...staff,
-        mode: "weight",
-        lastWeight: now,
-        emptyWeight: 46,
-      };
-
-      localStorage.setItem("currentStaff", JSON.stringify(updated));
-      setStaff(updated);
-
-      setMessage("重さ方式に切り替えました");
-      setTimeout(() => router.replace("/record"), 1500);
-    } catch (e) {
-      setMessage("重さの登録に失敗しました");
-    }
-  };
+  const handleSwitchToCm = () => saveMode("cm");
+  const handleRegisterWeight = () => saveMode("weight");
 
   return (
     <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
@@ -92,6 +76,7 @@ export default function ModeChangePage() {
         <>
           <button
             onClick={handleSwitchToWeight}
+            disabled={isSubmitting}
             style={{
               width: "100%",
               padding: "14px",
@@ -135,6 +120,7 @@ export default function ModeChangePage() {
 
               <button
                 onClick={handleRegisterWeight}
+                disabled={isSubmitting}
                 style={{
                   width: "100%",
                   padding: "14px",
@@ -156,6 +142,7 @@ export default function ModeChangePage() {
       {staff.mode === "weight" && (
         <button
           onClick={handleSwitchToCm}
+          disabled={isSubmitting}
           style={{
             width: "100%",
             padding: "14px",

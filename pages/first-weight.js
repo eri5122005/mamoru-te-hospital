@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { db } from "../firebaseConfig";
-import { doc, updateDoc } from "firebase/firestore";
+import { normalizeStaffId } from "../utils/normalizeStaffId";
+import { requestStaffWeightSettings } from "../utils/requestStaffWeightSettings";
 
 const wardNameMap = {
     "nursing": "看護部",
@@ -25,27 +25,40 @@ export default function FirstWeightPage() {
   const [weight, setWeight] = useState("");
   const [message, setMessage] = useState("");
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
   useEffect(() => {
-    const data = JSON.parse(localStorage.getItem("currentStaff"));
-    if (!data) {
-      router.replace("/login");
-      return;
-    }
-
-    // ★ 誤判定ゼロの安全判定
-    const alreadyRegistered =
-      data.mode === "weight" &&
-      data.lastWeight !== null &&
-      data.lastWeight !== undefined &&
-      data.emptyWeight !== null &&
-      data.emptyWeight !== undefined;
-
-    if (alreadyRegistered) {
-      router.replace("/record");
-      return;
-    }
-
-    setStaff(data);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const data = JSON.parse(localStorage.getItem("currentStaff"));
+        if (!data) { router.replace("/login"); return; }
+        const id = normalizeStaffId(data.staffId);
+        const latest = await requestStaffWeightSettings(`/api/staff/first-weight?staffId=${encodeURIComponent(id)}`, { cache: "no-store" });
+        if (cancelled) return;
+        const current = {
+          ...data, ...latest,
+          mode: latest.mode ?? null,
+          lastWeight: latest.lastWeight ?? null,
+          emptyWeight: latest.emptyWeight ?? null,
+        };
+        const alreadyRegistered = current.mode === "weight" &&
+          current.lastWeight !== null && current.lastWeight !== undefined &&
+          current.emptyWeight !== null && current.emptyWeight !== undefined;
+        if (alreadyRegistered) {
+          localStorage.setItem("currentStaff", JSON.stringify(current));
+          localStorage.setItem(`staff-${current.staffId}`, JSON.stringify(current));
+          router.replace("/record");
+          return;
+        }
+        setStaff(current);
+      } catch (error) {
+        if (!cancelled) setMessage(error.message || "職員情報を確認できませんでした。管理者に確認してください。");
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [router]);
 
   const handleSelectWeight = () => {
@@ -53,43 +66,39 @@ export default function FirstWeightPage() {
   };
 
   const handleRegisterWeight = async () => {
-    if (!weight) {
-      setMessage("重さを入力してください");
-      return;
-    }
-
-    const now = Number(weight);
-
+    if (!staff || submittingRef.current) return;
+    if (!weight) { setMessage("重さを入力してください"); return; }
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    setMessage("");
+    let committed = false;
     try {
-      await updateDoc(doc(db, "staff", staff.staffId), {
-        mode: "weight",
-        lastWeight: now,
-        emptyWeight: 46,
+      const saved = await requestStaffWeightSettings("/api/staff/first-weight", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: staff.staffId, weight }),
       });
-
-      await updateDoc(doc(db, "staffs", staff.staffId), {
-        lastWeight: now,
-        emptyWeight: 46,
-        mode: "weight",
-      });
-
-      const updated = {
-        ...staff,
-        mode: "weight",
-        lastWeight: now,
-        emptyWeight: 46,
-      };
-
+      committed = true;
+      const updated = { ...staff, ...saved };
       localStorage.setItem("currentStaff", JSON.stringify(updated));
-      localStorage.setItem(`staff-${staff.staffId}`, JSON.stringify(updated));
-
+      localStorage.setItem(`staff-${saved.staffId}`, JSON.stringify(updated));
+      setStaff(updated);
       router.replace("/record");
-    } catch (e) {
-      setMessage("初期重さの登録に失敗しました");
+    } catch (error) {
+      setMessage(committed
+        ? "重量は保存されましたが、端末内の処理に失敗しました。再登録せず、管理者に確認してください。"
+        : error.message || "保存結果を確認できませんでした。再登録せず、管理者に確認してください。");
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
-  if (!staff) return <p>スタッフ情報を読み込んでいます…</p>;
+  if (!staff) return (
+    <div style={{ padding: "16px" }}>
+      <p role="alert">{message || "スタッフ情報を確認しています…"}</p>
+      {message && <button onClick={() => router.replace("/login")}>ログイン画面へ戻る</button>}
+    </div>
+  );
 
   return (
     <div
@@ -189,6 +198,7 @@ export default function FirstWeightPage() {
 
             <button
               onClick={handleRegisterWeight}
+              disabled={isSubmitting}
               style={{
                 width: "100%",
                 padding: "16px",
