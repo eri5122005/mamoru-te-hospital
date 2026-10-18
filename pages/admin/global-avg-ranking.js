@@ -9,6 +9,15 @@ import BackButton from "@/components/BackButton";
 
 export default function GlobalAvgRanking() {
   const [ranking, setRanking] = useState([]);
+  const [monthLabel, setMonthLabel] = useState("");
+
+  useEffect(() => {
+    const parts = new Intl.DateTimeFormat("ja-JP", {
+      timeZone: "Asia/Tokyo", year: "numeric", month: "numeric",
+    }).formatToParts(new Date());
+    const part = (type) => parts.find((item) => item.type === type).value;
+    setMonthLabel(`📅 ${part("year")}年${part("month")}月`);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -147,7 +156,11 @@ export default function GlobalAvgRanking() {
 
 
 
-      <p style={{ textAlign: "center", fontWeight: "bold", margin: "0 0 8px" }}>今月</p>
+      <div style={{ textAlign: "center", margin: "0 0 12px" }}>
+        <span style={{ display: "inline-block", background: "#e8f6f6", border: "1px solid #cfeeee", color: "#006b5f", borderRadius: "20px", padding: "6px 14px", fontSize: "15px", fontWeight: "bold" }}>
+          {monthLabel}
+        </span>
+      </div>
       <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
         今月の使用量を、登録されている月の勤務日数で割った参考値です。
         実際の1勤務あたり使用量を示すものではありません。
