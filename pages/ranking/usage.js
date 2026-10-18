@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useEffect, useState } from "react";
@@ -17,13 +19,20 @@ export default function UsageRanking() {
       const staff = JSON.parse(localStorage.getItem("currentStaff"));
       if (!staff) return;
 
+      const staffSnap = await getDocs(
+        query(collection(db, "staff"), where("wardId", "==", staff.wardId))
+      );
+      const activeIds = new Set(
+        staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff).map(s => s.staffId)
+      );
+
       const q = query(
         collection(db, "records"),
         where("wardId", "==", staff.wardId)
       );
 
       const snap = await getDocs(q);
-      const records = snap.docs.map(doc => doc.data());
+      const records = snap.docs.map(doc => doc.data()).filter(record => activeIds.has(record.staffId));
 
       const now = new Date();
 

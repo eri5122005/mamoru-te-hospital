@@ -1,3 +1,4 @@
+import { isActiveStaff } from "@/utils/isActiveStaff";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { db } from "../../../firebaseConfig";
@@ -18,9 +19,14 @@ export default async function handler(req, res) {
     where("date", "<=", end)
   );
 
+  const staffSnap = await getDocs(collection(db, "staff"));
+  const activeIds = new Set(
+    staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff).map(s => s.staffId)
+  );
+
   const snapshot = await getDocs(q);
 
-  const list = snapshot.docs.map(doc => ({
+  const list = snapshot.docs.filter(doc => activeIds.has(doc.data().staffId)).map(doc => ({
     name: doc.data().name,
     wardName: doc.data().wardName,
     amount: Number(doc.data().ml) || 0,

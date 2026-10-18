@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
@@ -44,7 +46,8 @@ export default function AvgRanking() {
       const staffSnap = await getDocs(
         query(collection(db, "staff"), where("wardId", "==", wardId))
       );
-      const staffList = staffSnap.docs.map(doc => doc.data());
+      const staffList = staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff);
+      const activeIds = new Set(staffList.map(s => String(s.staffId)));
       const staffMap = {};
       staffList.forEach(s => {
         if (s.staffId) {
@@ -76,6 +79,7 @@ export default function AvgRanking() {
       const map = {};
 
       filtered.forEach(item => {
+        if (!activeIds.has(String(item.staffId))) return;
         const staffId = item.staffId;
         if (!staffId) return;
 

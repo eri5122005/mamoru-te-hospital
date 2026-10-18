@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 import { getRecordDate } from "@/utils/getRecordDate";
@@ -58,7 +60,8 @@ export default function AvgRanking() {
       const staffSnap = await getDocs(
         query(collection(db, "staff"), where("wardId", "==", staff.wardId))
       );
-      const staffList = staffSnap.docs.map(doc => doc.data());
+      const staffList = staffSnap.docs.map(doc => doc.data()).filter(isActiveStaff);
+      const activeIds = new Set(staffList.map(s => String(s.staffId)));
 
       // ★ 使用量記録
       const recSnap = await getDocs(
@@ -87,6 +90,7 @@ export default function AvgRanking() {
       const totals = {};
 
       filtered.forEach(item => {
+        if (!activeIds.has(String(item.staffId))) return;
         const id = item.staffId;
         const name = item.name;
         const dept = item.department;

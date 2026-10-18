@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useSearchParams } from "next/navigation";   // ★ 追加
@@ -44,7 +46,7 @@ export default function WardStaffRanking() {
       const staffList = staffSnap.docs.map((d) => ({
         id: d.id,
         ...d.data(),
-      }));
+      })).filter(isActiveStaff);
 
       const recordSnap = await getDocs(
         query(collection(db, "records"), where("wardId", "==", wardId))

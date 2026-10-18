@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useEffect, useState } from "react";
@@ -31,7 +33,7 @@ export default function UsageTop5Page() {
 
       // 全スタッフ
       const staffSnap = await getDocs(collection(db, "staff"));
-      const staffList = staffSnap.docs.map((d) => d.data());
+      const staffList = staffSnap.docs.map((d) => d.data()).filter(isActiveStaff);
 
       // 全記録
       const recSnap = await getDocs(collection(db, "records"));

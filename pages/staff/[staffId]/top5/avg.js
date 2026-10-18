@@ -1,5 +1,7 @@
 "use client";
 
+import { isActiveStaff } from "@/utils/isActiveStaff";
+
 import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
@@ -24,7 +26,7 @@ export default function AvgTop5Page() {
 
       // 全スタッフ
       const staffSnap = await getDocs(collection(db, "staff"));
-      const staffList = staffSnap.docs.map((d) => d.data());
+      const staffList = staffSnap.docs.map((d) => d.data()).filter(isActiveStaff);
 
       // 全記録
       const recSnap = await getDocs(collection(db, "records"));

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { getWorkDays } from '../utils/getWorkDays.js';
+import { isActiveStaff } from '../utils/isActiveStaff.js';
 
 const valid = [[20, 20], ['20', 20], [' 20 ', 20], [1, 1], ['1', 1], [999, 999], ['999', 999]];
 const invalid = ['', '   ', '20日', 0, '0', undefined, null, [], [20], NaN, Infinity, -Infinity, 10.5, '10.5', -1, '-1', {}, true, false];
@@ -39,7 +40,7 @@ async function loadRanking(path, workDays) {
   class Clock extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-18T12:00:00+09:00'])); } static [Symbol.hasInstance](v) { return v instanceof Date; } }
   let ranking;
   const context = {
-    Date: Clock, getWorkDays, db: {}, wardId: "4f",
+    Date: Clock, getWorkDays, isActiveStaff, db: {}, wardId: "4f",
     localStorage: { getItem: () => JSON.stringify({ wardId: '4f' }) },
     collection: (_, name) => name, where: (field, op, value) => ({ field, op, value }),
     query: (collection, condition) => ({ collection, condition }),
