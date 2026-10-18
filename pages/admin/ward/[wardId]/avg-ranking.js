@@ -23,7 +23,7 @@ export default function AvgRanking() {
     ? `/admin/ward/${wardId}?from=admin`
     : `/admin/ward/${wardId}`;
 
-  const [period, setPeriod] = useState("today");
+  const [monthLabel, setMonthLabel] = useState("");
   const [ranking, setRanking] = useState([]);
 
   useEffect(() => {
@@ -53,33 +53,23 @@ export default function AvgRanking() {
 
       const now = new Date();
 
+      const japanMonth = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "numeric",
+      });
+      const getJstParts = (date) => {
+        const parts = japanMonth.formatToParts(date);
+        const part = (type) => parts.find((item) => item.type === type).value;
+        return { year: part("year"), month: part("month") };
+      };
+      const current = getJstParts(now);
+      setMonthLabel(`📅 ${current.year}年${current.month}月`);
+
       const filtered = records.filter(item => {
-        const t = item.date.toDate();
-        const jst =
-          t.getTimezoneOffset() === 0
-            ? new Date(t.getTime() + 9 * 60 * 60 * 1000)
-            : t;
-
-        if (period === "today") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth() &&
-            jst.getDate() === now.getDate()
-          );
-        }
-
-        if (period === "month") {
-          return (
-            jst.getFullYear() === now.getFullYear() &&
-            jst.getMonth() === now.getMonth()
-          );
-        }
-
-        if (period === "year") {
-          return jst.getFullYear() === now.getFullYear();
-        }
-
-        return true;
+        if (typeof item.date?.toDate !== "function") return false;
+        const date = item.date.toDate();
+        if (!Number.isFinite(date.getTime())) return false;
+        const recordMonth = getJstParts(date);
+        return recordMonth.year === current.year && recordMonth.month === current.month;
       });
 
       const map = {};
@@ -105,14 +95,14 @@ export default function AvgRanking() {
       const rankingData = Object.values(map)
         .map(s => {
           const staffInfo = staffMap[s.staffId] || {};
-          const workDays = staffInfo.workDays || 0;
+          const workDays = Number(staffInfo.workDays);
 
           return {
             staffId: s.staffId,
             name: s.name,
             department: s.department,
             workDays,
-            avgMl: workDays > 0 ? s.totalMl / workDays : 0,
+            avgMl: Number.isFinite(workDays) && workDays > 0 ? s.totalMl / workDays : 0,
           };
         })
         .filter((item) => isRankingUsageVisible(item.avgMl))
@@ -122,18 +112,7 @@ export default function AvgRanking() {
     };
 
     load();
-  }, [period, router.isReady, wardId]);
-
-  const tabStyle = (active) => ({
-    flex: 1,
-    padding: "10px 0",
-    borderRadius: "12px",
-    border: "none",
-    cursor: "pointer",
-    background: active ? "#006b5f" : "#cfeeee",
-    color: active ? "#ffffff" : "#006b5f",
-    fontSize: "14px",
-  });
+  }, [router.isReady, wardId]);
 
   const cardStyle = {
     background: "#e8f6f6",
@@ -186,22 +165,22 @@ export default function AvgRanking() {
           📈 勤務日数を考慮した
         </div>
         <div style={{ fontSize: "22px", fontWeight: "600", color: "#006b5f" }}>
-          平均使用量ランキング
-        </div>
-        <div style={{ fontSize: "18px", fontWeight: "500", color: "#008b75" }}>
-          （mL/日）
+          使用量ランキング
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-        <button style={tabStyle(period === "today")} onClick={() => setPeriod("today")}>今日</button>
-        <button style={tabStyle(period === "month")} onClick={() => setPeriod("month")}>今月</button>
-        <button style={tabStyle(period === "year")} onClick={() => setPeriod("year")}>今年</button>
-        <button style={tabStyle(period === "all")} onClick={() => setPeriod("all")}>累計</button>
+      <div style={{ textAlign: "center", margin: "0 0 12px" }}>
+        <span style={{ display: "inline-block", background: "#e8f6f6", border: "1px solid #cfeeee", color: "#006b5f", borderRadius: "20px", padding: "6px 14px", fontSize: "15px", fontWeight: "bold" }}>
+          {monthLabel}
+        </span>
       </div>
+      <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
+        今月の使用量を、登録されている月の勤務日数で割った参考値です。
+        実際の1勤務あたり使用量を示すものではありません。
+      </p>
 
       {ranking.length === 0 && (
-        <p style={{ color: "#006b5f" }}>対象期間に使用量のある職員はいません</p>
+        <p style={{ color: "#006b5f" }}>今月に使用量のある職員はいません</p>
       )}
 
       {ranking.map((s, i) => (
@@ -215,7 +194,7 @@ export default function AvgRanking() {
             </p>
             <p style={{ margin: 0 }}>勤務日数：{s.workDays} 日</p>
             <p style={{ margin: 0, color: "#008b75", fontWeight: "bold" }}>
-              平均使用量：{s.avgMl.toFixed(1)} mL/日
+              勤務日数考慮：{s.avgMl.toFixed(1)} mL
             </p>
           </div>
         </div>
