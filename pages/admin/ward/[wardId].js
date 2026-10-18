@@ -7,6 +7,7 @@ import BackButton from "@/components/BackButton";
 export default function WardAdminTop() {
   const router = useRouter();
   const { wardId, from } = router.query;
+  const fromQuery = from === "admin" ? "?from=admin" : "";
 
   const backTo = from === "admin" ? "/admin/ward" : "/login";
 
@@ -58,7 +59,7 @@ export default function WardAdminTop() {
       </h1>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <Link href={`/admin/ward/${wardId}/unrecorded?from=${from}`}>
+        <Link href={`/admin/ward/${wardId}/unrecorded${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>👤</span>
@@ -67,7 +68,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/${wardId}/staff?from=${from}`}>
+        <Link href={`/admin/ward/${wardId}/staff${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>👥</span>
@@ -76,7 +77,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/ranking/ward/${wardId}?from=${from}`}>
+        <Link href={`/ranking/ward/${wardId}${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>💧</span>
@@ -85,7 +86,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/${wardId}/avg-ranking?from=${from}`}>
+        <Link href={`/admin/ward/${wardId}/avg-ranking${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>📈</span>
@@ -94,7 +95,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/${wardId}/stats?from=${from}`}>
+        <Link href={`/admin/ward/${wardId}/stats${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>📊</span>
@@ -103,7 +104,7 @@ export default function WardAdminTop() {
           </div>
         </Link>
 
-        <Link href={`/admin/ward/compare?from=${from}`}>
+        <Link href={`/admin/ward/compare${fromQuery}`}>
           <div style={menuStyle}>
             <div style={innerRow}>
               <span style={{ fontSize: "28px" }}>✨</span>
