@@ -6,7 +6,8 @@ import NavBar from "../../components/NavBar";
 
 // ★ Firestore 追加
 import { db } from "../../firebaseConfig";
-import { setDoc, doc, getDoc } from "firebase/firestore";
+import { doc, runTransaction } from "firebase/firestore";
+import { normalizeStaffId } from "../../utils/normalizeStaffId";
 
 export default function FirstLogin() {
   const router = useRouter();
@@ -17,37 +18,19 @@ const [firstName, setFirstName] = useState("");
   const [department, setDepartment] = useState("");
   const [workDays, setWorkDays] = useState("");
 
-  // ★★★ useEffect（壊れていた部分を完全修復）★★★
   useEffect(() => {
-  if (!router.isReady) return;
+    if (!router.isReady) return;
+    const queryId = router.query.staffId;
+    setRealStaffId(typeof queryId === "string" ? normalizeStaffId(queryId) : "");
+  }, [router.isReady, router.query.staffId]);
 
-  const staffId = router.query.staffId;
-  if (!staffId) return;
-
-  setRealStaffId(staffId);
-
-  // ★ staff-XXXX が存在するかどうかで判定（最重要）
-  const localStaff = localStorage.getItem(`staff-${staffId}`);
-
-  if (localStaff) {
-    const parsed = JSON.parse(localStaff);
-
-    // ★ 初回登録済み（lastWeight あり）
-    if (parsed.lastWeight) {
-      router.replace("/record");
-      return;
-    }
-
-    // ★ 初回登録済みだが重さ未入力
-    router.replace("/first-weight");
+  const handleRegister = async () => {
+  const queryId = router.query.staffId;
+  if (!router.isReady || typeof queryId !== "string" || !realStaffId ||
+      normalizeStaffId(queryId) !== realStaffId) {
+    alert("職員番号を確認できません。ログイン画面からやり直してください。");
     return;
   }
-
-  // ★ staff-XXXX が無い → 初回登録が必要
-  // このまま first-login を表示
-}, [router.isReady]);
-  
-  const handleRegister = async () => {
   if (!lastName || !firstName || !department) return;
 
   const workDayCount = Number(workDays);
@@ -85,18 +68,40 @@ const [firstName, setFirstName] = useState("");
       mode: "weight",
     };
 
-    // ★ Firestore（既存の staff コレクション）
-    await setDoc(doc(db, "staff", realStaffId), staffData);
+    let result;
+    try {
+      result = await runTransaction(db, async (transaction) => {
+        const staffRef = doc(db, "staff", realStaffId);
+        const backupRef = doc(db, "staffs", realStaffId);
+        const staffSnap = await transaction.get(staffRef);
+        const backupSnap = await transaction.get(backupRef);
 
-    // ★ localStorage 保存（既存）
+        if (staffSnap.exists()) return "staff-exists";
+        if (backupSnap.exists()) return "backup-exists";
+
+        transaction.set(staffRef, staffData);
+        transaction.set(backupRef, { ...staffData, lastWeight: null });
+        return "created";
+      });
+    } catch (error) {
+      console.error("初回登録に失敗しました", error);
+      alert("登録結果を確認できませんでした。再登録せず、管理者に確認してください。");
+      return;
+    }
+
+    if (result === "staff-exists") {
+      alert("この職員番号は登録済みです。ログイン画面からログインしてください。");
+      router.replace("/login");
+      return;
+    }
+    if (result === "backup-exists") {
+      alert("登録済み情報が見つかりました。再登録せず、管理者に確認してください。");
+      return;
+    }
+
+    // トランザクション成功後にだけ端末へ保存する
     localStorage.setItem(`staff-${realStaffId}`, JSON.stringify(staffData));
     localStorage.setItem("currentStaff", JSON.stringify(staffData));
-
-    // ★★★ クラウドバックアップ（staffs コレクション）★★★
-    await setDoc(doc(db, "staffs", realStaffId), {
-      ...staffData,
-      lastWeight: null,
-    });
 
     // ★ 初期重さ入力画面へ
     router.replace("/first-weight");
