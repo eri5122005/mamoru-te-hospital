@@ -9,8 +9,6 @@ import {
 import NavBar from "../../components/NavBar";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
-import { db } from "../../firebaseConfig";
-import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
 
 // ★ 病棟ID → 表示名マップ
@@ -55,7 +53,7 @@ const clearMessageTimer = () => {
   clearTimeout(messageTimerRef.current);
   messageTimerRef.current = null;
 };
-const weightUpdateWarning = "次回計算用の重量がすでに更新されている可能性があります。\n入力をやり直したり、再登録したりせず、管理者に確認してください。";
+const weightUpdateWarning = "記録と次回計算用の重量の保存結果を確認できません。\n再登録せず、管理者に確認してください。";
 useEffect(() => () => clearTimeout(messageTimerRef.current), []);
 
 // ★ ボトル交換処理中のボタン無効化
@@ -84,6 +82,7 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   nowWeightValue,
   isBottleExchange = false
 ) => {
+    let savedRecord;
     try {
       const now = new Date();
 const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -116,8 +115,13 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
         } catch {
           // 空・HTML・不正JSONの応答でも共通の案内を表示する。
         }
-        setMessage(`記録を保存できませんでした。${detail}\n${weightUpdateWarning}`);
+        setMessage(detail ? `記録を保存できませんでした。${detail}` : `記録を保存できませんでした。\n${weightUpdateWarning}`);
         return false;
+      }
+      savedRecord = await response.json();
+      if (savedRecord?.ok !== true || typeof savedRecord.staffId !== "string" ||
+          !Number.isFinite(savedRecord.lastWeight) || !Number.isFinite(savedRecord.ml)) {
+        throw new Error("Invalid save response");
       }
     } catch (error) {
       setMessage(`保存結果を確認できませんでした。\n${weightUpdateWarning}`);
@@ -125,18 +129,22 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
     }
 
     try {
+    const updated = { ...staff, staffId: savedRecord.staffId, lastWeight: savedRecord.lastWeight };
+    setStaff(updated);
     if (typeof window !== "undefined") {
+  localStorage.setItem("currentStaff", JSON.stringify(updated));
+  localStorage.setItem(`staff-${savedRecord.staffId}`, JSON.stringify(updated));
   const history = JSON.parse(localStorage.getItem("history") || "[]");
 
   const now = new Date();
   const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
   history.push({
-    staffId: staff.staffId,
+    staffId: savedRecord.staffId,
     name: staff.name,
     department: wardNameMap[staff.wardId] || staff.department,
     wardId: staff.wardId,
-    ml: usedMl,
+    ml: savedRecord.ml,
     unit: "weight",
     weightNow: nowWeightValue,
 weightPrev: staff.lastWeight,
@@ -182,7 +190,7 @@ if (roll < 0.01) {
 }
 
 setMessage(
-  `記録しました：${nowWeightValue}g → ${usedMl}mL\n${randomMessage}`
+  `記録しました：${nowWeightValue}g → ${savedRecord.ml}mL\n${randomMessage}`
 );
 
     setWeightNow("");
@@ -256,33 +264,6 @@ const handleExchangeYes = async () => {
   if (usedMl < 0) usedMl = 0;
 
   usedMl = Number(usedMl.toFixed(2));
-
-  try {
-    await updateDoc(doc(db, "staff", staff.staffId), {
-      lastWeight: now,
-    });
-
-    await updateDoc(doc(db, "staffs", staff.staffId), {
-      lastWeight: now,
-    });
-
-    const updated = {
-      ...staff,
-      lastWeight: now,
-    };
-
-    localStorage.setItem(
-      "currentStaff",
-      JSON.stringify(updated)
-    );
-
-    setStaff(updated);
-
-  } catch (e) {
-    setMessage(`前回の重さ更新に失敗しました。\n${weightUpdateWarning}`);
-    setIsSubmitting(false);
-    return;
-  }
 
   const saved = await saveRecord(usedMl, now, true);
 
@@ -390,25 +371,6 @@ if (now > prev + 3) {
   if (usedMl < 0) usedMl = 0;          // マイナス補正
   if (usedMl < 0.01) usedMl = 0;       // 極小値補正
   usedMl = Number(usedMl.toFixed(2));  // 小数点第2位に統一
-
-  try {
-    await updateDoc(doc(db, "staff", staff.staffId), {
-      lastWeight: now,
-    });
-
-    const updated = { ...staff, lastWeight: now };
-
-localStorage.setItem("currentStaff", JSON.stringify(updated));
-localStorage.setItem(
-  `staff-${staff.staffId}`,
-  JSON.stringify(updated)
-);
-
-setStaff(updated);
-  } catch (e) {
-    setMessage(`前回の重さ更新に失敗しました。\n${weightUpdateWarning}`);
-    return;
-  }
 
   // ★ 二重登録防止（return を必ず入れる）
   const saved = await saveRecord(usedMl, now);

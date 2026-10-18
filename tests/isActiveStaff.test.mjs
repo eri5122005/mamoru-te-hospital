@@ -20,6 +20,7 @@ const staff = [
   { staffId: 'retired-missing', wardId: '6f', isActive: false },
   { staffId: 'other', wardId: '4f', isActive: true },
 ];
+const recordDate = new Date();
 const records = [
   { staffId: 'a', wardId: '6f', ml: 10 },
   { staffId: 'a', wardId: '6f', ml: 20 },
@@ -27,7 +28,7 @@ const records = [
   { staffId: 'retired', wardId: '6f', ml: 500 },
   { staffId: 'unknown', wardId: '6f', ml: 100 },
   { staffId: 'other', wardId: '4f', ml: 5 },
-].map(r => ({ ...r, date: { toDate: () => new Date() } }));
+].map(r => ({ ...r, date: { toDate: () => new Date(recordDate) } }));
 for (const item of [...staff, ...records]) Object.freeze(item);
 Object.freeze(staff);
 Object.freeze(records);

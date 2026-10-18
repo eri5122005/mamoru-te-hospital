@@ -1,7 +1,7 @@
 import { db } from "../../firebaseConfig";
 import {
   collection,
-  addDoc,
+  runTransaction,
   doc,
   getDoc,
   getDocs,
@@ -9,118 +9,76 @@ import {
   Timestamp,
 } from "firebase/firestore";
 
+import { normalizeStaffId } from "../../utils/normalizeStaffId";
+import { isActiveStaff } from "../../utils/isActiveStaff";
+import { calculateWeightUsage } from "../../utils/calculateWeightUsage";
+
 export default async function handler(req, res) {
   // ==============================
   // 新しい記録を保存
   // ==============================
   if (req.method === "POST") {
-    const {
-      staffId,
-      name,
-      department,
-      wardId,
-      amount,
-      unit,
-      ml,
-      mintPoint,
-      weightNow,
-      weightPrev,
-      isBottleExchange,
-    } = req.body;
-
-    const mlNumber = Number(ml);
-
-    // 使用量として保存できない値を防止
-    if (!Number.isFinite(mlNumber) || mlNumber < 0) {
-      return res.status(400).json({
-        error: "使用量の値が正しくありません",
-      });
+    const body = req.body ?? {};
+    if (typeof body.staffId !== "string") {
+      return res.status(400).json({ error: "職員番号が正しくありません" });
     }
-
-    // 重量が送られてきた場合だけチェックする
-    const nowWeight =
-      weightNow === undefined || weightNow === null
-        ? null
-        : Number(weightNow);
-
-    const prevWeight =
-      weightPrev === undefined || weightPrev === null
-        ? null
-        : Number(weightPrev);
-
-    if (
-      nowWeight !== null &&
-      (!Number.isFinite(nowWeight) ||
-        nowWeight <= 45 ||
-        nowWeight > 263)
-    ) {
-      return res.status(400).json({
-        error: "今回の重量が正しくありません",
-      });
+    const staffId = normalizeStaffId(body.staffId);
+    if (!staffId || staffId.includes("/") || staffId === "." || staffId === "..") {
+      return res.status(400).json({ error: "職員番号が正しくありません" });
     }
-
-    if (
-      prevWeight !== null &&
-      (!Number.isFinite(prevWeight) ||
-        prevWeight < 45 ||
-        prevWeight > 263)
-    ) {
-      return res.status(400).json({
-        error: "前回の重量が正しくありません",
-      });
+    const parseWeight = value =>
+      (typeof value === "number" || (typeof value === "string" && value.trim()))
+        ? Number(value) : NaN;
+    const nowWeight = parseWeight(body.weightNow);
+    const prevWeight = parseWeight(body.weightPrev);
+    const exchange = body.isBottleExchange ?? false;
+    if (!Number.isFinite(nowWeight) || nowWeight <= 45 || nowWeight > 263 ||
+        !Number.isFinite(prevWeight) || prevWeight < 45 || prevWeight > 263 ||
+        typeof exchange !== "boolean") {
+      return res.status(400).json({ error: "今回または前回の重量が正しくありません。管理者に確認してください。" });
     }
 
     try {
-      const recordData = {
-        staffId: staffId ?? "",
-        name: name ?? "",
-        department: department ?? "",
-        wardId: wardId ?? "",
-        unit: unit ?? "weight",
-        ml: mlNumber,
-        mintPoint: Number(mintPoint ?? 0),
-        date: Timestamp.now(),
-      };
-
-      // 古い形式との互換性のため、
-      // amount が正常な数値として送られた場合だけ保存
-      if (
-        amount !== undefined &&
-        amount !== null &&
-        amount !== "" &&
-        Number.isFinite(Number(amount))
-      ) {
-        recordData.amount = Number(amount);
-      }
-
-      // 重量記録の場合は、計算の根拠も保存する
-      if (nowWeight !== null) {
-        recordData.weightNow = nowWeight;
-      }
-
-      if (prevWeight !== null) {
-        recordData.weightPrev = prevWeight;
-      }
-
-      if (typeof isBottleExchange === "boolean") {
-        recordData.isBottleExchange = isBottleExchange;
-      }
-
-      const docRef = await addDoc(
-        collection(db, "records"),
-        recordData
-      );
-
-      return res.status(200).json({
-        ok: true,
-        recordId: docRef.id,
+      const recordRef = doc(collection(db, "records"));
+      const result = await runTransaction(db, async transaction => {
+        const staffRef = doc(db, "staff", staffId);
+        const staffSnap = await transaction.get(staffRef);
+        if (!staffSnap.exists()) return { status: 404, error: "職員情報が見つかりません。管理者に確認してください。" };
+        const staff = staffSnap.data();
+        if (!isActiveStaff(staff)) return { status: 403, error: "この職員番号は現在利用できません。管理者に確認してください。" };
+        const dbWeight = parseWeight(staff.lastWeight);
+        if (!Number.isFinite(dbWeight) || dbWeight < 45 || dbWeight > 263 || dbWeight !== prevWeight) {
+          return { status: 409, error: "前回の重量が更新されているか、正しく設定されていません。再登録せず、管理者に確認してください。" };
+        }
+        const backupRef = doc(db, "staffs", staffId);
+        const backup = exchange ? await transaction.get(backupRef) : null;
+        const ml = calculateWeightUsage(prevWeight, nowWeight, exchange);
+        const recordData = {
+          staffId,
+          name: body.name ?? "",
+          department: body.department ?? "",
+          wardId: body.wardId ?? "",
+          unit: body.unit ?? "weight",
+          ml,
+          mintPoint: Number(body.mintPoint ?? 0),
+          date: Timestamp.now(),
+          weightNow: nowWeight,
+          weightPrev: prevWeight,
+          isBottleExchange: exchange,
+        };
+        if (body.amount !== undefined && body.amount !== null && body.amount !== "" && Number.isFinite(Number(body.amount))) {
+          recordData.amount = Number(body.amount);
+        }
+        transaction.set(recordRef, recordData);
+        transaction.update(staffRef, { lastWeight: nowWeight });
+        if (backup?.exists()) transaction.update(backupRef, { lastWeight: nowWeight });
+        return { status: 200, ml };
       });
+      if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+      return res.status(200).json({ ok: true, recordId: recordRef.id, staffId, lastWeight: nowWeight, ml: result.ml });
     } catch (error) {
       console.error("記録保存エラー:", error);
-
-      return res.status(500).json({
-        error: "記録の保存に失敗しました",
-      });
+      return res.status(500).json({ error: "記録の保存結果を確認できませんでした。再登録せず、管理者に確認してください。" });
     }
   }
 
