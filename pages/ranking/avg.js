@@ -12,6 +12,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 export default function AvgRanking() {
   const router = useRouter();
   const [ranking, setRanking] = useState([]);
+  const [monthLabel, setMonthLabel] = useState("");
 
   // ★ ランキングカードのデザイン（あなたのまま）
   const cardStyle = {
@@ -72,6 +73,7 @@ export default function AvgRanking() {
       const part = (type) => Number(parts.find((item) => item.type === type).value);
       const year = part("year");
       const month = part("month");
+      setMonthLabel(`📅 ${year}年${month}月`);
       const monthStart = new Date(Date.UTC(year, month - 1, 1, -9));
       const monthEnd = new Date(Date.UTC(year, month, 1, -9));
 
@@ -172,7 +174,11 @@ export default function AvgRanking() {
   </span>
 </h1>
 
-      <p style={{ textAlign: "center", fontWeight: "bold", margin: "12px 0 8px" }}>今月</p>
+      <div style={{ textAlign: "center", margin: "0 0 12px" }}>
+        <span style={{ display: "inline-block", background: "#e8f6f6", border: "1px solid #cfeeee", color: "#006b5f", borderRadius: "20px", padding: "6px 14px", fontSize: "15px", fontWeight: "bold" }}>
+          {monthLabel}
+        </span>
+      </div>
       <p style={{ fontSize: "13px", lineHeight: 1.7, margin: "0 0 20px" }}>
         今月の使用量を、登録されている月の勤務日数で割った参考値です。
         実際の1勤務あたり使用量を示すものではありません。
