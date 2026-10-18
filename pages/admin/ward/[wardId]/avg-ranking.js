@@ -1,5 +1,6 @@
 "use client";
 
+import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useSearchParams } from "next/navigation";
@@ -95,14 +96,14 @@ export default function AvgRanking() {
       const rankingData = Object.values(map)
         .map(s => {
           const staffInfo = staffMap[s.staffId] || {};
-          const workDays = Number(staffInfo.workDays);
+          const workDays = getWorkDays(staffInfo.workDays);
 
           return {
             staffId: s.staffId,
             name: s.name,
             department: s.department,
             workDays,
-            avgMl: Number.isFinite(workDays) && workDays > 0 ? s.totalMl / workDays : 0,
+            avgMl: workDays !== null ? s.totalMl / workDays : 0,
           };
         })
         .filter((item) => isRankingUsageVisible(item.avgMl))

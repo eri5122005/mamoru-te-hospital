@@ -1,4 +1,5 @@
 import { getRecordDate } from "./getRecordDate";
+import { getWorkDays } from "./getWorkDays";
 
 const japanDate = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Tokyo", year: "numeric", month: "numeric", day: "numeric",
@@ -30,9 +31,8 @@ export function getMypageUsageTrend(records, now = new Date()) {
 }
 
 export function getMonthlyInputStatus(recordedDays, workDays) {
-  const value = typeof workDays === "number" ||
-    (typeof workDays === "string" && workDays.trim()) ? Number(workDays) : NaN;
-  if (!Number.isInteger(value) || value <= 0) {
+  const value = getWorkDays(workDays);
+  if (value === null) {
     return { workDays: null, rate: null };
   }
   return { workDays: value, rate: Math.min(100, Math.round(recordedDays / value * 100)) };

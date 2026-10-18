@@ -1,5 +1,6 @@
 "use client";
 
+import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 import { getRecordDate } from "@/utils/getRecordDate";
 
@@ -94,7 +95,7 @@ export default function AvgRanking() {
             name,
             department: dept,
             totalMl: 0,
-            workDays: 0,
+            workDays: null,
           };
         }
 
@@ -104,7 +105,7 @@ export default function AvgRanking() {
       // ★ staff.workDays を紐づける（勤務日数）
       staffList.forEach(s => {
         if (totals[s.staffId]) {
-          totals[s.staffId].workDays = Number(s.workDays || 0);
+          totals[s.staffId].workDays = getWorkDays(s.workDays);
         }
       });
 
@@ -115,7 +116,7 @@ export default function AvgRanking() {
           name: s.name,
           department: s.department,
           workDays: s.workDays,
-          avgMl: s.workDays > 0 ? s.totalMl / s.workDays : 0,
+          avgMl: s.workDays !== null ? s.totalMl / s.workDays : 0,
         }))
         .filter((item) => isRankingUsageVisible(item.avgMl))
         .sort((a, b) => b.avgMl - a.avgMl);

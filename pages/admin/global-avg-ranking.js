@@ -1,5 +1,6 @@
 "use client";
 
+import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useEffect, useState } from "react";
@@ -62,7 +63,7 @@ export default function GlobalAvgRanking() {
             name,
             department,
             totalMl: 0,
-            workDays: 0,
+            workDays: null,
             avgMl: 0,
           };
         }
@@ -73,10 +74,10 @@ export default function GlobalAvgRanking() {
       // ★ staff コレクションから勤務日数を反映
       staffList.forEach(s => {
         if (totals[s.staffId]) {
-          const workDays = Number(s.workDays);
+          const workDays = getWorkDays(s.workDays);
           totals[s.staffId].workDays = workDays;
           totals[s.staffId].avgMl =
-            Number.isFinite(workDays) && workDays > 0
+            workDays !== null
               ? totals[s.staffId].totalMl / workDays
               : 0;
         }

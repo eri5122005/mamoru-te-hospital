@@ -1,5 +1,6 @@
 "use client";
 
+import { getWorkDays } from "@/utils/getWorkDays";
 import { isRankingUsageVisible } from "@/utils/isRankingUsageVisible";
 
 import { useEffect, useState } from "react";
@@ -77,8 +78,8 @@ export default function AvgTop5Page() {
           0
         );
 
-        const workDays = Number(s.workDays);
-        const avgMl = Number.isFinite(workDays) && workDays > 0
+        const workDays = getWorkDays(s.workDays);
+        const avgMl = workDays !== null
           ? totalMl / workDays
           : 0;
 
