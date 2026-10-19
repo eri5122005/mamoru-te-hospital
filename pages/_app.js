@@ -1,3 +1,5 @@
+import AppUpdateNotice from "../components/AppUpdateNotice";
+import { requireAppUpdate } from "../utils/appUpdateState";
 import "@/styles/globals.css";
 import Head from "next/head";
 import { useEffect } from "react";
@@ -6,16 +8,10 @@ export default function App({ Component, pageProps }) {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    let refreshing = false;
     let registration = null;
 
-    // 新しいService Workerに切り替わったら1回だけ再読み込み
-    const handleControllerChange = () => {
-      if (refreshing) return;
-
-      refreshing = true;
-      window.location.reload();
-    };
+    // Notify only; reloading requires the user's action after processing ends.
+    const handleControllerChange = () => requireAppUpdate();
 
     // Service Workerの最新版を確認
     const checkForUpdate = () => {
@@ -104,6 +100,7 @@ export default function App({ Component, pageProps }) {
           margin: "0 auto",
         }}
       >
+        <AppUpdateNotice />
         <Component {...pageProps} />
       </main>
     </>

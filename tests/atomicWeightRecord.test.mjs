@@ -171,25 +171,30 @@ test('server calculation matches both original formulas and rounding', () => {
 });
 
 const saveSource = page.slice(page.indexOf('  const saveRecord = async'), page.indexOf('// ★ 交換ダイアログ'));
-async function client(response, { network = false, storageFailure = false, exchange = false } = {}) {
+async function client(response, { network = false, storageFailure = false, exchange = false, version = "current", updateResponse = false } = {}) {
   const stored = new Map([['currentStaff', JSON.stringify({ staffId: '0137', lastWeight: 200 })]]);
   const states = [], messages = [], clears = [];
   let calls = 0;
+  let updates = 0;
+  let operations = 0;
   let pending = true;
   const result = await vm.runInNewContext(`${saveSource}\nsaveRecord(999, 190, ${exchange})`, {
+    beginUpdateOperation: () => { operations++; return () => { operations--; }; }, ensureCurrentVersion: async () => version === 'current',
+    requireAppUpdate: () => { updates++; }, getAppUpdateState: () => ({required:false}),
     getAppBuildId: () => 'test-build', staff: { staffId: '0137', lastWeight: 200, wardId: '6f' }, wardNameMap: { '6f': '6階' },
     Timestamp: { fromDate: value => value }, window: {}, messageTimerRef: {}, weightUpdateWarning: '再登録せず、管理者に確認してください。',
-    fetch: async () => { calls++; if (network) throw new Error('network'); pending = false; return response; },
+    fetch: async () => { assert.equal(operations, 1); calls++; if (network) throw new Error('network'); pending = false; return updateResponse ? {ok:false,status:426,json:async()=>({code:'APP_UPDATE_REQUIRED'})} : response; },
     localStorage: {
       getItem: key => stored.get(key) ?? null,
-      setItem: (key, value) => { assert.equal(pending, false); if (storageFailure) throw new Error('quota'); stored.set(key, value); },
+      setItem: (key, value) => { assert.equal(operations, 1); assert.equal(pending, false); if (storageFailure) throw new Error('quota'); stored.set(key, value); },
     },
     setStaff: value => { assert.equal(pending, false); states.push(value); },
     setMessage: value => messages.push(value), setMessageType() {}, setWeightNow: value => clears.push(value),
     normalMessages: ['normal'], funMessages: ['fun'], mintSpiritMessages: ['mint'], legendaryMintMessages: ['legend'],
     setTimeout: () => 1,
   });
-  return { result, stored, states, messages, clears, calls };
+  assert.equal(operations, 0);
+  return { result, stored, states, messages, clears, calls, updates };
 }
 const success = { ok: true, json: async () => ({ ok: true, recordId: 'new', staffId: '0137', ml: 11.47, lastWeight: 190 }) };
 for (const exchange of [false, true]) test(`client updates weights/history only after success, exchange=${exchange}`, async () => {
@@ -242,4 +247,14 @@ test('GET implementations are unchanged', () => {
   const current = read('pages/api/records.js');
   const getSections = source => source.slice(source.indexOf('  // 全記録を取得'), source.indexOf('  // 記録を修正'));
   assert.equal(getSections(current), getSections(old));
+});
+
+for (const version of ['update-required', 'unavailable']) for (const exchange of [false, true]) test(`final preflight ${version} blocks POST, exchange=${exchange}`, async () => {
+  const run = await client(success, {version, exchange});
+  assert.equal(run.calls,0); assert.equal(run.result,false); assert.equal(run.states.length,0); assert.equal(run.clears.length,0);
+});
+for (const exchange of [false,true]) test(`426 requests persistent update, retains input, never re-sends, exchange=${exchange}`, async () => {
+  const run = await client(success, {exchange, updateResponse:true});
+  assert.equal(run.updates,1); assert.equal(run.calls,1); assert.equal(run.result,false);
+  assert.equal(run.states.length,0); assert.equal(run.clears.length,0); assert.equal(run.stored.size,1);
 });

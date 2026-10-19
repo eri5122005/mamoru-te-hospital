@@ -1,5 +1,7 @@
 "use client";
 
+import { checkAppVersion } from "../../utils/checkAppVersion";
+import { getAppUpdateState, requireAppUpdate, setUpdateInput, beginUpdateOperation } from "../../utils/appUpdateState";
 import { getAppBuildId } from "../../utils/getAppBuildId";
 
 import {
@@ -78,12 +80,33 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   setStaff(local);
 }, []);
 
+  useEffect(() => {
+    setUpdateInput(weightNow !== "");
+    return () => setUpdateInput(false);
+  }, [weightNow]);
+
+  const ensureCurrentVersion = async () => {
+    if (getAppUpdateState().required) return false;
+    const result = await checkAppVersion();
+    if (result.status === "update-required") requireAppUpdate();
+    if (getAppUpdateState().required) return false;
+    if (result.status !== "current") {
+      setMessageType("normal");
+      setMessage("最新版を確認できませんでした。通信状態を確認して、もう一度お試しください。");
+      return false;
+    }
+    return true;
+  };
+
   // ★ 記録保存共通処理
   const saveRecord = async (
   usedMl,
   nowWeightValue,
   isBottleExchange = false
 ) => {
+    const endOperation = beginUpdateOperation();
+    try {
+    if (!await ensureCurrentVersion() || getAppUpdateState().required) return false;
     let savedRecord;
     try {
       const now = new Date();
@@ -111,6 +134,10 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
         let detail = "";
         try {
           const body = await response.json();
+          if (response.status === 426 && body?.code === "APP_UPDATE_REQUIRED") {
+            requireAppUpdate();
+            return false;
+          }
           if (typeof body?.error === "string" && body.error.trim()) {
             detail = `\n詳細：${body.error}`;
           }
@@ -198,6 +225,7 @@ setMessage(
     setWeightNow("");
     messageTimerRef.current = setTimeout(() => setMessage(""), 3000);
     return true;
+    } finally { endOperation(); }
   };
 
  // ★ 交換ダイアログを開くときにロックする
@@ -216,6 +244,7 @@ const handleExchangeYes = async () => {
   // ★ awaitより前にロックする
   exchangeLockRef.current = true;
   setIsExchangeProcessing(true);
+  const endOperation = beginUpdateOperation();
 
   try {
     clearMessageTimer();
@@ -286,6 +315,7 @@ const handleExchangeYes = async () => {
     // ★ 成功・失敗にかかわらず交換用ロックを解除
     exchangeLockRef.current = false;
     setIsExchangeProcessing(false);
+    endOperation();
   }
 };
 
@@ -312,9 +342,11 @@ const handleRecord = async () => {
   recordLockRef.current = true;
   setIsSubmitting(true);
   let awaitingExchangeConfirmation = false;
+  const endOperation = beginUpdateOperation();
 
   try {
   clearMessageTimer();
+  if (!await ensureCurrentVersion()) return;
   setMessageType("normal");
   // ★ 押した瞬間に反応させる（現場向け）
   setMessage("記録中です…");
@@ -380,6 +412,7 @@ if (now > prev + 3) {
   } catch {
     setMessage(`処理を完了できませんでした。\n${weightUpdateWarning}`);
   } finally {
+    endOperation();
     if (!awaitingExchangeConfirmation) {
       setIsSubmitting(false);
       recordLockRef.current = false;
@@ -479,6 +512,7 @@ if (now > prev + 3) {
 
           <input
   type="number"
+  disabled={isSubmitting}
   value={weightNow}
   onChange={(e) => {
     const v = e.target.value;
