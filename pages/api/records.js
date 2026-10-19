@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 
@@ -138,36 +137,9 @@ export default async function handler(req, res) {
   // 記録を修正
   // ==============================
   if (req.method === "PATCH") {
-    const { recordId, ml } = req.body;
-
-    const mlNumber = Number(ml);
-
-    if (
-      !recordId ||
-      !Number.isFinite(mlNumber) ||
-      mlNumber < 0
-    ) {
-      return res.status(400).json({
-        error: "修正する値が正しくありません",
-      });
-    }
-
-    try {
-      await updateDoc(doc(db, "records", recordId), {
-        ml: mlNumber,
-        updatedAt: Timestamp.now(),
-      });
-
-      return res.status(200).json({
-        ok: true,
-      });
-    } catch (error) {
-      console.error("記録修正エラー:", error);
-
-      return res.status(500).json({
-        error: "記録の修正に失敗しました",
-      });
-    }
+    return res.status(410).json({
+      error: "履歴の編集機能は廃止されています。",
+    });
   }
 
   return res.status(405).json({

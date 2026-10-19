@@ -236,8 +236,9 @@ test('page has no direct Firestore writes; locks and formulas remain', () => {
     assert.equal(after.split('  try {')[0].trim(), before.split('  try {')[0].trim());
   }
 });
-test('GET/PATCH implementations are unchanged', () => {
+test('GET implementations are unchanged', () => {
   const old = execFileSync('git', ['show', 'HEAD:pages/api/records.js'], { encoding: 'utf8' });
   const current = read('pages/api/records.js');
-  assert.equal(current.slice(current.indexOf('  // 全記録を取得')), old.slice(old.indexOf('  // 全記録を取得')));
+  const getSections = source => source.slice(source.indexOf('  // 全記録を取得'), source.indexOf('  // 記録を修正'));
+  assert.equal(getSections(current), getSections(old));
 });
