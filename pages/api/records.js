@@ -1,3 +1,4 @@
+import { getAppBuildId } from "../../utils/getAppBuildId";
 import { db } from "../../firebaseConfig";
 import {
   collection,
@@ -17,6 +18,17 @@ export default async function handler(req, res) {
   // 新しい記録を保存
   // ==============================
   if (req.method === "POST") {
+    const appBuildId = getAppBuildId();
+    if (!appBuildId) {
+      return res.status(503).json({ code: "APP_VERSION_UNAVAILABLE", error: "アプリの版を確認できません。" });
+    }
+    const clientBuildId = req.headers?.["x-app-build-id"];
+    if (typeof clientBuildId !== "string" || clientBuildId !== appBuildId) {
+      return res.status(426).json({
+        code: "APP_UPDATE_REQUIRED",
+        error: "アプリが更新されました。最新版を読み込んでください。",
+      });
+    }
     const body = req.body ?? {};
     if (typeof body.staffId !== "string") {
       return res.status(400).json({ error: "職員番号が正しくありません" });

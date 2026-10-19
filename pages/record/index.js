@@ -1,5 +1,7 @@
 "use client";
 
+import { getAppBuildId } from "../../utils/getAppBuildId";
+
 import {
   normalMessages,
   funMessages,
@@ -89,7 +91,7 @@ const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
 const response = await fetch("/api/records", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "X-App-Build-Id": getAppBuildId() || "" },
   body: JSON.stringify({
     staffId: staff.staffId,
     name: staff.name,

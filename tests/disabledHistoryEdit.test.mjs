@@ -33,9 +33,9 @@ test('retired edit page is a static notice with a history link and no edit capab
   assert.match(page, /href="\/history"/);
   assert.doesNotMatch(page, /firebase|updateDoc|setDoc|deleteDoc|fetch\(|useSearchParams|useEffect|useState|<input|<form|onSubmit|saveEdit/);
 });
-test('POST and GET source remain byte-for-byte unchanged; only PATCH and its import are removed', () => {
+test('GET source remains unchanged and PATCH has no update capability', () => {
   const previous = execFileSync('git', ['show', 'HEAD:pages/api/records.js'], { encoding: 'utf8' });
-  const kept = source => source.slice(source.indexOf('export default async function'), source.indexOf('  // 記録を修正'));
+  const kept = source => source.slice(source.indexOf('  // 全記録を取得'), source.indexOf('  // 記録を修正'));
   assert.equal(kept(api), kept(previous));
   assert.doesNotMatch(api, /updateDoc/);
 });

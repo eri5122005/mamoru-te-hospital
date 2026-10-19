@@ -63,8 +63,8 @@ async function post(body = valid, db = database()) {
   await vm.runInNewContext(`${apiSource}\nhandler(req, res)`, {
     db: {}, doc: db.doc, runTransaction: db.runTransaction,
     collection: (_, name) => name, Timestamp: { now: () => 'server-time' },
-    normalizeStaffId, isActiveStaff, calculateWeightUsage,
-    req: { method: 'POST', body }, res, console: { error() {} },
+    normalizeStaffId, isActiveStaff, calculateWeightUsage, getAppBuildId: () => "test-build",
+    req: { method: 'POST', body, headers: { 'x-app-build-id': 'test-build' } }, res, console: { error() {} },
   });
   return { db, res };
 }
@@ -177,7 +177,7 @@ async function client(response, { network = false, storageFailure = false, excha
   let calls = 0;
   let pending = true;
   const result = await vm.runInNewContext(`${saveSource}\nsaveRecord(999, 190, ${exchange})`, {
-    staff: { staffId: '0137', lastWeight: 200, wardId: '6f' }, wardNameMap: { '6f': '6階' },
+    getAppBuildId: () => 'test-build', staff: { staffId: '0137', lastWeight: 200, wardId: '6f' }, wardNameMap: { '6f': '6階' },
     Timestamp: { fromDate: value => value }, window: {}, messageTimerRef: {}, weightUpdateWarning: '再登録せず、管理者に確認してください。',
     fetch: async () => { calls++; if (network) throw new Error('network'); pending = false; return response; },
     localStorage: {
@@ -203,9 +203,10 @@ for (const exchange of [false, true]) test(`client updates weights/history only 
   assert.equal(history[0].weightPrev, 200);
   assert.equal(history[0].isBottleExchange, exchange);
 });
-for (const status of [400, 403, 404, 409, 500]) for (const exchange of [false, true]) test(`client HTTP ${status} never updates weights/history, exchange=${exchange}`, async () => {
+for (const status of [400, 403, 404, 409, 426, 500]) for (const exchange of [false, true]) test(`client HTTP ${status} never updates weights/history, exchange=${exchange}`, async () => {
   const run = await client({ ok: false, status, json: async () => ({ error: 'API error' }) }, { exchange });
   assert.equal(run.result, false);
+  assert.equal(run.calls, 1);
   assert.equal(run.states.length, 0);
   assert.equal(run.stored.size, 1);
   assert.equal(JSON.parse(run.stored.get('currentStaff')).lastWeight, 200);
