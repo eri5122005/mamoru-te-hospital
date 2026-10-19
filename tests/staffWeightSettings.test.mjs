@@ -48,7 +48,7 @@ async function api(kind, body = { staffId: '0137', weight: '240', mode: 'weight'
   const route = strip(read(`pages/api/staff/${kind}.js`));
   await vm.runInNewContext(`${server}\n${route}\nhandler(req, res)`, {
     normalizeStaffId, isActiveStaff, db: {}, doc: (_, collection, id) => `${collection}/${id}`,
-    getDoc: db.getDoc, runTransaction: db.runTransaction, console: { error() {} },
+    getDoc: db.getDoc, getDocFromServer: db.getDocFromServer ?? db.getDoc, runTransaction: db.runTransaction, console: { error() {} },
     req: { method, body, query: body }, res,
   });
   return { res, db };
@@ -227,4 +227,11 @@ for (const configured of [true, false]) test(`first-weight startup trusts fresh 
 test('no client Firestore writes, and change-mode never adds staff cache synchronization', () => {
   for (const source of [firstPage, modePage]) assert.doesNotMatch(source, /updateDoc|setDoc|runTransaction|firebase\/firestore/);
   assert.doesNotMatch(modePage, /staffs|`staff-/);
+});
+
+test('GET never falls back to cached staff when server read fails',async()=>{
+  const db=database();
+  db.getDocFromServer=async()=>{throw new Error('offline');};
+  const {res}=await api('first-weight',{staffId:'0137'},db,'GET');
+  assert.equal(res.code,500);assert.equal(db.reads.length,0);assert.equal(db.commits.length,0);
 });

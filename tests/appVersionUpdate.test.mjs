@@ -66,10 +66,12 @@ test('update is persistent; only explicit update action reloads, operations bloc
   end2();assert.equal(s.getAppUpdateState().operations,0);assert.equal(s.reloadUpdatedApp(()=>reloads++),true);assert.equal(reloads,1);
 });
 const page=read('pages/record/index.js');
+const readyMocks = {readyRef:{current:true}, currentIdRef:{current:'0137'}, currentRecordStaffId:()=> '0137', localStorage:{}, setReady(){}};
 const ensure=page.slice(page.indexOf('  const ensureCurrentVersion ='),page.indexOf('  // ★ 記録保存共通処理'));
 for(const status of ['current','update-required','unavailable']) test(`record preflight: ${status}`,async()=>{
   let required=false,checks=0;const messages=[];
   const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{
+    ...readyMocks,
     getAppUpdateState:()=>({required}),checkAppVersion:async()=>{checks++;return {status};},
     requireAppUpdate:()=>{required=true;},setMessage:v=>messages.push(v),setMessageType() {},
   });
@@ -77,14 +79,14 @@ for(const status of ['current','update-required','unavailable']) test(`record pr
   if(status==='unavailable')assert.match(messages[0],/最新版を確認できません/);
 });
 test('known update blocks preflight without overwriting build ID',async()=>{
-  const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{getAppUpdateState:()=>({required:true}),checkAppVersion:()=>assert.fail()});
+  const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{...readyMocks,getAppUpdateState:()=>({required:true}),checkAppVersion:()=>assert.fail()});
   assert.equal(allowed,false);
 });
 for(const status of ['update-required','unavailable']) test(`record start ${status} does not calculate or save`,async()=>{
   const start=page.slice(page.indexOf('const handleRecord ='),page.indexOf('  if (!staff) {',page.indexOf('const handleRecord =')));
   let unlocked=0;
   await vm.runInNewContext(`${start}\nhandleRecord()`,{
-    staff:{lastWeight:200},recordLockRef:{current:false},isSubmitting:false,setIsSubmitting(){},
+    ...readyMocks,staff:{lastWeight:200},recordLockRef:{current:false},isSubmitting:false,setIsSubmitting(){},
     beginUpdateOperation:()=>()=>{unlocked++;},ensureCurrentVersion:async()=>false,clearMessageTimer(){},
     confirm:()=>assert.fail('must not reach confirmation'),saveRecord:()=>assert.fail('must not POST'),
   });assert.equal(unlocked,1);
@@ -92,7 +94,7 @@ for(const status of ['update-required','unavailable']) test(`record start ${stat
 test('UI updates only on click, no expiry; controllerchange only notifies',()=>{
   const app=read('pages/_app.js'),notice=read('components/AppUpdateNotice.js');
   assert.doesNotMatch(app,/location\.reload|refreshing/);assert.match(app,/handleControllerChange = \(\) => requireAppUpdate/);
-  assert.match(notice,/onClick=\{\(\) => reloadUpdatedApp/);assert.match(notice,/disabled=\{state.operations > 0\}/);
+  assert.match(notice,/onClick=\{update\}/);assert.match(notice,/reloadUpdatedApp\(\(\) => window.location.reload/);assert.match(notice,/disabled=\{state.operations > 0 \|\| state.reloading\}/);
   assert.doesNotMatch(notice,/setTimeout|sessionStorage/);assert.match(notice,/入力した重量を確認してから/);
   assert.match(page,/if \(!await ensureCurrentVersion\(\) \|\| getAppUpdateState\(\).required\) return false/);
   assert.match(page,/response.status === 426 && body\?\.code === "APP_UPDATE_REQUIRED"/);
@@ -101,7 +103,7 @@ for(const action of ['handleRecord','handleExchangeYes']) test(`version change b
   const block=page.slice(page.indexOf('  const saveRecord = async'),page.indexOf('  if (!staff) {',page.indexOf('const handleRecord =')));
   let checks=0, operations=0;
   const context={
-    staff:{lastWeight:action==='handleRecord'?200:100},weightNow:'190',
+    ...readyMocks,staff:{lastWeight:action==='handleRecord'?200:100},weightNow:'190',
     isSubmitting:action==='handleExchangeYes',recordLockRef:{current:false},exchangeLockRef:{current:false},
     EMPTY_WEIGHT:45,FULL_WEIGHT:263,ML_PER_GRAM:250/218,
     beginUpdateOperation:()=>{operations++;return ()=>operations--;},

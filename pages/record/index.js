@@ -1,5 +1,9 @@
 "use client";
 
+import { requestStaffWeightSettings } from "../../utils/requestStaffWeightSettings";
+import { currentRecordStaffId, loadRecordContext } from "../../utils/loadRecordContext";
+import { saveRecordDraft, clearRecordDraft } from "../../utils/recordUpdateDraft";
+import { registerUpdatePreparation } from "../../utils/appUpdateState";
 import { checkAppVersion } from "../../utils/checkAppVersion";
 import { getAppUpdateState, requireAppUpdate, setUpdateInput, beginUpdateOperation } from "../../utils/appUpdateState";
 import { getAppBuildId } from "../../utils/getAppBuildId";
@@ -44,6 +48,12 @@ const ML_PER_GRAM = 250 / (FULL_WEIGHT - EMPTY_WEIGHT);
 const [message, setMessage] = useState("");
 const [messageType, setMessageType] = useState("normal");
 const [staff, setStaff] = useState(null);
+const [ready, setReady] = useState(false);
+const readyRef = useRef(false);
+const currentIdRef = useRef("");
+const saveUncertainRef = useRef(false);
+const cleanupFailedRef = useRef(false);
+const [draftNotice, setDraftNotice] = useState("");
 
 const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
 
@@ -64,21 +74,61 @@ useEffect(() => () => clearTimeout(messageTimerRef.current), []);
 const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
 
  useEffect(() => {
-  if (typeof window === "undefined") return;
-
-  const local = JSON.parse(localStorage.getItem("currentStaff"));
-  if (!local) {
-    router.replace("/login");
-    return;
-  }
-
-  if (!local.lastWeight) {
-    router.replace("/first-weight");
-    return;
-  }
-
-  setStaff(local);
+  let cancelled = false;
+  const controller = new AbortController();
+  const endOperation = beginUpdateOperation();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  const load = async () => {
+    try {
+      const result = await loadRecordContext({
+        readCurrentId: () => currentRecordStaffId(localStorage),
+        storage: sessionStorage,
+        isCurrent: () => !cancelled,
+        checkVersion: checkAppVersion,
+        fetchStaff: id => requestStaffWeightSettings(`/api/staff/first-weight?staffId=${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }),
+      });
+      if (cancelled) return;
+      if (currentRecordStaffId(localStorage) !== result.staff.staffId) throw new Error("職員情報が変わりました。ログインし直してください。");
+      currentIdRef.current = result.staff.staffId;
+      setStaff(result.staff);
+      setWeightNow(result.weightNow);
+      if (result.weightNow) setDraftNotice("更新前に入力していた重量を復元しました。現在の重量と合っていることを確認してから記録してください。");
+      readyRef.current = true;
+      setReady(true);
+    } catch (error) {
+      if (!cancelled) {
+        if (error.updateRequired) requireAppUpdate();
+        setMessage(error.message || "最新情報を取得できませんでした。記録せず、管理者に確認してください。");
+      }
+    } finally { clearTimeout(timer); endOperation(); }
+  };
+  void load();
+  return () => { cancelled = true; controller.abort(); clearTimeout(timer); endOperation(); readyRef.current = false; };
 }, []);
+
+  useEffect(() => registerUpdatePreparation(() => {
+    if (saveUncertainRef.current || cleanupFailedRef.current) {
+      throw new Error("保存結果または一時入力の削除を確認できません。再登録・更新せず、管理者に確認してください。");
+    }
+    if (!readyRef.current) return;
+    if (currentRecordStaffId(localStorage) !== currentIdRef.current) {
+      throw new Error("ログイン中の職員が変わりました。ログインし直してください。");
+    }
+    try { saveRecordDraft(sessionStorage, currentIdRef.current, weightNow); }
+    catch { throw new Error("入力を一時保存できません。更新せず、重量を控えて管理者に確認してください。"); }
+  }), [weightNow]);
+
+  useEffect(() => {
+    const changed = () => {
+      try { if (currentIdRef.current && currentRecordStaffId(localStorage) !== currentIdRef.current) {
+        readyRef.current = false; setReady(false);
+        try { clearRecordDraft(sessionStorage); } catch { /* Remain blocked. */ }
+        setMessage("ログイン中の職員が変わりました。ログインし直してください。");
+      } } catch { readyRef.current = false; setReady(false); }
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, []);
 
   useEffect(() => {
     setUpdateInput(weightNow !== "");
@@ -86,8 +136,18 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   }, [weightNow]);
 
   const ensureCurrentVersion = async () => {
+    if (!readyRef.current || currentRecordStaffId(localStorage) !== currentIdRef.current) {
+      readyRef.current = false; setReady(false);
+      setMessage("最新の職員情報を確認できません。ログインし直してください。");
+      return false;
+    }
     if (getAppUpdateState().required) return false;
     const result = await checkAppVersion();
+    if (!readyRef.current || currentRecordStaffId(localStorage) !== currentIdRef.current) {
+      readyRef.current = false; setReady(false);
+      setMessage("ログイン中の職員が変わりました。ログインし直してください。");
+      return false;
+    }
     if (result.status === "update-required") requireAppUpdate();
     if (getAppUpdateState().required) return false;
     if (result.status !== "current") {
@@ -144,6 +204,10 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
         } catch {
           // 空・HTML・不正JSONの応答でも共通の案内を表示する。
         }
+        if (response.status >= 500) {
+          saveUncertainRef.current = true; readyRef.current = false; setReady(false);
+          try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
+        }
         setMessage(detail ? `記録を保存できませんでした。${detail}` : `記録を保存できませんでした。\n${weightUpdateWarning}`);
         return false;
       }
@@ -153,11 +217,24 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
         throw new Error("Invalid save response");
       }
     } catch (error) {
+      saveUncertainRef.current = true; readyRef.current = false; setReady(false);
+      try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
       setMessage(`保存結果を確認できませんでした。\n${weightUpdateWarning}`);
       return false;
     }
 
+    // A confirmed POST remains successful even if draft cleanup fails.
+    try { clearRecordDraft(sessionStorage, savedRecord.staffId); }
+    catch {
+      cleanupFailedRef.current = true; readyRef.current = false; setReady(false);
+      setDraftNotice("記録は保存されましたが、一時入力を削除できませんでした。再登録せず、管理者に確認してください。");
+    }
     try {
+    if (currentRecordStaffId(localStorage) !== savedRecord.staffId) {
+      readyRef.current = false; setReady(false); setWeightNow("");
+      setMessage("記録は保存されました。ログイン中の職員が変わったため、ログインし直してください。");
+      return true;
+    }
     const updated = { ...staff, staffId: savedRecord.staffId, lastWeight: savedRecord.lastWeight };
     setStaff(updated);
     if (typeof window !== "undefined") {
@@ -184,6 +261,8 @@ date: jstNow,   // ← ★ここが最重要（JSTで保存）
   localStorage.setItem("history", JSON.stringify(history));
 }
     } catch {
+      readyRef.current = false; setReady(false);
+      cleanupFailedRef.current = true;
       setMessage("記録は保存されましたが、端末内の処理に失敗しました。\n再登録せず、管理者に確認してください。");
       return false;
     }
@@ -239,7 +318,7 @@ const openExchangeDialog = () => {
 const handleExchangeYes = async () => {
   // ★ すでに交換処理中なら2回目は実行しない
   if (exchangeLockRef.current) return;
-  if (!isSubmitting) return;
+  if (!isSubmitting || !readyRef.current) return;
 
   // ★ awaitより前にロックする
   exchangeLockRef.current = true;
@@ -335,7 +414,7 @@ const handleExchangeNo = () => {
 
   // ★ 記録処理（重さ方式）完全修正版
 const handleRecord = async () => {
-  if (!staff) return;
+  if (!staff || !readyRef.current) return;
 
   // ★ 連打防止（2回目を絶対に走らせない）
   if (recordLockRef.current || isSubmitting) return;
@@ -422,7 +501,12 @@ if (now > prev + 3) {
 
 
   if (!staff) {
-    return <p>スタッフ情報を読み込んでいます…</p>;
+    return (
+      <div>
+        <p role="alert">{message || "最新の職員情報を確認しています…"}</p>
+        {message && <button type="button" onClick={() => router.push("/login")}>ログイン画面へ戻る</button>}
+      </div>
+    );
   }
 
   return (
@@ -438,6 +522,7 @@ if (now > prev + 3) {
     >
       <main>
         <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>今日の記録</h1>
+        {draftNotice && <p role="status">{draftNotice}</p>}
 
         {showExchangeConfirm && (
           <div
@@ -456,7 +541,7 @@ if (now > prev + 3) {
 
             <button
   onClick={handleExchangeYes}
-  disabled={isExchangeProcessing}
+  disabled={isExchangeProcessing || !ready}
   style={{
                 background: "#2AAE9E",
                 color: "white",
@@ -471,7 +556,7 @@ if (now > prev + 3) {
 
             <button
   onClick={handleExchangeNo}
-  disabled={isExchangeProcessing}
+  disabled={isExchangeProcessing || !ready}
   style={{
                 background: "#ccc",
                 color: "#333",
@@ -512,7 +597,7 @@ if (now > prev + 3) {
 
           <input
   type="number"
-  disabled={isSubmitting}
+  disabled={isSubmitting || !ready}
   value={weightNow}
   onChange={(e) => {
     const v = e.target.value;
@@ -607,7 +692,7 @@ if (now > prev + 3) {
 
         <button
   onClick={handleRecord}
-  disabled={isSubmitting}
+  disabled={isSubmitting || !ready}
   style={{
     width: "100%",
     padding: "16px",

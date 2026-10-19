@@ -171,14 +171,18 @@ test('server calculation matches both original formulas and rounding', () => {
 });
 
 const saveSource = page.slice(page.indexOf('  const saveRecord = async'), page.indexOf('// ★ 交換ダイアログ'));
-async function client(response, { network = false, storageFailure = false, exchange = false, version = "current", updateResponse = false } = {}) {
+async function client(response, { network = false, storageFailure = false, exchange = false, version = "current", updateResponse = false, cleanupFailure = false } = {}) {
   const stored = new Map([['currentStaff', JSON.stringify({ staffId: '0137', lastWeight: 200 })]]);
   const states = [], messages = [], clears = [];
   let calls = 0;
   let updates = 0;
   let operations = 0;
+  let cleanups = 0;
+  const uncertain = {current:false}, cleanupFailed = {current:false}, ready = {current:true};
   let pending = true;
   const result = await vm.runInNewContext(`${saveSource}\nsaveRecord(999, 190, ${exchange})`, {
+    currentRecordStaffId: () => '0137', sessionStorage: {}, clearRecordDraft() { cleanups++; if(cleanupFailure) throw new Error('storage'); },
+    readyRef: ready, saveUncertainRef: uncertain, cleanupFailedRef: cleanupFailed, setReady(){}, setDraftNotice(){},
     beginUpdateOperation: () => { operations++; return () => { operations--; }; }, ensureCurrentVersion: async () => version === 'current',
     requireAppUpdate: () => { updates++; }, getAppUpdateState: () => ({required:false}),
     getAppBuildId: () => 'test-build', staff: { staffId: '0137', lastWeight: 200, wardId: '6f' }, wardNameMap: { '6f': '6階' },
@@ -194,7 +198,7 @@ async function client(response, { network = false, storageFailure = false, excha
     setTimeout: () => 1,
   });
   assert.equal(operations, 0);
-  return { result, stored, states, messages, clears, calls, updates };
+  return { result, stored, states, messages, clears, calls, updates, cleanups, uncertain:uncertain.current, ready:ready.current };
 }
 const success = { ok: true, json: async () => ({ ok: true, recordId: 'new', staffId: '0137', ml: 11.47, lastWeight: 190 }) };
 for (const exchange of [false, true]) test(`client updates weights/history only after success, exchange=${exchange}`, async () => {
@@ -257,4 +261,16 @@ for (const exchange of [false,true]) test(`426 requests persistent update, retai
   const run = await client(success, {exchange, updateResponse:true});
   assert.equal(run.updates,1); assert.equal(run.calls,1); assert.equal(run.result,false);
   assert.equal(run.states.length,0); assert.equal(run.clears.length,0); assert.equal(run.stored.size,1);
+});
+
+test('confirmed save deletes draft; cleanup failure never fails or retries the successful record', async () => {
+  for (const cleanupFailure of [false,true]) {
+    const run=await client(success,{cleanupFailure});
+    assert.equal(run.result,true);assert.equal(run.calls,1);assert.equal(run.cleanups,1);
+    assert.equal(run.clears[0],'');assert.equal(run.ready,!cleanupFailure);
+  }
+});
+test('unknown save outcome blocks further records and clears reusable draft, without retry',async()=>{
+  const run=await client(success,{network:true});
+  assert.equal(run.result,false);assert.equal(run.calls,1);assert.equal(run.uncertain,true);assert.equal(run.ready,false);assert.equal(run.cleanups,1);
 });

@@ -1,5 +1,5 @@
 import { db } from "../firebaseConfig";
-import { doc, getDoc, runTransaction } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, runTransaction } from "firebase/firestore";
 import { normalizeStaffId } from "./normalizeStaffId";
 import { isActiveStaff } from "./isActiveStaff";
 
@@ -22,7 +22,7 @@ export async function handleStaffWeightSettings(req, res, firstWeight) {
   try {
     const staffRef = doc(db, "staff", staffId);
     if (reading) res.setHeader("Cache-Control", "no-store");
-    const initial = await getDoc(staffRef);
+    const initial = await (reading ? getDocFromServer(staffRef) : getDoc(staffRef));
     if (!initial.exists()) return res.status(404).json({ error: "職員情報が見つかりません。管理者に確認してください。" });
     if (!isActiveStaff(initial.data())) return res.status(403).json({ error: stopped });
     if (reading) return res.status(200).json({ ok: true, staff: { ...initial.data(), staffId } });

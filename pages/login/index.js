@@ -5,11 +5,16 @@ import { useState, useEffect } from "react";
 import { db } from "../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { normalizeStaffId } from "../../utils/normalizeStaffId";
+import { clearRecordDraft } from "../../utils/recordUpdateDraft";
 import { isActiveStaff } from "../../utils/isActiveStaff";
 
 export default function Login() {
   const router = useRouter();
   const [staffId, setStaffId] = useState("");
+
+  useEffect(() => {
+    try { clearRecordDraft(sessionStorage); } catch { /* Record startup fails closed if storage remains unavailable. */ }
+  }, []);
 
   // ★ ログイン画面を開いた瞬間にローカルストレージを強制クリア
   useEffect(() => {
@@ -32,6 +37,7 @@ export default function Login() {
 
   // ★ ログイン処理（ここだけ使う）
   const handleLogin = async () => {
+    try { clearRecordDraft(sessionStorage); } catch { /* Never restore another ID. */ }
     const normalizedStaffId = normalizeStaffId(staffId);
     if (!normalizedStaffId) return;
 

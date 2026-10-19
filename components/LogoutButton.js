@@ -1,5 +1,6 @@
 "use client";
 
+import { clearRecordDraft } from "../utils/recordUpdateDraft";
 import { useRouter } from "next/navigation";
 
 export default function LogoutButton() {
@@ -8,6 +9,7 @@ export default function LogoutButton() {
   return (
     <div
       onClick={() => {
+        try { clearRecordDraft(sessionStorage); } catch { /* Login and startup also guard drafts. */ }
         localStorage.removeItem("loginUser");
         router.push("/login");   // ← ここを修正！
       }}
