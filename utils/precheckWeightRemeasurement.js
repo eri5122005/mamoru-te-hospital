@@ -27,7 +27,7 @@ function numericWeight(value) {
 }
 
 /**
- * READ-ONLY precheck, not authorization and NOT a save guarantee. Not wired into any API.
+ * READ-ONLY precheck, not authorization and NOT a save guarantee. Used before the records save transaction.
  * The final save transaction MUST recheck existence, isActive, DB weight and request weight.
  * External history reads are not a snapshot; no revision/idempotency guarantee is provided.
  * A submitted exchange flag bypasses A/B by current policy, NOT proof of actual exchange.

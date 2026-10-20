@@ -71,10 +71,10 @@ test('default staff adapter mocked without importing Firebase: server-only, expl
  const sdk={doc:(db,col,id)=>{assert.equal(col,'staff');assert.equal(id,'0137');return {};},getDocFromServer:async()=>{calls++;return {exists:()=>exists,get:k=>{assert.ok(['isActive','lastWeight'].includes(k));return k==='isActive'?true:250;}};}};
  const fn=vm.runInNewContext(body+';readServerStaff',{sdk});assert.equal((await fn({db:{},staffId:'0137'})).lastWeight,250);exists=false;assert.equal(await fn({db:{},staffId:'0137'}),null);assert.equal(calls,2);
 });
-test('static safety and reuse: no writes, initialization or API/UI integration',()=>{
+test('static safety and reuse: no writes, initialization or UI integration',()=>{
  const source=readFileSync(new URL('../utils/precheckWeightRemeasurement.js',import.meta.url),'utf8');
  for(const word of ['addDoc','setDoc','updateDoc','deleteDoc','writeBatch','runTransaction','initializeApp','firebaseConfig'])assert.equal(source.includes(word),false);
  assert.match(source,/calculateWeightUsage\(dbWeight, current, isBottleExchange\)/);
  assert.match(source,/readHistory = fetchRecentNormalWeightHistory/);assert.match(source,/evaluateWeightRemeasurement\(/);assert.match(source,/isActiveStaff\(staff\)/);
- for(const file of ['pages/api/records.js','pages/record/index.js'])assert.equal(readFileSync(new URL(`../${file}`,import.meta.url),'utf8').includes('precheckWeightRemeasurement'),false);
+ for(const file of ['pages/record/index.js'])assert.equal(readFileSync(new URL(`../${file}`,import.meta.url),'utf8').includes('precheckWeightRemeasurement'),false);
 });

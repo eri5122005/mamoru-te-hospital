@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
 import { isActiveStaff } from '../utils/isActiveStaff.js';
+import { precheckWeightRemeasurement, WeightPrecheckReadError } from '../utils/precheckWeightRemeasurement.js';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 
 const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -15,15 +16,17 @@ const valid = { staffId: '0137', name: 'Staff', wardId: '6f', department: '6階'
 // Atomic staged writes, with version-based retries to model Firestore transactions.
 function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } }, failure = false, retireBeforeCommit = false) {
   const docs = new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)]));
-  let version = 0, serial = 0, reads = 0;
+  let version = 0, serial = 0, reads = 0, transactionCalls = 0, transactionAttempts = 0;
   const commits = [];
-  return { docs, commits, get reads() { return reads; },
+  return { docs, commits, get reads() { return reads; }, get transactionCalls() {return transactionCalls;}, get transactionAttempts() {return transactionAttempts;},
     doc(...args) {
       const key = args.length === 1 ? `${args[0]}/new-${++serial}` : `${args[1]}/${args[2]}`;
       return { key, id: key.split('/').at(-1) };
     },
     async runTransaction(_, callback) {
+      transactionCalls++;
       for (;;) {
+        transactionAttempts++;
         const before = version;
         const snapshot = new Map([...docs].map(([k, v]) => [k, structuredClone(v)]));
         const pending = [];
@@ -58,15 +61,22 @@ function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } 
     },
   };
 }
-async function post(body = valid, db = database()) {
+async function post(body = valid, db = database(), options = {}) {
+  let staffReads = 0, historyReads = 0;
   const res = { status(code) { this.code = code; return this; }, json(data) { this.body = JSON.parse(JSON.stringify(data)); return this; } };
   await vm.runInNewContext(`${apiSource}\nhandler(req, res)`, {
-    db: {}, doc: db.doc, runTransaction: db.runTransaction,
+    Date, db: {}, doc: db.doc, runTransaction: db.runTransaction,
     collection: (_, name) => name, Timestamp: { now: () => 'server-time' },
-    normalizeStaffId, isActiveStaff, calculateWeightUsage, getAppBuildId: () => "test-build",
-    req: { method: 'POST', body, headers: { 'x-app-build-id': 'test-build' } }, res, console: { error() {} },
+    normalizeStaffId, isActiveStaff, calculateWeightUsage, WeightPrecheckReadError,
+    precheckWeightRemeasurement: args => precheckWeightRemeasurement(args, {
+      readStaff: async ({staffId}) => { staffReads++; if(options.staffError) throw options.staffError; return structuredClone(db.docs.get(`staff/${staffId}`) ?? null); },
+      readHistory: async () => { historyReads++; if(options.historyError) throw options.historyError;
+        return options.historyResult ?? {status:'insufficient',history:[]}; },
+    }).then(result => { if(options.afterPrecheck) options.afterPrecheck(db); return result; }),
+    getAppBuildId: () => options.buildId === undefined ? "test-build" : options.buildId,
+    req: { method: options.method ?? 'POST', body, headers: options.headers ?? { 'x-app-build-id': 'test-build' } }, res, console: { error() {} },
   });
-  return { db, res };
+  return { db, res, staffReads, historyReads };
 }
 for (const status of [true, undefined, null]) {
   test(`normal atomic save accepts isActive ${status}`, async () => {
@@ -212,7 +222,7 @@ for (const exchange of [false, true]) test(`client updates weights/history only 
   assert.equal(history[0].weightPrev, 200);
   assert.equal(history[0].isBottleExchange, exchange);
 });
-for (const status of [400, 403, 404, 409, 426, 500]) for (const exchange of [false, true]) test(`client HTTP ${status} never updates weights/history, exchange=${exchange}`, async () => {
+for (const status of [400, 403, 404, 409, 422, 426, 500, 503]) for (const exchange of [false, true]) test(`client HTTP ${status} never updates weights/history, exchange=${exchange}`, async () => {
   const run = await client({ ok: false, status, json: async () => ({ error: 'API error' }) }, { exchange });
   assert.equal(run.result, false);
   assert.equal(run.calls, 1);
@@ -273,4 +283,79 @@ test('confirmed save deletes draft; cleanup failure never fails or retries the s
 test('unknown save outcome blocks further records and clears reusable draft, without retry',async()=>{
   const run=await client(success,{network:true});
   assert.equal(run.result,false);assert.equal(run.calls,1);assert.equal(run.uncertain,true);assert.equal(run.ready,false);assert.equal(run.cleanups,1);
+});
+
+// Step 3-B API integration: real precheck/decision logic, only mocked Firestore reads/writes.
+const baseline = (ml=25,n=3) => ({status:n===3?'complete':'insufficient',history:Array.from({length:n},(_,i)=>({
+  date:`2026-09-${10+i}T00:00:00Z`,unit:'weight',isBottleExchange:false,weightPrev:250,weightNow:250-ml*218/250,ml,
+}))});
+const usageBody = ml => ({...valid,weightPrev:250,weightNow:250-ml*218/250});
+const weightDb = () => database({'staff/0137':{lastWeight:250,isActive:true},'staffs/0137':{lastWeight:250}});
+function noWrites(db,before) {
+  assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,0);
+}
+for(const [options,body,status] of [
+ [{method:'OPTIONS'},valid,405],[{buildId:null},valid,503],[{headers:{'x-app-build-id':'old'}},valid,426],
+ [{}, {...valid,weightNow:45},400],
+])test(`prechecks preserve early ${status} with no staff/history reads`,async()=>{
+ const db=database(),before=JSON.stringify([...db.docs]);const run=await post(body,db,options);
+ assert.equal(run.res.code,status);assert.equal(run.staffReads,0);assert.equal(run.historyReads,0);noWrites(db,before);
+});
+for(const [staff,status] of [[null,404],[{lastWeight:250,isActive:false},403],[{lastWeight:249},409],[{lastWeight:null},409]])test(`staff ${status} takes priority over B, no history or transaction`,async()=>{
+ const db=database(staff?{'staff/0137':staff}:{}),before=JSON.stringify([...db.docs]);const r=await post(usageBody(150),db);
+ assert.equal(r.res.code,status);assert.equal(r.staffReads,1);assert.equal(r.historyReads,0);noWrites(db,before);
+});
+for(const [ml,m,code,matched] of [[49.99,20,200,[]],[50,25,422,['A']],[50,25.01,200,[]],[60,30,422,['A']],[149.99,100,200,[]],[150,25,422,['B']]])test(`API rounded boundary ${ml}, median ${m}`,async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);const r=await post(usageBody(ml),db,{historyResult:baseline(m)});
+ assert.equal(r.res.code,code);assert.equal(r.staffReads,1);assert.equal(r.historyReads,ml>=150?0:1);
+ if(code===422){
+   noWrites(db,before);assert.equal(r.res.body.code,'WEIGHT_REMEASUREMENT_REQUIRED');assert.deepEqual(r.res.body.matchedRules,matched);
+   assert.equal(r.res.body.currentMl,ml);assert.equal(r.res.body.personalRuleEvaluated,ml<150);
+   assert.equal(r.res.body.personalMedianMl,ml<150?m:null);
+   assert.deepEqual(Object.keys(r.res.body).sort(),['code','error','currentMl','personalMedianMl','baselineCount','personalRuleEvaluated','matchedRules'].sort());
+ }else{assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,2);assert.equal(r.res.body.ml,ml);}
+});
+for(const n of [0,1,2])test(`API exhausted insufficient ${n} still saves under B`,async()=>{
+ const db=weightDb();const r=await post(usageBody(100),db,{historyResult:baseline(10,n)});
+ assert.equal(r.res.code,200);assert.equal(db.commits.length,1);assert.equal(r.historyReads,1);
+});
+for(const [options,code] of [
+ [{historyResult:{status:'limit_reached',history:null}},'WEIGHT_HISTORY_LIMIT_REACHED'],
+ [{historyError:new Error('PRIVATE SDK KEY CONTENT')},'WEIGHT_HISTORY_UNAVAILABLE'],
+ [{staffError:new Error('PRIVATE SDK KEY CONTENT')},'STAFF_WEIGHT_UNAVAILABLE'],
+])test(`API ${code} is safe stop, no information leak`,async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);const r=await post(usageBody(50),db,options);
+ assert.equal(r.res.code,503);assert.equal(r.res.body.code,code);assert.equal(JSON.stringify(r.res.body).includes('PRIVATE'),false);noWrites(db,before);
+});
+for(const [change,status] of [
+ [db=>db.docs.set('staff/0137',{lastWeight:240}),409],
+ [db=>db.docs.set('staff/0137',{lastWeight:250,isActive:false}),403],
+ [db=>db.docs.delete('staff/0137'),404],
+])test(`transaction rechecks changed staff after preflight: ${status}`,async()=>{
+ const db=weightDb();const r=await post(usageBody(30),db,{historyResult:baseline(25),afterPrecheck:change});
+ assert.equal(r.res.code,status);assert.equal(db.commits.length,0);assert.equal([...db.docs.keys()].some(k=>k.startsWith('records/')),false);assert.equal(db.transactionCalls,1);
+});
+test('transaction retry does not repeat preflight/history and commits one record reference',async()=>{
+ const db=database({'staff/0137':{lastWeight:200,isActive:true}},false,true);
+ const r=await post(valid,db);assert.equal(r.res.code,403);assert.equal(r.staffReads,1);assert.equal(r.historyReads,1);assert.equal(db.transactionAttempts,2);assert.equal(db.commits.length,0);
+});
+test('concurrent transaction retry still commits only one record and history never runs inside callback',async()=>{
+ const db=database();const r=await Promise.all([post(valid,db),post(valid,db)]);
+ assert.deepEqual(r.map(x=>x.res.code).sort(),[200,409]);assert.equal(db.commits.length,1);
+ assert.ok(db.transactionAttempts>db.transactionCalls);assert.equal(r.reduce((n,x)=>n+x.historyReads,0),2);
+});
+test('exchange even above 150 keeps existing formula, no history, atomic existing backup sync',async()=>{
+ const db=database({'staff/0137':{lastWeight:250},'staffs/0137':{lastWeight:100}});
+ const r=await post({...valid,weightPrev:250,weightNow:200,isBottleExchange:true},db);
+ assert.equal(r.res.code,200);assert.ok(r.res.body.ml>150);assert.equal(r.historyReads,0);assert.equal(r.staffReads,1);
+ assert.equal(db.commits[0].length,3);assert.equal(db.docs.get('staffs/0137').lastWeight,200);
+});
+test('preflight uses rounded currentMl at the 50mL threshold',async()=>{
+ const r=await post(usageBody(49.999),weightDb(),{historyResult:baseline(25)});assert.equal(r.res.code,422);assert.equal(r.res.body.currentMl,50);
+});
+test('transaction callback has no external precheck/history/HTTP side effects',()=>{
+ const start=apiSource.indexOf('async transaction => {');const end=apiSource.indexOf('if (result.status !== 200)',start);
+ const callback=apiSource.slice(start,end);assert.doesNotMatch(callback,/precheckWeightRemeasurement|fetchRecentNormalWeightHistory|res\.status|res\.json/);
+ assert.match(callback,/calculateWeightUsage\(dbWeight, nowWeight, exchange\)/);
+ assert.equal((callback.match(/transaction\.set\(/g)||[]).length,1);
 });
