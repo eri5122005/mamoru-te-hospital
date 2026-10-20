@@ -23,6 +23,24 @@ const time = v => {
 };
 const median = a => { const s = [...a].sort((a,b)=>a-b); return s.length % 2 ? s[(s.length-1)/2] : (s[s.length/2-1]+s[s.length/2])/2; };
 const bump = (o,k) => { o[k]=(o[k]||0)+1; };
+const DISTRIBUTION_CUTOFFS = Object.freeze([30,40,50,60,75,100,125,150]);
+function distribution(values) {
+  const sorted=[...values].sort((a,b)=>a-b), n=sorted.length;
+  // Nearest-rank: ascending value at ceil(p*N), 1-based; median uses middle/mean of middle two.
+  const percentile=p=>n?sorted[Math.ceil(p*n)-1]:null;
+  return {evaluable:n,min:n?sorted[0]:null,median:n?median(sorted):null,
+    mean:n?sorted.reduce((mean,x,i)=>mean+(x-mean)/(i+1),0):null,
+    p75:percentile(.75),p90:percentile(.90),p95:percentile(.95),p99:percentile(.99),max:n?sorted[n-1]:null};
+}
+function evaluableAnalysis(rows) {
+  return {...distribution(rows.map(r=>r.currentMl)),thresholds:Object.fromEntries(DISTRIBUTION_CUTOFFS.map(cutoff=>{
+    const group=rows.filter(r=>r.currentMl>=cutoff);
+    const personal=distribution(group.map(r=>r.pastMedianMl)),ratios=distribution(group.map(r=>r.ratio));
+    return [cutoff,{count:group.length,percent:rows.length?group.length*100/rows.length:null,
+      personalMedianMl:{min:personal.min,median:personal.median,max:personal.max},
+      ratio:{min:ratios.min,median:ratios.median,max:ratios.max}}];
+  }))};
+}
 function classify(r) {
   const prev=weight(r.weightPrev,true), now=weight(r.weightNow,false), stored=num(r.ml), t=time(r.date);
   const reasons=[];
@@ -125,11 +143,29 @@ export function analyseTimeline(records, rules=candidateRules()) {
     return {N:n,ruleId:rule.id,evaluable:a.evaluable,warnings:a.warnings,warningPercent:rate(a.warnings,a.evaluable),staffCount:a.staff.size,
       wards:Object.fromEntries([...a.wards].map(([id,w])=>[id,{evaluable:w.evaluable,warnings:w.warnings,warningPercent:rate(w.warnings,w.evaluable),staffCount:w.staff.size}]))};
   }));
+  const evaluableCurrentMl=Object.fromEntries(WINDOWS.map(n=>[n,evaluableAnalysis(evaluations.filter(r=>r.N===n))]));
+  const n3=evaluations.filter(r=>r.N===3);
+  const n3Wards=Object.fromEntries([...new Set(n3.map(r=>r.wardId))].sort().map(ward=>{
+    const analysis=evaluableAnalysis(n3.filter(r=>r.wardId===ward));
+    return [ward,{evaluable:analysis.evaluable,medianCurrentMl:analysis.median,p95CurrentMl:analysis.p95,maxCurrentMl:analysis.max,
+      countsAtLeastMl:Object.fromEntries([50,75,100,150].map(cutoff=>[cutoff,analysis.thresholds[cutoff].count]))}];
+  }));
+  const compareText=(a,b)=>a<b?-1:a>b?1:0;
+  const n3Top20=[...n3].sort((a,b)=>b.currentMl-a.currentMl || compareText(a.date,b.date) ||
+    compareText(`${typeof a.staffId}:${a.staffId}`,`${typeof b.staffId}:${b.staffId}`) || compareText(String(a.documentId),String(b.documentId)))
+    .slice(0,20).map(r=>({documentId:r.documentId,staffId:r.staffId,wardId:r.wardId,date:r.date,currentMl:r.currentMl,
+      personalMedianMl:r.pastMedianMl,ratio:r.ratio,differenceMl:r.differenceFromMedianMl,N:r.N,
+      baselineStartDate:r.baselineOldestDate,baselineEndDate:r.baselineNewestDate,baselineSpanHours:r.baselineSpanHours,
+      previousRecordIntervalHours:r.elapsedHours,continuousWeightElapsedHours:r.continuousWeightElapsedHours,
+      chainMismatch:r.chainMismatch,chainDifferenceG:r.chainDifferenceG,qualityFlags:r.qualityFlags}));
   return {summary:{notice:'比較候補であり未決定。警告は誤入力の断定ではない。',counts,excludedReasons,baselineCounts,comparisons,rules,
+    evaluableCurrentMl,n3Wards,
     chainMismatchCount:chainReviews.length,methodology:{history:'strictly earlier eligible positive normal records; tied groups never enter baselines; no lookback expiry',
       interval:'elapsed wall-clock hours, not working hours; no bridging intervening other-unit or invalid-weight records; invalid dates cannot be placed',
       timePrecision:'milliseconds; same-millisecond timestamps treated as tied',
+      distribution:'currentMl is stored ml of eligible evaluations (within 0.01mL of recalculation); each record once per N, independent of rule count; percent denominator is evaluable for that N; nearest-rank ceil(p*N), 1-based; empty stats/percent null',
+      top20:'N=3, currentMl descending; ties: date ascending, typed staffId ascending, documentId ascending, code-unit comparison',
       snapshot:'live paginated listing, not a fixed-time snapshot',rate:'auxiliary elapsed-24-hour equivalent; suppressed under 5 minutes or broken/unknown chain; 5 minutes is a reliability candidate, not a clinical threshold'}},
-    review:{warnings:evaluations.filter(r=>r.matchedRuleIds.length),evaluations,chainMismatches:chainReviews},
+    review:{warnings:evaluations.filter(r=>r.matchedRuleIds.length),evaluations,chainMismatches:chainReviews,n3Top20},
     knownCase:{staffId:'11249',notice:'records上のチェーン情報のみ。未記録の重量変更や原因は推測しない。',records:knownRecords}};
 }

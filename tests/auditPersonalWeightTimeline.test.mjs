@@ -144,3 +144,58 @@ test('low/middle baseline to large use: N denominators, ward rates, staff counts
   }
   assert.equal(JSON.stringify(result).includes('"name"'),false);
 });
+
+test('evaluable distributions: inclusive thresholds and relationship stats use N-specific denominators',()=>{
+  const values=[29.99,30,39.99,40,49.99,50,59.99,60,74.99,75,99.99,100,124.99,125,149.99,150];
+  const data=values.flatMap((x,k)=>Array.from({length:8},(_,i)=>record(i,i===7?x:10,{id:`${k}-${i}`,staffId:`staff-${k}`})));
+  const result=analyseTimeline(data);
+  for(const n of [3,5,7]){
+    const a=result.summary.evaluableCurrentMl[n];
+    assert.equal(a.evaluable,values.length*(8-n));
+    assert.equal(a.evaluable,result.summary.baselineCounts[n].evaluable);
+    for(const cutoff of [30,40,50,60,75,100,125,150]){
+      const count=values.filter(v=>v>=cutoff).length,g=a.thresholds[cutoff];
+      assert.equal(g.count,count);assert.equal(g.percent,count*100/a.evaluable);
+      assert.deepEqual(g.personalMedianMl,{min:10,median:10,max:10});
+      const ratios=values.filter(v=>v>=cutoff).map(v=>v/10);
+      const mid=ratios.length%2?ratios[(ratios.length-1)/2]:(ratios[ratios.length/2-1]+ratios[ratios.length/2])/2;
+      assert.equal(g.ratio.min,ratios[0]);assert.equal(g.ratio.median,mid);assert.equal(g.ratio.max,15);
+    }
+  }
+});
+test('nearest-rank percentiles and arithmetic mean/median, empty and singleton',()=>{
+  const data=Array.from({length:20},(_,k)=>Array.from({length:4},(_,i)=>record(i,i===3?k+1:1,{id:`${k}-${i}`,staffId:`s-${k}`}))).flat();
+  const r=analyseTimeline(data).summary.evaluableCurrentMl;
+  assert.deepEqual({min:r[3].min,median:r[3].median,mean:r[3].mean,p75:r[3].p75,p90:r[3].p90,p95:r[3].p95,p99:r[3].p99,max:r[3].max},
+    {min:1,median:10.5,mean:10.5,p75:15,p90:18,p95:19,p99:20,max:20});
+  assert.equal(r[5].evaluable,0);assert.equal(r[5].median,null);assert.equal(r[5].p95,null);assert.equal(r[5].thresholds[50].percent,null);
+  assert.deepEqual(r[5].thresholds[50].ratio,{min:null,median:null,max:null});
+  const one=finalEvaluation(10,50,3).summary.evaluableCurrentMl[3];
+  for(const key of ['min','median','mean','p75','p90','p95','p99','max'])assert.equal(one[key],50);
+});
+test('N3 ward distributions and top20 include unflagged records, exact fields and no personal-field access',()=>{
+  const data=[];
+  for(const [staff,ward,x] of [['a','78f',50],['b','78f',150],['c','4f',75]])for(let i=0;i<4;i++){
+    const r=record(i,i===3?x:100,{id:`${staff}-${i}`,staffId:staff,wardId:ward});
+    Object.defineProperty(r,'name',{get(){throw new Error('personal access');}});data.push(r);
+  }
+  const r=analyseTimeline(data);
+  assert.deepEqual(r.summary.n3Wards['78f'],{evaluable:2,medianCurrentMl:100,p95CurrentMl:150,maxCurrentMl:150,countsAtLeastMl:{50:2,75:1,100:1,150:1}});
+  assert.equal(r.summary.n3Wards['4f'].evaluable,1);
+  assert.deepEqual(r.review.n3Top20.map(x=>x.currentMl),[150,75,50]);
+  const top=r.review.n3Top20[0];assert.equal(top.personalMedianMl,100);assert.equal(top.differenceMl,50);assert.equal(top.N,3);
+  assert.equal(top.previousRecordIntervalHours,24);assert.equal(top.baselineSpanHours,48);assert.ok(Array.isArray(top.qualityFlags));
+  assert.equal(JSON.stringify(r).includes('"name"'),false);
+});
+test('top20 limit and ties deterministic across reversed input, date/staff/id order',()=>{
+  const data=Array.from({length:25},(_,k)=>Array.from({length:4},(_,i)=>record(i,i===3?50:10,{id:`id-${k}-${i}`,staffId:`s-${String(k).padStart(2,'0')}`}))).flat();
+  const a=analyseTimeline(data),b=analyseTimeline(data.toReversed());
+  assert.equal(a.review.n3Top20.length,20);assert.deepEqual(a.review.n3Top20,b.review.n3Top20);
+  assert.equal(a.review.n3Top20[0].staffId,'s-00');assert.equal(a.review.n3Top20.at(-1).staffId,'s-19');
+});
+test('distribution uses stored currentMl, not rounded recalculation; no multiplication by rule count',()=>{
+  const data=Array.from({length:4},(_,i)=>record(i,i===3?50:10));data[3].ml=49.99;
+  const a=analyseTimeline(data),b=analyseTimeline(data,[{id:'only',ratio:2}]);
+  assert.equal(a.summary.evaluableCurrentMl[3].max,49.99);assert.equal(a.summary.evaluableCurrentMl[3].thresholds[50].count,0);
+  assert.deepEqual(a.summary.evaluableCurrentMl,b.summary.evaluableCurrentMl);
+});
