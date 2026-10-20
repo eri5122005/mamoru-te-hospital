@@ -8,7 +8,9 @@ import { isActiveStaff } from '../utils/isActiveStaff.js';
 import { precheckWeightRemeasurement, WeightPrecheckReadError } from '../utils/precheckWeightRemeasurement.js';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 
-const read = path => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+// Normalize CRLF only; preserve indentation, spaces, comments and executable code.
+const normalizeLineEndings = source => source.replace(/\r\n/g, '\n');
+const read = path => normalizeLineEndings(fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'));
 const apiSource = read('pages/api/records.js').replace(/import[\s\S]*?from\s+["'][^"']+["'];\s*/g, '').replace('export default ', '');
 const page = read('pages/record/index.js');
 const valid = { staffId: '0137', name: 'Staff', wardId: '6f', department: '6階', weightPrev: 200, weightNow: 190, isBottleExchange: false, ml: 999, mintPoint: 1 };
@@ -249,7 +251,7 @@ test('page has no direct Firestore writes; locks and formulas remain', () => {
   assert.doesNotMatch(page, /updateDoc|setDoc|addDoc|runTransaction/);
   assert.match(page, /recordLockRef\.current \|\| isSubmitting/);
   assert.match(page, /if \(exchangeLockRef\.current\) return/);
-  const previous = execFileSync('git', ['show', 'HEAD:pages/record/index.js'], { encoding: 'utf8' });
+  const previous = normalizeLineEndings(execFileSync('git', ['show', 'HEAD:pages/record/index.js'], { encoding: 'utf8' }));
   for (const [start, end] of [['  // 旧ボトル：', '  let usedMl ='], ['  // ★ 使用量計算', '  // ★ 二重登録防止']]) {
     const before = previous.slice(previous.indexOf(start), previous.indexOf(end, previous.indexOf(start)));
     const after = page.slice(page.indexOf(start), page.indexOf(end, page.indexOf(start)));
@@ -257,7 +259,7 @@ test('page has no direct Firestore writes; locks and formulas remain', () => {
   }
 });
 test('GET implementations are unchanged', () => {
-  const old = execFileSync('git', ['show', 'HEAD:pages/api/records.js'], { encoding: 'utf8' });
+  const old = normalizeLineEndings(execFileSync('git', ['show', 'HEAD:pages/api/records.js'], { encoding: 'utf8' }));
   const current = read('pages/api/records.js');
   const getSections = source => source.slice(source.indexOf('  // 全記録を取得'), source.indexOf('  // 記録を修正'));
   assert.equal(getSections(current), getSections(old));
@@ -358,4 +360,14 @@ test('transaction callback has no external precheck/history/HTTP side effects',(
  const callback=apiSource.slice(start,end);assert.doesNotMatch(callback,/precheckWeightRemeasurement|fetchRecentNormalWeightHistory|res\.status|res\.json/);
  assert.match(callback,/calculateWeightUsage\(dbWeight, nowWeight, exchange\)/);
  assert.equal((callback.match(/transaction\.set\(/g)||[]).length,1);
+});
+
+for(const path of ['pages/record/index.js','pages/api/records.js'])test(`source normalization accepts LF/CRLF but preserves code and indentation: ${path}`,()=>{
+ const lf=read(path),crlf=lf.replace(/\n/g,'\r\n');
+ assert.ok(lf.includes('\n'));assert.equal(normalizeLineEndings(crlf),lf);assert.equal(normalizeLineEndings(lf),lf);
+ // These differences must remain detectable, including indentation at an internal line.
+ const indented=lf.replace(/\n/, '\n ');
+ assert.notEqual(indented,lf);assert.notEqual(normalizeLineEndings(indented),lf);
+ const changed=lf.replace('const ', 'let ');
+ assert.notEqual(changed,lf);assert.notEqual(normalizeLineEndings(changed),lf);
 });
