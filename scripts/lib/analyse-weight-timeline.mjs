@@ -3,12 +3,16 @@ import { calculateWeightUsage } from '../../utils/calculateWeightUsage.js';
 export const WINDOWS = Object.freeze([3, 5, 7]);
 export function candidateRules() {
   // Comparison candidates ONLY: these are neither recommended nor decided thresholds.
-  return [2, 3].flatMap(k => [
+  const existing = [2, 3].flatMap(k => [
     { id: `ratio-${k}`, ratio: k },
     { id: `ratio-${k}-difference-75`, ratio: k, difference: 75 },
     { id: `ratio-${k}-absolute-150`, ratio: k, absolute: 150 },
     { id: `ratio-${k}-difference-75-within-36h`, ratio: k, difference: 75, maxHours: 36 },
   ]).concat([{ id: 'difference-75', difference: 75 }, { id: 'absolute-150', absolute: 150 }]);
+  const combinations = [50, 75, 100, 125, 150].flatMap(absolute =>
+    [2, 3].map(ratio => ({ id: `ratio-${ratio}-absolute-${absolute}`, ratio, absolute })));
+  // Reuse the two existing 150mL rules; never count duplicate rule IDs.
+  return existing.concat(combinations.filter(rule => !existing.some(old => old.id === rule.id)));
 }
 const num = v => (typeof v === 'number' || (typeof v === 'string' && v.trim())) && Number.isFinite(Number(v)) ? Number(v) : null;
 const weight = (v, prev) => { const n = num(v); return n !== null && n <= 263 && (prev ? n >= 45 : n > 45) ? n : null; };
@@ -90,7 +94,7 @@ export function analyseTimeline(records, rules=candidateRules()) {
           const row={...details,currentMl:c.stored,recalculatedMl:c.ml,N:n,pastMedianMl:m,ratio:c.ml/m,differenceFromMedianMl:c.ml-m,
             baselineOldestDate:new Date(past[0].t).toISOString(),baselineNewestDate:new Date(past.at(-1).t).toISOString(),
             baselineSpanHours:(past.at(-1).t-past[0].t)/3600000,baselineDocumentIds:past.map(x=>x.id),
-            typicalLowToOver150:m<50 && c.ml>150,matchedRuleIds:[]};
+            typicalLowToOver150:m<50 && c.ml>150,matchedRuleIds:[],matchedRuleConditions:[]};
           // Each rule has its own eligible denominator; interval rules exclude unknown/unreliable intervals.
           for(const rule of rules) {
             const key=`${n}:${rule.id}`;
@@ -100,7 +104,11 @@ export function analyseTimeline(records, rules=candidateRules()) {
             a.evaluable++;
             if(!a.wards.has(c.wardId))a.wards.set(c.wardId,{evaluable:0,warnings:0,staff:new Set()});
             const w=a.wards.get(c.wardId);w.evaluable++;
-            if(ruleMatch(rule,c.ml,m,continuousHours)){a.warnings++;a.staff.add(staffKey);w.warnings++;w.staff.add(staffKey);row.matchedRuleIds.push(rule.id);}
+            if(ruleMatch(rule,c.ml,m,continuousHours)){
+              a.warnings++;a.staff.add(staffKey);w.warnings++;w.staff.add(staffKey);row.matchedRuleIds.push(rule.id);
+              row.matchedRuleConditions.push({ruleId:rule.id,minimumMl:rule.absolute??null,medianMultiplier:rule.ratio??null,
+                minimumDifferenceMl:rule.difference??null,maximumElapsedHours:rule.maxHours??null});
+            }
           }
           evaluations.push(row);
         }

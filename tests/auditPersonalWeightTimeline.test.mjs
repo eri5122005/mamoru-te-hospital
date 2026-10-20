@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { analyseTimeline } from '../scripts/lib/analyse-weight-timeline.mjs';
+import { analyseTimeline, candidateRules } from '../scripts/lib/analyse-weight-timeline.mjs';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 const source=readFileSync(new URL('../scripts/audit-personal-weight-timeline.mjs',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const rules=[{id:'r',ratio:2},{id:'d',difference:75},{id:'a',absolute:150},{id:'rd',ratio:2,difference:75},{id:'ra',ratio:2,absolute:150},{id:'interval',ratio:2,maxHours:36}];
@@ -85,4 +85,62 @@ test('runner static safety; confirmation stops before Firebase init; no executab
  vm.runInNewContext(def+';confirmReadOnly();',{process:{argv:['node','audit','--confirm-personal-weight-timeline-records-read-only']}});
  assert.match(source,/await getDocsFromServer\(request\)/);assert.match(source,/await assertOutsideGit\(tempRoot\)/);
  assert.match(source,/\['known-case', report.knownCase\]/);
+});
+
+function finalEvaluation(baseline, current, n=7, extra={}) {
+  const data=Array.from({length:n+1},(_,i)=>record(i,i===n?current:baseline,extra));
+  return analyseTimeline(data);
+}
+test('complete candidate matrix preserves old rules and has exactly 30 N/absolute/ratio comparisons',()=>{
+  const candidates=candidateRules();
+  assert.equal(new Set(candidates.map(r=>r.id)).size,candidates.length);
+  for(const id of ['ratio-2','difference-75','absolute-150','ratio-3-difference-75-within-36h'])assert.ok(candidates.some(r=>r.id===id));
+  const result=analyseTimeline([]);
+  const matrix=result.summary.comparisons.filter(r=>/^ratio-[23]-absolute-(50|75|100|125|150)$/.test(r.ruleId));
+  assert.equal(matrix.length,30);
+  assert.match(result.summary.notice,/比較候補.*未決定/);
+});
+for(const minimum of [50,75,100,125,150])for(const multiplier of [2,3]) {
+  test(`inclusive AND boundary ${minimum}mL, ${multiplier}x`,()=>{
+    const id=`ratio-${multiplier}-absolute-${minimum}`;
+    // Integer medians make the ratio boundary exact after the existing 2-decimal calculation.
+    const baseline=Math.ceil(minimum/multiplier), boundary=baseline*multiplier;
+    const equal=rows(finalEvaluation(baseline,boundary)).find(r=>r.documentId==='7'&&r.N===7);
+    assert.ok(equal.matchedRuleIds.includes(id));
+    const below=rows(finalEvaluation(baseline,boundary-.01)).find(r=>r.documentId==='7'&&r.N===7);
+    assert.equal(below.matchedRuleIds.includes(id),false);
+    const absoluteEqual=rows(finalEvaluation(1,minimum)).find(r=>r.documentId==='7'&&r.N===7);
+    assert.ok(absoluteEqual.matchedRuleIds.includes(id));
+    const absoluteBelow=rows(finalEvaluation(1,minimum-.01)).find(r=>r.documentId==='7'&&r.N===7);
+    assert.equal(absoluteBelow.matchedRuleIds.includes(id),false);
+    const detail=equal.matchedRuleConditions.find(r=>r.ruleId===id);
+    assert.equal(detail.minimumMl,minimum);assert.equal(detail.medianMultiplier,multiplier);
+  });
+}
+test('small absolute use excluded even with large ratios; habitual high use not inherently warned',()=>{
+  for(const [usual,current] of [[2.29,4.59],[3.44,14.91],[9.17,22.94],[20.64,47.02],[2,30]]) {
+    const r=rows(finalEvaluation(usual,current)).find(r=>r.documentId==='7'&&r.N===7);
+    assert.ok(r.matchedRuleIds.includes('ratio-2'));
+    assert.equal(r.matchedRuleIds.some(id=>/^ratio-[23]-absolute-/.test(id)),false);
+  }
+  const high=rows(finalEvaluation(130,160)).find(r=>r.documentId==='7'&&r.N===7);
+  assert.equal(high.matchedRuleIds.some(id=>/^ratio-[23]-absolute-/.test(id)),false);
+});
+test('low/middle baseline to large use: N denominators, ward rates, staff counts and privacy',()=>{
+  const data=[];
+  for(const [id,ward,base,current] of [['low','4f',20,150],['high','78f',130,160]]) {
+    for(let i=0;i<8;i++){
+      const r=record(i,i===7?current:base,{id:`${id}-${i}`,staffId:id,wardId:ward});
+      Object.defineProperty(r,'name',{get(){throw new Error('name accessed');}});data.push(r);
+    }
+  }
+  const result=analyseTimeline(data);
+  for(const n of [3,5,7]) {
+    const summary=result.summary.comparisons.find(r=>r.N===n&&r.ruleId==='ratio-3-absolute-150');
+    assert.equal(summary.evaluable,(8-n)*2);assert.equal(summary.warnings,1);assert.equal(summary.staffCount,1);
+    assert.equal(summary.wards['4f'].evaluable,8-n);assert.equal(summary.wards['4f'].warnings,1);
+    assert.equal(summary.wards['4f'].warningPercent,100/(8-n));
+    assert.equal(summary.wards['78f'].warnings,0);assert.equal(summary.wards['78f'].warningPercent,0);
+  }
+  assert.equal(JSON.stringify(result).includes('"name"'),false);
 });
