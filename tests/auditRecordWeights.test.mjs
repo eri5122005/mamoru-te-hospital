@@ -9,12 +9,18 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 const url = new URL('../scripts/audit-record-weights.mjs', import.meta.url);
-const source = readFileSync(url, 'utf8');
-assert.ok(source.includes('\nlet auditDb;'));
-const library = source.slice(0, source.indexOf('\nlet auditDb;'))
-  .replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(url.href));
-assert.doesNotMatch(library, /initializeApp\(|getFirestore\(/);
-function harness(overrides = {}) {
+const source = readFileSync(url, 'utf8').replace(/\r\n/g, '\n');
+function prepareLibrary(text) {
+  const normalized = text.replace(/\r\n/g, '\n');
+  assert.ok(normalized.includes('\nlet auditDb;'));
+  const library = normalized.slice(0, normalized.indexOf('\nlet auditDb;'))
+    .replace(/^import .*;\n/gm, '').replaceAll('import.meta.url', JSON.stringify(url.href));
+  assert.doesNotMatch(library, /^\s*import\b/m, 'Import declarations must not reach vm evaluation');
+  assert.doesNotMatch(library, /initializeApp\(|getFirestore\(/);
+  return library;
+}
+function harness(overrides = {}, text = source) {
+  const library = prepareLibrary(text);
   const messages = [];
   const ctx = {
     calculateWeightUsage, process: { argv: ['node', 'audit'], env: {} },
@@ -27,6 +33,18 @@ function harness(overrides = {}) {
   return { ...api, messages };
 }
 const normalize = value => JSON.parse(JSON.stringify(value));
+for (const [label, text] of [['LF', source], ['CRLF', source.replace(/\n/g, '\r\n')]]) {
+  test(`harness removes imports and excludes entrypoint with ${label} endings`, () => {
+    const library = prepareLibrary(text);
+    assert.doesNotMatch(library, /^\s*import\b/m);
+    assert.equal(library.includes('let auditDb;'), false);
+    assert.equal(harness({}, text).stats([10, 20]).mean, 15);
+  });
+}
+test('harness rejects an unremoved import before vm evaluation', () => {
+  assert.throws(() => harness({}, "import {\n  initializeApp\n} from 'firebase/app';\n" + source),
+    /Import declarations must not reach vm evaluation/);
+});
 const r = (id, changes = {}) => ({ id: String(id), date: '2026-10-15T00:00:00Z', staffId: '0137', wardId: '6f', unit: 'weight',
   weightPrev: 200, weightNow: 190, isBottleExchange: false, ml: 11.47, ...changes });
 test('entrypoint not executed; forbidden auth/writes/processes and personal-field access absent', () => {
