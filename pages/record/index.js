@@ -6,6 +6,8 @@ import { saveRecordDraft, clearRecordDraft } from "../../utils/recordUpdateDraft
 import { registerUpdatePreparation } from "../../utils/appUpdateState";
 import { checkAppVersion } from "../../utils/checkAppVersion";
 import { getAppUpdateState, requireAppUpdate, setUpdateInput, beginUpdateOperation } from "../../utils/appUpdateState";
+import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, blockConfirmationEnter, createRecordRequestScope } from "../../utils/recordRemeasurementState";
+import { subscribeAppUpdate } from "../../utils/appUpdateState";
 import { getAppBuildId } from "../../utils/getAppBuildId";
 
 import {
@@ -56,6 +58,23 @@ const cleanupFailedRef = useRef(false);
 const [draftNotice, setDraftNotice] = useState("");
 
 const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+const [remeasurementFlow, setRemeasurementFlow] = useState(idleRemeasurement);
+const remeasurementRef = useRef(idleRemeasurement());
+const requestScopeRef = useRef(createRecordRequestScope());
+const changeRemeasurement = next => { remeasurementRef.current = next; setRemeasurementFlow(next); };
+const resetRemeasurement = () => changeRemeasurement(idleRemeasurement());
+useEffect(() => {
+  requestScopeRef.current.activate();
+  const leave = url => {
+    // Re-selecting the current navbar tab is not a logout or a new staff context.
+    if (typeof url === "string" && url.split(/[?#]/)[0].replace(/\/$/, "") === router.pathname) return;
+    requestScopeRef.current.invalidate(); resetRemeasurement(); readyRef.current = false; setReady(false);
+    setMessage("画面を切り替えています。続ける場合はログインし直してください。");
+  };
+  router.events.on("routeChangeStart", leave);
+  const stop = subscribeAppUpdate(() => { if (getAppUpdateState().required) resetRemeasurement(); });
+  return () => { router.events.off("routeChangeStart", leave); stop(); requestScopeRef.current.dispose(); remeasurementRef.current = idleRemeasurement(); };
+}, []);
 
 // ★ 二重登録防止フラグ（ここに追加）
 const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,10 +140,11 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   useEffect(() => {
     const changed = () => {
       try { if (currentIdRef.current && currentRecordStaffId(localStorage) !== currentIdRef.current) {
+        requestScopeRef.current.invalidate(); resetRemeasurement();
         readyRef.current = false; setReady(false);
         try { clearRecordDraft(sessionStorage); } catch { /* Remain blocked. */ }
         setMessage("ログイン中の職員が変わりました。ログインし直してください。");
-      } } catch { readyRef.current = false; setReady(false); }
+      } } catch { requestScopeRef.current.invalidate(); resetRemeasurement(); readyRef.current = false; setReady(false); }
     };
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
@@ -137,6 +157,7 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
 
   const ensureCurrentVersion = async () => {
     if (!readyRef.current || currentRecordStaffId(localStorage) !== currentIdRef.current) {
+      requestScopeRef.current.invalidate(); resetRemeasurement();
       readyRef.current = false; setReady(false);
       setMessage("最新の職員情報を確認できません。ログインし直してください。");
       return false;
@@ -144,6 +165,7 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
     if (getAppUpdateState().required) return false;
     const result = await checkAppVersion();
     if (!readyRef.current || currentRecordStaffId(localStorage) !== currentIdRef.current) {
+      requestScopeRef.current.invalidate(); resetRemeasurement();
       readyRef.current = false; setReady(false);
       setMessage("ログイン中の職員が変わりました。ログインし直してください。");
       return false;
@@ -168,6 +190,9 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
     try {
     if (!await ensureCurrentVersion() || getAppUpdateState().required) return false;
     let savedRecord;
+    const outgoing = recordFlowRequest(remeasurementRef.current, nowWeightValue, isBottleExchange);
+    const ticket = requestScopeRef.current.begin(staff.staffId);
+    const responseIsCurrent = () => { try { return requestScopeRef.current.valid(ticket, currentRecordStaffId(localStorage)); } catch { return false; } };
     try {
       const now = new Date();
 const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -176,6 +201,7 @@ const response = await fetch("/api/records", {
   method: "POST",
   headers: { "Content-Type": "application/json", "X-App-Build-Id": getAppBuildId() || "" },
   body: JSON.stringify({
+    ...outgoing,
     staffId: staff.staffId,
     name: staff.name,
     department: wardNameMap[staff.wardId] || staff.department,
@@ -190,39 +216,59 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
   }),
 });
 
+      if (!responseIsCurrent()) return false;
       if (!response.ok) {
-        let detail = "";
-        try {
-          const body = await response.json();
-          if (response.status === 426 && body?.code === "APP_UPDATE_REQUIRED") {
-            requireAppUpdate();
+        let body = null;
+        try { body = await response.json(); } catch { /* Generic safe failure below. */ }
+        if (!responseIsCurrent()) return false;
+        if (response.status === 426 && body?.code === "APP_UPDATE_REQUIRED") {
+          resetRemeasurement(); requireAppUpdate(); return false;
+        }
+        if (response.status === 422) {
+          const next = acceptRemeasurementResponse(remeasurementRef.current, body, outgoing.operation);
+          if (next) {
+            if (next.display.weightNow !== nowWeightValue || next.display.previousWeight !== Number(staff.lastWeight)) throw new Error("Mismatched remeasurement response");
+            if (getAppUpdateState().required) { resetRemeasurement(); return false; }
+            clearMessageTimer(); setMessage(""); setMessageType("normal"); setShowExchangeConfirm(false);
+            changeRemeasurement(next);
+            if (next.phase === "remeasure_required") setWeightNow("");
             return false;
           }
-          if (typeof body?.error === "string" && body.error.trim()) {
-            detail = `\n詳細：${body.error}`;
-          }
-        } catch {
-          // 空・HTML・不正JSONの応答でも共通の案内を表示する。
+        }
+        // All other challenge errors discard approval state; keep entered weight for reference.
+        if (typeof body?.code === "string" && body.code.startsWith("WEIGHT_CHALLENGE_")) {
+          resetRemeasurement();
+          if (body.code === "WEIGHT_CHALLENGE_APP_VERSION_MISMATCH") requireAppUpdate();
+        }
+        if (body?.code === "WEIGHT_CONFIRMATION_CHANGED") changeRemeasurement(retryRemeasurement(remeasurementRef.current));
+        if ([403, 404, 409].includes(response.status) && body?.code !== "WEIGHT_CONFIRMATION_CHANGED" &&
+            !["WEIGHT_CHALLENGE_APP_VERSION_MISMATCH", "WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH"].includes(body?.code)) {
+          resetRemeasurement(); readyRef.current = false; setReady(false);
         }
         if (response.status >= 500) {
-          saveUncertainRef.current = true; readyRef.current = false; setReady(false);
+          resetRemeasurement(); saveUncertainRef.current = true; readyRef.current = false; setReady(false);
           try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
         }
+        const detail = typeof body?.error === "string" && body.error.trim() ? `\n詳細：${body.error}` : "";
         setMessage(detail ? `記録を保存できませんでした。${detail}` : `記録を保存できませんでした。\n${weightUpdateWarning}`);
         return false;
       }
       savedRecord = await response.json();
-      if (savedRecord?.ok !== true || typeof savedRecord.staffId !== "string" ||
+      if (!responseIsCurrent()) return false;
+      if (savedRecord?.ok !== true || savedRecord.staffId !== staff.staffId || savedRecord.lastWeight !== nowWeightValue ||
           !Number.isFinite(savedRecord.lastWeight) || !Number.isFinite(savedRecord.ml)) {
         throw new Error("Invalid save response");
       }
     } catch (error) {
+      if (!responseIsCurrent()) return false;
+      resetRemeasurement();
       saveUncertainRef.current = true; readyRef.current = false; setReady(false);
       try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
       setMessage(`保存結果を確認できませんでした。\n${weightUpdateWarning}`);
       return false;
     }
 
+    resetRemeasurement();
     // A confirmed POST remains successful even if draft cleanup fails.
     try { clearRecordDraft(sessionStorage, savedRecord.staffId); }
     catch {
@@ -318,7 +364,7 @@ const openExchangeDialog = () => {
 const handleExchangeYes = async () => {
   // ★ すでに交換処理中なら2回目は実行しない
   if (exchangeLockRef.current) return;
-  if (!isSubmitting || !readyRef.current) return;
+  if (!isSubmitting || !readyRef.current || remeasurementRef.current.phase !== "idle") return;
 
   // ★ awaitより前にロックする
   exchangeLockRef.current = true;
@@ -415,6 +461,7 @@ const handleExchangeNo = () => {
   // ★ 記録処理（重さ方式）完全修正版
 const handleRecord = async () => {
   if (!staff || !readyRef.current) return;
+  if (remeasurementRef.current.phase === "confirmation_required") return;
 
   // ★ 連打防止（2回目を絶対に走らせない）
   if (recordLockRef.current || isSubmitting) return;
@@ -452,7 +499,7 @@ if (
 }
 
   // ★ 登録前の確認ポップアップ
-  const ok = confirm(`${weightNow} g で登録してよろしいですか？`);
+  const ok = remeasurementRef.current.phase !== "idle" || confirm(`${weightNow} g で登録してよろしいですか？`);
   if (!ok) {
     setIsSubmitting(false);
     return;
@@ -469,6 +516,10 @@ if (
 
   // ★ ボトル交換判定（誤差3gまで許容）
 if (now > prev + 3) {
+  if (remeasurementRef.current.phase !== "idle") {
+    setMessage("重さが増えています。再測定中は交換扱いにできません。測り直すか、再測定を終了して通常入力から確認してください。");
+    return;
+  }
   setMessage("記録中です…（ボトル交換の確認）");
   setShowExchangeConfirm(true);
 
@@ -499,6 +550,24 @@ if (now > prev + 3) {
   }
   };
 
+const handleRemeasureAgain = () => {
+  if (recordLockRef.current || isSubmitting || !readyRef.current) return;
+  changeRemeasurement(retryRemeasurement(remeasurementRef.current)); setWeightNow(""); setMessage("");
+};
+const handleRemeasureCancel = () => {
+  if (recordLockRef.current || isSubmitting) return;
+  resetRemeasurement(); setMessage("再測定を終了しました。重量を確認して通常入力からやり直してください。");
+};
+const handleRemeasureConfirm = async () => {
+  if (!staff || !readyRef.current || recordLockRef.current || isSubmitting || remeasurementRef.current.phase !== "confirmation_required") return;
+  if (Number(weightNow) !== remeasurementRef.current.display?.weightNow) { handleRemeasureAgain(); return; }
+  recordLockRef.current = true; setIsSubmitting(true);
+  const endOperation = beginUpdateOperation();
+  try { clearMessageTimer(); await saveRecord(0, Number(weightNow), false); }
+  finally { recordLockRef.current = false; setIsSubmitting(false); endOperation(); }
+};
+
+
 
   if (!staff) {
     return (
@@ -523,6 +592,23 @@ if (now > prev + 3) {
       <main>
         <h1 style={{ color: "#006b5f", marginBottom: "10px" }}>今日の記録</h1>
         {draftNotice && <p role="status">{draftNotice}</p>}
+        {remeasurementFlow.phase !== "idle" && (
+          <section role="alert" aria-live="polite" style={{ background: "#fff6df", border: "1px solid #e5c77e", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+            {remeasurementFlow.phase === "remeasure_required" ? <>
+              <strong>通常より使用量が多くなっています。</strong>
+              <p>入力間違いの可能性があるため、もう一度ボトルの重量を測定してください。</p>
+              <p>最初に入力した重量：{remeasurementFlow.initialWeightNow}g</p>
+              <p>下の入力欄へ、測り直した重量を入力してください。</p>
+            </> : <>
+              <strong>再測定後も通常より多い使用量です</strong>
+              <p>前回重量：{remeasurementFlow.display.previousWeight}g<br />今回重量：{remeasurementFlow.display.weightNow}g<br />使用量：約{remeasurementFlow.display.currentMl}mL</p>
+              <p>{remeasurementFlow.display.personalRuleEvaluated ? `最近の使用量中央値：約${remeasurementFlow.display.personalMedianMl}mL` : "個人基準は未評価"}</p>
+              <button type="button" disabled={isSubmitting || !ready} onClick={handleRemeasureAgain} style={{ width: "100%", padding: "14px", background: "#cfeeee", border: "1px solid #2AAE9E", borderRadius: "10px", marginBottom: "12px" }}>測り直す</button>
+              <button type="button" disabled={isSubmitting || !ready} onKeyDown={blockConfirmationEnter} onClick={handleRemeasureConfirm} style={{ width: "100%", padding: "14px", background: "white", border: "1px solid #9b8759", borderRadius: "10px" }}>再測定しました。この値で登録します</button>
+            </>}
+            <button type="button" disabled={isSubmitting} onClick={handleRemeasureCancel} style={{ marginTop: "12px", padding: "10px", background: "transparent", border: "none", textDecoration: "underline" }}>再測定を終了して通常入力へ戻る</button>
+          </section>
+        )}
 
         {showExchangeConfirm && (
           <div
@@ -600,6 +686,7 @@ if (now > prev + 3) {
   disabled={isSubmitting || !ready}
   value={weightNow}
   onChange={(e) => {
+    if (recordLockRef.current || isSubmitting) return;
     const v = e.target.value;
 
     // ★ 全角 → 半角に強制変換（ここが最重要）
@@ -607,6 +694,7 @@ if (now > prev + 3) {
       String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
     );
 
+    if (remeasurementRef.current.phase === "confirmation_required") changeRemeasurement(retryRemeasurement(remeasurementRef.current));
     setWeightNow(half);
   }}
   placeholder="例：240（g）"
@@ -690,9 +778,11 @@ if (now > prev + 3) {
   </div>
 )}
 
+        {!ready && <button type="button" onClick={() => router.push("/login")} style={{ padding: "12px", marginBottom: "12px" }}>ログイン画面へ戻る</button>}
         <button
+  type="button"
   onClick={handleRecord}
-  disabled={isSubmitting || !ready}
+  disabled={isSubmitting || !ready || remeasurementFlow.phase === "confirmation_required"}
   style={{
     width: "100%",
     padding: "16px",
@@ -701,11 +791,11 @@ if (now > prev + 3) {
     borderRadius: "12px",
     fontSize: "20px",
     color: "#006b5f",
-    cursor: isSubmitting ? "not-allowed" : "pointer",
-    opacity: isSubmitting ? 0.6 : 1,
+    cursor: isSubmitting || !ready || remeasurementFlow.phase === "confirmation_required" ? "not-allowed" : "pointer",
+    opacity: isSubmitting || !ready || remeasurementFlow.phase === "confirmation_required" ? 0.6 : 1,
   }}
 >
-  ＋ 記録する
+  {remeasurementFlow.phase === "remeasure_required" ? "再測定した重量で記録する" : "＋ 記録する"}
 </button>
 
 

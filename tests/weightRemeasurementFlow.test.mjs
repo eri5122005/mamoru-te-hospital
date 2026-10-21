@@ -126,10 +126,10 @@ test('no identifiers beyond staffId or personal data is consumed or returned',as
 test('secret missing rejects challenge stages before reads, normal initial still works',async()=>{
  const s=setup();s.deps.secret=null;assert.equal((await s.run(staged('remeasure',signed()))).status,'challenge_unavailable');assert.deepEqual(s.reads,[]);
 });
-test('static isolation: no writes, direct SDK, network, storage, logging or API integration',()=>{
+test('static isolation: no writes, direct SDK, network, storage, logging or browser import',()=>{
  const source=readFileSync(new URL('../utils/server/weightRemeasurementFlow.js',import.meta.url),'utf8');
  for(const word of ['firebase','addDoc','setDoc','updateDoc','deleteDoc','runTransaction','writeBatch','sessionStorage','localStorage','console.','fetch('])assert.equal(source.includes(word),false,word);
- for(const path of ['pages/api/records.js','pages/record/index.js'])assert.equal(readFileSync(new URL(`../${path}`,import.meta.url),'utf8').includes('weightRemeasurementFlow'),false);
+ for(const path of ['pages/record/index.js'])assert.equal(readFileSync(new URL(`../${path}`,import.meta.url),'utf8').includes('weightRemeasurementFlow'),false);
 });
 
 for(const [state,expected] of [

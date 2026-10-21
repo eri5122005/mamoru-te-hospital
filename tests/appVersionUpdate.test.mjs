@@ -71,7 +71,7 @@ const ensure=page.slice(page.indexOf('  const ensureCurrentVersion ='),page.inde
 for(const status of ['current','update-required','unavailable']) test(`record preflight: ${status}`,async()=>{
   let required=false,checks=0;const messages=[];
   const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{
-    ...readyMocks,
+    ...readyMocks,remeasurementRef:{current:{phase:'idle'}},
     getAppUpdateState:()=>({required}),checkAppVersion:async()=>{checks++;return {status};},
     requireAppUpdate:()=>{required=true;},setMessage:v=>messages.push(v),setMessageType() {},
   });
@@ -79,14 +79,14 @@ for(const status of ['current','update-required','unavailable']) test(`record pr
   if(status==='unavailable')assert.match(messages[0],/最新版を確認できません/);
 });
 test('known update blocks preflight without overwriting build ID',async()=>{
-  const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{...readyMocks,getAppUpdateState:()=>({required:true}),checkAppVersion:()=>assert.fail()});
+  const allowed=await vm.runInNewContext(`${ensure}\nensureCurrentVersion()`,{...readyMocks,remeasurementRef:{current:{phase:'idle'}},getAppUpdateState:()=>({required:true}),checkAppVersion:()=>assert.fail()});
   assert.equal(allowed,false);
 });
 for(const status of ['update-required','unavailable']) test(`record start ${status} does not calculate or save`,async()=>{
   const start=page.slice(page.indexOf('const handleRecord ='),page.indexOf('  if (!staff) {',page.indexOf('const handleRecord =')));
   let unlocked=0;
   await vm.runInNewContext(`${start}\nhandleRecord()`,{
-    ...readyMocks,staff:{lastWeight:200},recordLockRef:{current:false},isSubmitting:false,setIsSubmitting(){},
+    ...readyMocks,remeasurementRef:{current:{phase:'idle'}},staff:{lastWeight:200},recordLockRef:{current:false},isSubmitting:false,setIsSubmitting(){},
     beginUpdateOperation:()=>()=>{unlocked++;},ensureCurrentVersion:async()=>false,clearMessageTimer(){},
     confirm:()=>assert.fail('must not reach confirmation'),saveRecord:()=>assert.fail('must not POST'),
   });assert.equal(unlocked,1);
@@ -103,7 +103,7 @@ for(const action of ['handleRecord','handleExchangeYes']) test(`version change b
   const block=page.slice(page.indexOf('  const saveRecord = async'),page.indexOf('  if (!staff) {',page.indexOf('const handleRecord =')));
   let checks=0, operations=0;
   const context={
-    ...readyMocks,staff:{lastWeight:action==='handleRecord'?200:100},weightNow:'190',
+    ...readyMocks,remeasurementRef:{current:{phase:'idle'}},staff:{lastWeight:action==='handleRecord'?200:100},weightNow:'190',
     isSubmitting:action==='handleExchangeYes',recordLockRef:{current:false},exchangeLockRef:{current:false},
     EMPTY_WEIGHT:45,FULL_WEIGHT:263,ML_PER_GRAM:250/218,
     beginUpdateOperation:()=>{operations++;return ()=>operations--;},

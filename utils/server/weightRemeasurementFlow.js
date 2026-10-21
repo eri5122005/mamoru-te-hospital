@@ -14,8 +14,32 @@ const stopStatuses = new Set(['staff_not_found','staff_inactive','invalid_db_wei
 const number = value => (typeof value === 'number' || typeof value === 'string' && value.trim()) ? Number(value) : NaN;
 const validClock = n => Number.isSafeInteger(n) && n > 0 && n <= 8640000000000000;
 
+/** Side-effect-free final check; safe to repeat inside a save transaction.
+ * No staff/history reads, issuance, logging or HTTP responses occur here.
+ */
+export function checkWeightFlowChallenge(request, {
+  appBuildId, nowMs = Date.now(), secret = process.env.WEIGHT_REMEASUREMENT_SIGNING_SECRET,
+} = {}) {
+  const { operation, challenge, staffId, requestWeightPrev, weightNow, isBottleExchange } = request;
+  if (!['remeasure','confirm_remeasurement'].includes(operation)) return { status: 'invalid_request' };
+  const expectedStage = operation === 'remeasure' ? 'remeasure' : 'confirm';
+  try {
+    const token = verifyWeightChallenge(challenge, { expectedStage, nowMs, secret });
+    if (token.staffId !== staffId) return { status: 'challenge_staff_mismatch' };
+    if (token.previousWeight !== number(requestWeightPrev)) return { status: 'challenge_previous_weight_mismatch' };
+    if (token.appBuildId !== appBuildId) return { status: 'challenge_app_version_mismatch' };
+    if (token.ruleVersion !== WEIGHT_REMEASUREMENT_RULE_VERSION) return { status: 'challenge_rule_version_mismatch' };
+    if (isBottleExchange !== false) return { status: 'invalid_request' };
+    if (operation === 'confirm_remeasurement' && token.weightNow !== number(weightNow)) return { status: 'challenge_weight_mismatch' };
+    return { status: 'valid', payload: token };
+  } catch (error) {
+    if (error instanceof WeightChallengeError) return { status: challengeStatuses[error.code] ?? 'challenge_invalid' };
+    throw error;
+  }
+}
+
 /**
- * Server-side decision orchestration only; NOT connected to any API and never saves.
+ * Server-side decision orchestration only; the API owns the final save transaction.
  * precheck is a trusted server dependency, not a client-supplied result. The final save
  * transaction MUST recheck staff existence/active/DB weight, expiry and calculated ml.
  * No history snapshot/revision or baselineDigest guarantee; no token consumption/replay state.
@@ -40,18 +64,13 @@ export async function evaluateWeightRemeasurementFlow(request, {
       typeof appBuildId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(appBuildId) || !validClock(startedAt) ||
       operation === 'initial' && challenge !== undefined) return { status: 'invalid_request' };
 
-  const expectedStage = operation === 'remeasure' ? 'remeasure' : 'confirm';
   let token;
   try {
     if (operation !== 'initial') {
       // Invalid/expired tokens and request binding failures never reach precheck reads.
-      token = verifyWeightChallenge(challenge, { expectedStage, nowMs: startedAt, secret });
-      if (token.staffId !== staffId) return { status: 'challenge_staff_mismatch' };
-      if (token.previousWeight !== previous) return { status: 'challenge_previous_weight_mismatch' };
-      if (token.appBuildId !== appBuildId) return { status: 'challenge_app_version_mismatch' };
-      if (token.ruleVersion !== WEIGHT_REMEASUREMENT_RULE_VERSION) return { status: 'challenge_rule_version_mismatch' };
-      if (isBottleExchange) return { status: 'invalid_request' };
-      if (operation === 'confirm_remeasurement' && token.weightNow !== current) return { status: 'challenge_weight_mismatch' };
+      const verified = checkWeightFlowChallenge(request, { appBuildId, nowMs: startedAt, secret });
+      if (verified.status !== 'valid') return verified;
+      token = verified.payload;
     }
 
     let checked;
@@ -76,7 +95,8 @@ export async function evaluateWeightRemeasurementFlow(request, {
     if (!validClock(finishedAt)) return { status: 'invalid_request' };
     if (token) {
       // Reads can take time; check expiry again before granting permission or issuing B.
-      verifyWeightChallenge(challenge, { expectedStage, nowMs: finishedAt, secret });
+      const verified = checkWeightFlowChallenge(request, { appBuildId, nowMs: finishedAt, secret });
+      if (verified.status !== 'valid') return verified;
     }
     if (operation === 'confirm_remeasurement') return { status: 'save_allowed_after_confirmation', ...details };
     if (checked.status === 'ok') return { status: 'save_allowed', ...details };

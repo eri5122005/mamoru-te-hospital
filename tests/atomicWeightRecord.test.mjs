@@ -5,6 +5,9 @@ import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
 import { isActiveStaff } from '../utils/isActiveStaff.js';
+import { issueWeightChallenge, verifyWeightChallenge } from '../utils/server/weightRemeasurementChallenge.js';
+import { evaluateWeightRemeasurementFlow, checkWeightFlowChallenge, WEIGHT_REMEASUREMENT_RULE_VERSION } from '../utils/server/weightRemeasurementFlow.js';
+import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, createRecordRequestScope } from '../utils/recordRemeasurementState.js';
 import { precheckWeightRemeasurement, WeightPrecheckReadError } from '../utils/precheckWeightRemeasurement.js';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 
@@ -16,7 +19,7 @@ const page = read('pages/record/index.js');
 const valid = { staffId: '0137', name: 'Staff', wardId: '6f', department: '6階', weightPrev: 200, weightNow: 190, isBottleExchange: false, ml: 999, mintPoint: 1 };
 
 // Atomic staged writes, with version-based retries to model Firestore transactions.
-function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } }, failure = false, retireBeforeCommit = false) {
+function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } }, failure = false, retireBeforeCommit = false, retryBeforeCommit = null) {
   const docs = new Map(Object.entries(initial).map(([k, v]) => [k, structuredClone(v)]));
   let version = 0, serial = 0, reads = 0, transactionCalls = 0, transactionAttempts = 0;
   const commits = [];
@@ -47,6 +50,9 @@ function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } 
           version++;
           retireBeforeCommit = false;
         }
+        if (retryBeforeCommit && pending.length) {
+          retryBeforeCommit(docs); version++; retryBeforeCommit = null;
+        }
         if (before !== version) continue;
         if (failure && pending.length) throw new Error('commit failed');
         const next = new Map(docs);
@@ -64,21 +70,26 @@ function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } 
   };
 }
 async function post(body = valid, db = database(), options = {}) {
-  let staffReads = 0, historyReads = 0;
+  let staffReads = 0, historyReads = 0; const logs = [];
   const res = { status(code) { this.code = code; return this; }, json(data) { this.body = JSON.parse(JSON.stringify(data)); return this; } };
   await vm.runInNewContext(`${apiSource}\nhandler(req, res)`, {
     Date, db: {}, doc: db.doc, runTransaction: db.runTransaction,
     collection: (_, name) => name, Timestamp: { now: () => 'server-time' },
     normalizeStaffId, isActiveStaff, calculateWeightUsage, WeightPrecheckReadError,
-    precheckWeightRemeasurement: args => precheckWeightRemeasurement(args, {
+    checkWeightFlowChallenge: (args, context) => checkWeightFlowChallenge(args, { ...context, secret: options.secret === undefined ? 'fixture-integration-secret-at-least-32-bytes' : options.secret, nowMs: options.now ? options.now() : Date.now() }),
+    evaluateWeightRemeasurementFlow: (args, context) => evaluateWeightRemeasurementFlow(args, {
+      ...context, secret: options.secret === undefined ? 'fixture-integration-secret-at-least-32-bytes' : options.secret,
+      now: options.now ?? Date.now,
+      precheck: input => precheckWeightRemeasurement(input, {
       readStaff: async ({staffId}) => { staffReads++; if(options.staffError) throw options.staffError; return structuredClone(db.docs.get(`staff/${staffId}`) ?? null); },
       readHistory: async () => { historyReads++; if(options.historyError) throw options.historyError;
         return options.historyResult ?? {status:'insufficient',history:[]}; },
+      }),
     }).then(result => { if(options.afterPrecheck) options.afterPrecheck(db); return result; }),
     getAppBuildId: () => options.buildId === undefined ? "test-build" : options.buildId,
-    req: { method: options.method ?? 'POST', body, headers: options.headers ?? { 'x-app-build-id': 'test-build' } }, res, console: { error() {} },
+    req: { method: options.method ?? 'POST', body, headers: options.headers ?? { 'x-app-build-id': 'test-build' } }, res, console: { error(...args) {logs.push(args);} },
   });
-  return { db, res, staffReads, historyReads };
+  return { db, res, staffReads, historyReads, logs };
 }
 for (const status of [true, undefined, null]) {
   test(`normal atomic save accepts isActive ${status}`, async () => {
@@ -193,7 +204,11 @@ async function client(response, { network = false, storageFailure = false, excha
   const uncertain = {current:false}, cleanupFailed = {current:false}, ready = {current:true};
   let pending = true;
   const result = await vm.runInNewContext(`${saveSource}\nsaveRecord(999, 190, ${exchange})`, {
-    currentRecordStaffId: () => '0137', sessionStorage: {}, clearRecordDraft() { cleanups++; if(cleanupFailure) throw new Error('storage'); },
+    currentRecordStaffId: () => '0137',
+    recordFlowRequest, acceptRemeasurementResponse, retryRemeasurement,
+    remeasurementRef: {current:idleRemeasurement()}, requestScopeRef: {current:createRecordRequestScope()},
+    resetRemeasurement(){}, changeRemeasurement(){}, clearMessageTimer(){}, setShowExchangeConfirm(){},
+    sessionStorage: {}, clearRecordDraft() { cleanups++; if(cleanupFailure) throw new Error('storage'); },
     readyRef: ready, saveUncertainRef: uncertain, cleanupFailedRef: cleanupFailed, setReady(){}, setDraftNotice(){},
     beginUpdateOperation: () => { operations++; return () => { operations--; }; }, ensureCurrentVersion: async () => version === 'current',
     requireAppUpdate: () => { updates++; }, getAppUpdateState: () => ({required:false}),
@@ -314,7 +329,7 @@ for(const [ml,m,code,matched] of [[49.99,20,200,[]],[50,25,422,['A']],[50,25.01,
    noWrites(db,before);assert.equal(r.res.body.code,'WEIGHT_REMEASUREMENT_REQUIRED');assert.deepEqual(r.res.body.matchedRules,matched);
    assert.equal(r.res.body.currentMl,ml);assert.equal(r.res.body.personalRuleEvaluated,ml<150);
    assert.equal(r.res.body.personalMedianMl,ml<150?m:null);
-   assert.deepEqual(Object.keys(r.res.body).sort(),['code','error','currentMl','personalMedianMl','baselineCount','personalRuleEvaluated','matchedRules'].sort());
+   assert.deepEqual(Object.keys(r.res.body).sort(),['code','error','challenge','previousWeight','weightNow','currentMl','personalMedianMl','personalRuleEvaluated','matchedRules'].sort());
  }else{assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,2);assert.equal(r.res.body.ml,ml);}
 });
 for(const n of [0,1,2])test(`API exhausted insufficient ${n} still saves under B`,async()=>{
@@ -370,4 +385,90 @@ for(const path of ['pages/record/index.js','pages/api/records.js'])test(`source 
  assert.notEqual(indented,lf);assert.notEqual(normalizeLineEndings(indented),lf);
  const changed=lf.replace('const ', 'let ');
  assert.notEqual(changed,lf);assert.notEqual(normalizeLineEndings(changed),lf);
+});
+
+// Completed API flow, with real cryptography and entirely mocked database operations.
+const integrationSecret='fixture-integration-secret-at-least-32-bytes';
+const integrationNow=Date.UTC(2026,9,21);
+const flowOptions={historyResult:baseline(25),now:()=>integrationNow};
+const tokenFor=(stage='remeasure',changes={})=>issueWeightChallenge({stage,staffId:'0137',previousWeight:250,weightNow:usageBody(100).weightNow,currentMl:100,
+ appBuildId:'test-build',ruleVersion:WEIGHT_REMEASUREMENT_RULE_VERSION,matchedRules:['A'],personalMedianMl:25,baselineCount:3,personalRuleEvaluated:true,...changes},
+ {secret:integrationSecret,nowMs:integrationNow});
+test('completed API flow: first A and then B write nothing, explicit confirmation saves atomically',async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);
+ const a=await post({...usageBody(100),operation:'normal'},db,flowOptions);assert.equal(a.res.code,422);noWrites(db,before);
+ assert.equal(verifyWeightChallenge(a.res.body.challenge,{secret:integrationSecret,nowMs:integrationNow,expectedStage:'remeasure'}).stage,'remeasure');
+ const b=await post({...usageBody(110),operation:'remeasure',challenge:a.res.body.challenge},db,flowOptions);assert.equal(b.res.code,422);
+ assert.equal(b.res.body.code,'WEIGHT_REMEASUREMENT_CONFIRMATION_REQUIRED');noWrites(db,before);
+ const saved=await post({...usageBody(110),operation:'confirm_remeasurement',challenge:b.res.body.challenge},db,flowOptions);
+ assert.equal(saved.res.code,200);assert.equal(saved.res.body.ml,110);assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,2);
+ assert.equal(db.docs.get('staff/0137').lastWeight,usageBody(110).weightNow);
+});
+test('A permits a changed normal remeasurement, which saves without a second confirmation',async()=>{
+ const db=weightDb();const a=await post(usageBody(100),db,flowOptions);
+ const saved=await post({...usageBody(30),operation:'remeasure',challenge:a.res.body.challenge},db,flowOptions);
+ assert.equal(saved.res.code,200);assert.equal(saved.res.body.ml,30);assert.equal(db.commits.length,1);
+});
+for(const [ml,expected] of [[30,200],[100,503]])test(`secret absent, ${ml}mL: ${expected}`,async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);const r=await post(usageBody(ml),db,{...flowOptions,secret:null});assert.equal(r.res.code,expected);
+ if(expected===503){assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_UNAVAILABLE');noWrites(db,before);}
+});
+for(const operation of ['remeasure','confirm_remeasurement'])for(const [label,changes,expected,code] of [
+ ['tamper',{challenge:tokenFor()+'x'},400,'WEIGHT_CHALLENGE_INVALID'],
+ ['wrong stage',{challenge:tokenFor(operation==='remeasure'?'confirm':'remeasure')},400,'WEIGHT_CHALLENGE_WRONG_STAGE'],
+ ['staff',{staffId:'other'},409,'WEIGHT_CHALLENGE_STAFF_MISMATCH'],
+ ['previous',{weightPrev:249},409,'WEIGHT_CHALLENGE_PREVIOUS_WEIGHT_MISMATCH'],
+ ['app',{challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm',{appBuildId:'different'})},409,'WEIGHT_CHALLENGE_APP_VERSION_MISMATCH'],
+ ['rule',{challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm',{ruleVersion:'different'})},409,'WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH'],
+ ['exchange',{isBottleExchange:true},400,undefined],
+])test(`${operation} ${label} rejected with zero reads/writes`,async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);
+ const r=await post({...usageBody(100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm'),...changes},db,flowOptions);
+ assert.equal(r.res.code,expected);assert.equal(r.res.body.code,code);assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before);
+});
+for(const operation of ['remeasure','confirm_remeasurement'])test(`${operation} expired before reads`,async()=>{
+ const db=weightDb(),r=await post({...usageBody(100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm')},db,{...flowOptions,now:()=>integrationNow+600000});
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(r.staffReads,0);assert.equal(db.commits.length,0);
+});
+test('A cannot be used for immediate confirmation and B cannot confirm a different weight',async()=>{
+ for(const [challenge,weight,code] of [[tokenFor(),100,'WEIGHT_CHALLENGE_WRONG_STAGE'],[tokenFor('confirm'),110,'WEIGHT_CONFIRMATION_CHANGED']]){
+  const db=weightDb(),r=await post({...usageBody(weight),operation:'confirm_remeasurement',challenge},db,flowOptions);
+  assert.equal(r.res.body.code,code);assert.equal(r.staffReads,0);assert.equal(db.commits.length,0);
+ }
+});
+for(const [changed,expected] of [[{lastWeight:250,isActive:false},403],[{lastWeight:240},409]])test(`confirmation transaction rechecks changed staff: ${expected}`,async()=>{
+ const db=weightDb(),r=await post({...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')},db,{...flowOptions,afterPrecheck:d=>d.docs.set('staff/0137',changed)});
+ assert.equal(r.res.code,expected);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,1);
+});
+for(const operation of ['remeasure','confirm_remeasurement'])test(`${operation}: expiration between flow and transaction prevents all writes`,async()=>{
+ let clock=integrationNow;const db=weightDb();const r=await post({...usageBody(operation==='remeasure'?30:100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm')},db,
+ {...flowOptions,now:()=>clock,afterPrecheck:()=>{clock=integrationNow+600000;}});
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionCalls,1);assert.equal(db.commits.length,0);
+});
+test('concurrent final confirmations: transaction retry never reruns flow/history or duplicates record',async()=>{
+ const db=weightDb(),body={...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')};
+ const r=await Promise.all([post(body,db,flowOptions),post(body,db,flowOptions)]);assert.deepEqual(r.map(x=>x.res.code).sort(),[200,409]);
+ assert.equal(db.commits.length,1);assert.ok(db.transactionAttempts>db.transactionCalls);assert.equal(r.reduce((n,x)=>n+x.historyReads,0),2);
+});
+test('unknown operation rejected and raw exception details never logged',async()=>{
+ for(const operation of ['initial','bad',null]){const db=weightDb();const r=await post({...usageBody(100),operation},db,flowOptions);assert.equal(r.res.code,400);assert.equal(r.staffReads,0);}
+ const r=await post(usageBody(30),weightDb(),{afterPrecheck:()=>{throw new Error('PRIVATE secret token '+tokenFor());}});
+ assert.equal(r.res.code,500);assert.equal(JSON.stringify(r.logs).includes('PRIVATE'),false);assert.equal(JSON.stringify(r.res.body).includes('PRIVATE'),false);
+});
+
+for(const operation of ['remeasure','confirm_remeasurement'])test(`${operation} with missing secret stops before staff read`,async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);
+ const r=await post({...usageBody(100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm')},db,{...flowOptions,secret:null});
+ assert.equal(r.res.code,503);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_UNAVAILABLE');assert.equal(r.staffReads,0);noWrites(db,before);
+});
+test('valid signed display ml is ignored by final API save',async()=>{
+ const db=weightDb(),r=await post({...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm',{currentMl:1})},db,flowOptions);
+ assert.equal(r.res.code,200);assert.equal(r.res.body.ml,100);assert.equal(db.docs.get(`records/${r.res.body.recordId}`).ml,100);
+});
+test('challenge expiration on transaction RETRY is rechecked without new challenge/history query',async()=>{
+ let clock=integrationNow;
+ const db=database({'staff/0137':{lastWeight:250,isActive:true}},false,false,()=>{clock=integrationNow+300000;});
+ const r=await post({...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')},db,{...flowOptions,now:()=>clock});
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionAttempts,2);
+ assert.equal(r.staffReads,1);assert.equal(r.historyReads,1);assert.equal(db.commits.length,0);assert.equal(db.docs.get('staff/0137').lastWeight,250);
 });

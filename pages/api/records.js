@@ -12,7 +12,33 @@ import {
 import { normalizeStaffId } from "../../utils/normalizeStaffId";
 import { isActiveStaff } from "../../utils/isActiveStaff";
 import { calculateWeightUsage } from "../../utils/calculateWeightUsage";
-import { precheckWeightRemeasurement, WeightPrecheckReadError } from "../../utils/precheckWeightRemeasurement";
+import { evaluateWeightRemeasurementFlow, checkWeightFlowChallenge } from "../../utils/server/weightRemeasurementFlow";
+
+// Fixed public responses only; never serialize errors, request bodies, or token payloads.
+function flowFailure(status) {
+  const failures = {
+    staff_not_found: [404, undefined, "職員情報が見つかりません。管理者に確認してください。"],
+    staff_inactive: [403, undefined, "この職員番号は現在利用できません。管理者に確認してください。"],
+    invalid_db_weight: [409, undefined, "前回の重量が正しく設定されていません。管理者に確認してください。"],
+    previous_weight_mismatch: [409, undefined, "前回の重量が更新されています。再登録せず、管理者に確認してください。"],
+    invalid_request: [400, undefined, "今回または前回の重量や操作が正しくありません。"],
+    history_limit_reached: [503, "WEIGHT_HISTORY_LIMIT_REACHED", "過去の記録を安全に確認できません。記録せず、管理者に確認してください。"],
+    history_unavailable: [503, "WEIGHT_HISTORY_UNAVAILABLE", "過去の記録を確認できませんでした。記録せず、通信状態を確認してください。"],
+    staff_weight_unavailable: [503, "STAFF_WEIGHT_UNAVAILABLE", "最新の職員情報を確認できませんでした。記録せず、通信状態を確認してください。"],
+    challenge_unavailable: [503, "WEIGHT_CHALLENGE_UNAVAILABLE", "再測定の確認機能を利用できません。記録せず、管理者に確認してください。"],
+    challenge_invalid: [400, "WEIGHT_CHALLENGE_INVALID", "再測定の確認情報が無効です。最初から入力し直してください。"],
+    challenge_wrong_stage: [400, "WEIGHT_CHALLENGE_WRONG_STAGE", "再測定の確認手順が変わりました。最初から入力し直してください。"],
+    challenge_expired: [422, "WEIGHT_CHALLENGE_EXPIRED", "再測定の確認期限が切れました。最初から入力し直してください。"],
+    challenge_staff_mismatch: [409, "WEIGHT_CHALLENGE_STAFF_MISMATCH", "職員情報が変わりました。ログインし直してください。"],
+    challenge_previous_weight_mismatch: [409, "WEIGHT_CHALLENGE_PREVIOUS_WEIGHT_MISMATCH", "前回の重量が更新されています。再登録せず、管理者に確認してください。"],
+    challenge_weight_mismatch: [409, "WEIGHT_CONFIRMATION_CHANGED", "確認した重量が変わりました。もう一度測り直してください。"],
+    challenge_app_version_mismatch: [409, "WEIGHT_CHALLENGE_APP_VERSION_MISMATCH", "アプリが更新されました。最新版に更新して入力し直してください。"],
+    challenge_rule_version_mismatch: [409, "WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH", "確認条件が更新されました。最初から入力し直してください。"],
+  };
+  const row = failures[status];
+  if (!row) throw new Error("Unexpected weight flow status");
+  return { status: row[0], ...(row[1] ? { code: row[1] } : {}), error: row[2] };
+}
 
 export default async function handler(req, res) {
   // ==============================
@@ -50,45 +76,29 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "今回または前回の重量が正しくありません。管理者に確認してください。" });
     }
 
+    const operation = body.operation === undefined || body.operation === "normal" ? "initial" : body.operation;
+    if (!["initial", "remeasure", "confirm_remeasurement"].includes(operation) || body.operation === "initial") {
+      return res.status(400).json({ error: "記録操作が正しくありません。" });
+    }
+    const flowRequest = { db, staffId, requestWeightPrev: prevWeight, weightNow: nowWeight,
+      isBottleExchange: exchange, operation, challenge: body.challenge };
     try {
-      // The helper owns the single preflight staff server read. All rejections here
-      // happen before a transaction or record reference is created.
-      let precheck;
-      try {
-        precheck = await precheckWeightRemeasurement({
-          db, staffId, requestWeightPrev: prevWeight, weightNow: nowWeight,
-          isBottleExchange: exchange, evaluatedAt: new Date(),
-        });
-      } catch (error) {
-        if (error instanceof WeightPrecheckReadError) {
-          const history = error.phase === "history";
-          return res.status(503).json({
-            code: history ? "WEIGHT_HISTORY_UNAVAILABLE" : "STAFF_WEIGHT_UNAVAILABLE",
-            error: history ? "過去の記録を確認できませんでした。記録せず、通信状態を確認してください。"
-              : "最新の職員情報を確認できませんでした。記録せず、通信状態を確認してください。",
-          });
-        }
-        throw error;
-      }
-      if (precheck.status === "staff_not_found") return res.status(404).json({ error: "職員情報が見つかりません。管理者に確認してください。" });
-      if (precheck.status === "staff_inactive") return res.status(403).json({ error: "この職員番号は現在利用できません。管理者に確認してください。" });
-      if (["invalid_db_weight", "previous_weight_mismatch"].includes(precheck.status)) {
-        return res.status(409).json({ error: "前回の重量が更新されているか、正しく設定されていません。再登録せず、管理者に確認してください。" });
-      }
-      if (precheck.status === "invalid_request") return res.status(400).json({ error: "今回または前回の重量が正しくありません。管理者に確認してください。" });
-      if (precheck.status === "history_limit_reached") {
-        return res.status(503).json({ code: "WEIGHT_HISTORY_LIMIT_REACHED", error: "過去の記録を安全に確認できません。記録せず、管理者に確認してください。" });
-      }
-      if (precheck.status === "remeasurement_required") {
+      // flow owns the only preflight staff/history reads. API does not run a second precheck.
+      const decision = await evaluateWeightRemeasurementFlow(flowRequest, { appBuildId });
+      if (["remeasurement_required", "confirmation_required"].includes(decision.status)) {
+        const confirmation = decision.status === "confirmation_required";
         return res.status(422).json({
-          code: "WEIGHT_REMEASUREMENT_REQUIRED",
-          error: "通常より使用量が多くなっています。もう一度重量を測定してください。",
-          currentMl: precheck.currentMl, personalMedianMl: precheck.personalMedianMl,
-          baselineCount: precheck.baselineCount, personalRuleEvaluated: precheck.personalRuleEvaluated,
-          matchedRules: precheck.matchedRules,
+          code: confirmation ? "WEIGHT_REMEASUREMENT_CONFIRMATION_REQUIRED" : "WEIGHT_REMEASUREMENT_REQUIRED",
+          error: confirmation ? "再測定後も通常より多い使用量です" : "通常より使用量が多くなっています。入力間違いの可能性があるため、もう一度ボトルの重量を測定してください。",
+          challenge: decision.challenge, previousWeight: decision.previousWeight, weightNow: decision.weightNow,
+          currentMl: decision.currentMl, personalMedianMl: decision.personalMedianMl,
+          personalRuleEvaluated: decision.personalRuleEvaluated, matchedRules: decision.matchedRules,
         });
       }
-      if (precheck.status !== "ok") throw new Error("Unexpected weight precheck result");
+      if (!["save_allowed", "save_allowed_after_confirmation"].includes(decision.status)) {
+        const { status, ...response } = flowFailure(decision.status);
+        return res.status(status).json(response);
+      }
 
       const recordRef = doc(collection(db, "records"));
       const result = await runTransaction(db, async transaction => {
@@ -101,12 +111,18 @@ export default async function handler(req, res) {
         if (!Number.isFinite(dbWeight) || dbWeight < 45 || dbWeight > 263 || dbWeight !== prevWeight) {
           return { status: 409, error: "前回の重量が更新されているか、正しく設定されていません。再登録せず、管理者に確認してください。" };
         }
+        if (!Number.isFinite(nowWeight) || nowWeight <= 45 || nowWeight > 263) return flowFailure("invalid_request");
+        if (operation !== "initial") {
+          // Repeat pure signature/expiry/stage/binding checks on EVERY retry, before any writes.
+          const finalCheck = checkWeightFlowChallenge({ ...flowRequest, requestWeightPrev: dbWeight }, { appBuildId });
+          if (finalCheck.status !== "valid") return flowFailure(finalCheck.status);
+        }
         const backupRef = doc(db, "staffs", staffId);
         const backup = exchange ? await transaction.get(backupRef) : null;
         // Recompute from the verified latest DB weight on every retry. No external
         // history query, HTTP response, or challenge side effect belongs here.
         const ml = calculateWeightUsage(dbWeight, nowWeight, exchange);
-        if (ml !== precheck.currentMl) return { status: 409, error: "重量の確認結果が変わりました。再登録せず、管理者に確認してください。" };
+        if (ml !== decision.currentMl) return { status: 409, error: "重量の確認結果が変わりました。再登録せず、管理者に確認してください。" };
         const recordData = {
           staffId,
           name: body.name ?? "",
@@ -128,10 +144,13 @@ export default async function handler(req, res) {
         if (backup?.exists()) transaction.update(backupRef, { lastWeight: nowWeight });
         return { status: 200, ml };
       });
-      if (result.status !== 200) return res.status(result.status).json({ error: result.error });
+      if (result.status !== 200) {
+        const { status, ...response } = result;
+        return res.status(status).json(response);
+      }
       return res.status(200).json({ ok: true, recordId: recordRef.id, staffId, lastWeight: nowWeight, ml: result.ml });
     } catch (error) {
-      console.error("記録保存エラー:", error);
+      console.error("記録保存エラー: WEIGHT_RECORD_SAVE_FAILED");
       return res.status(500).json({ error: "記録の保存結果を確認できませんでした。再登録せず、管理者に確認してください。" });
     }
   }
