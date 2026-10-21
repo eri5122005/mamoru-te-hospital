@@ -584,6 +584,8 @@ const handleRemeasureConfirm = async () => {
         background: "#F9F9F9",
         minHeight: "100vh",
         padding: "16px",
+        // Fixed bottom navigation must not cover the final record controls.
+        paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))",
         fontFamily: "sans-serif",
         maxWidth: "480px",
         margin: "0 auto",
