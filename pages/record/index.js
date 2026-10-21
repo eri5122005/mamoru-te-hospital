@@ -9,6 +9,7 @@ import { getAppUpdateState, requireAppUpdate, setUpdateInput, beginUpdateOperati
 import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, blockConfirmationEnter, createRecordRequestScope } from "../../utils/recordRemeasurementState";
 import { subscribeAppUpdate } from "../../utils/appUpdateState";
 import { getAppBuildId } from "../../utils/getAppBuildId";
+import { createRecordOperationLifecycle, ensureNoPendingRecordOperation, savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE } from "../../utils/recordOperationClient";
 
 import {
   normalMessages,
@@ -55,6 +56,7 @@ const readyRef = useRef(false);
 const currentIdRef = useRef("");
 const saveUncertainRef = useRef(false);
 const cleanupFailedRef = useRef(false);
+const operationLifecycleRef = useRef(createRecordOperationLifecycle());
 const [draftNotice, setDraftNotice] = useState("");
 
 const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
@@ -99,6 +101,8 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   const timer = setTimeout(() => controller.abort(), 10000);
   const load = async () => {
     try {
+      try { ensureNoPendingRecordOperation(sessionStorage); }
+      catch (error) { operationLifecycleRef.current.block(); saveUncertainRef.current = true; throw error; }
       const result = await loadRecordContext({
         readCurrentId: () => currentRecordStaffId(localStorage),
         storage: sessionStorage,
@@ -107,6 +111,8 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
         fetchStaff: id => requestStaffWeightSettings(`/api/staff/first-weight?staffId=${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }),
       });
       if (cancelled) return;
+      try { ensureNoPendingRecordOperation(sessionStorage); }
+      catch (error) { operationLifecycleRef.current.block(); saveUncertainRef.current = true; throw error; }
       if (currentRecordStaffId(localStorage) !== result.staff.staffId) throw new Error("職員情報が変わりました。ログインし直してください。");
       currentIdRef.current = result.staff.staffId;
       setStaff(result.staff);
@@ -189,45 +195,60 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
     const endOperation = beginUpdateOperation();
     try {
     if (!await ensureCurrentVersion() || getAppUpdateState().required) return false;
+    let operationId;
+    try {
+      if (remeasurementRef.current.phase !== "idle" && !operationLifecycleRef.current.current()) throw new Error("Missing operation");
+      operationId = operationLifecycleRef.current.begin(staff.staffId);
+    } catch {
+      readyRef.current = false; setReady(false);
+      setMessage("記録操作を開始できません。記録は送信していません。管理者に確認してください。");
+      return false;
+    }
     let savedRecord;
-    const outgoing = recordFlowRequest(remeasurementRef.current, nowWeightValue, isBottleExchange);
+    const sentFlow = remeasurementRef.current;
+    const outgoing = recordFlowRequest(sentFlow, nowWeightValue, isBottleExchange);
     const ticket = requestScopeRef.current.begin(staff.staffId);
     const responseIsCurrent = () => { try { return requestScopeRef.current.valid(ticket, currentRecordStaffId(localStorage)); } catch { return false; } };
+    const stopUnknown = () => {
+      resetRemeasurement(); operationLifecycleRef.current.block();
+      saveUncertainRef.current = true; readyRef.current = false; setReady(false);
+      try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* Never erase pending or resend. */ }
+      setMessage(RECORD_RESULT_UNKNOWN_MESSAGE);
+    };
     try {
       const now = new Date();
-const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-const response = await fetch("/api/records", {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-App-Build-Id": getAppBuildId() || "" },
-  body: JSON.stringify({
-    ...outgoing,
-    staffId: staff.staffId,
-    name: staff.name,
-    department: wardNameMap[staff.wardId] || staff.department,
-    wardId: staff.wardId,
-    ml: usedMl,
-    unit: "weight",
-    mintPoint: 1,
-    weightNow: nowWeightValue,
-weightPrev: staff.lastWeight,
-isBottleExchange: isBottleExchange,
-date: Timestamp.fromDate(jstNow),   // ← ★これが必須
-  }),
-});
-
+      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const postBody = JSON.stringify({
+        ...outgoing, operationId,
+        staffId: staff.staffId, name: staff.name,
+        department: wardNameMap[staff.wardId] || staff.department, wardId: staff.wardId,
+        ml: usedMl, unit: "weight", mintPoint: 1,
+        weightNow: nowWeightValue, weightPrev: staff.lastWeight, isBottleExchange,
+        date: Timestamp.fromDate(jstNow),
+      });
+      try { savePendingRecordOperation(sessionStorage, staff.staffId, operationId); }
+      catch {
+        operationLifecycleRef.current.block(); cleanupFailedRef.current = true;
+        readyRef.current = false; setReady(false);
+        setMessage("操作情報を安全に保持できません。記録は送信していません。管理者に確認してください。");
+        return false;
+      }
+      operationLifecycleRef.current.markSent(staff.staffId, operationId);
+      const response = await fetch("/api/records", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-App-Build-Id": getAppBuildId() || "" }, body: postBody,
+      });
+      if (!responseIsCurrent()) return false; // Keep pending for a later recovery step.
+      const body = await response.json(); // Invalid JSON is an UNKNOWN result, including error responses.
       if (!responseIsCurrent()) return false;
       if (!response.ok) {
-        let body = null;
-        try { body = await response.json(); } catch { /* Generic safe failure below. */ }
-        if (!responseIsCurrent()) return false;
-        if (response.status === 426 && body?.code === "APP_UPDATE_REQUIRED") {
-          resetRemeasurement(); requireAppUpdate(); return false;
-        }
+        if (!body || typeof body !== "object" || Array.isArray(body) ||
+            (body.ok !== undefined && body.ok !== false) || body.status !== undefined ||
+            body.recordId !== undefined || body.lastWeight !== undefined || body.ml !== undefined || body.replayed !== undefined) throw new Error("Contradictory error response");
         if (response.status === 422) {
-          const next = acceptRemeasurementResponse(remeasurementRef.current, body, outgoing.operation);
+          const next = acceptRemeasurementResponse(sentFlow, body, outgoing.operation);
           if (next) {
             if (next.display.weightNow !== nowWeightValue || next.display.previousWeight !== Number(staff.lastWeight)) throw new Error("Mismatched remeasurement response");
+            clearPendingRecordOperation(sessionStorage, staff.staffId, operationId);
             if (getAppUpdateState().required) { resetRemeasurement(); return false; }
             clearMessageTimer(); setMessage(""); setMessageType("normal"); setShowExchangeConfirm(false);
             changeRemeasurement(next);
@@ -235,45 +256,55 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
             return false;
           }
         }
-        // All other challenge errors discard approval state; keep entered weight for reference.
-        if (typeof body?.code === "string" && body.code.startsWith("WEIGHT_CHALLENGE_")) {
+        if (!isKnownRecordFailure(response.status, body)) throw new Error("Unconfirmed save outcome");
+        clearPendingRecordOperation(sessionStorage, staff.staffId, operationId);
+        if (response.status === 426 && body.code === "APP_UPDATE_REQUIRED") {
+          resetRemeasurement(); requireAppUpdate(); return false;
+        }
+        if (typeof body.code === "string" && body.code.startsWith("WEIGHT_CHALLENGE_")) {
           resetRemeasurement();
           if (body.code === "WEIGHT_CHALLENGE_APP_VERSION_MISMATCH") requireAppUpdate();
         }
-        if (body?.code === "WEIGHT_CONFIRMATION_CHANGED") changeRemeasurement(retryRemeasurement(remeasurementRef.current));
-        if ([403, 404, 409].includes(response.status) && body?.code !== "WEIGHT_CONFIRMATION_CHANGED" &&
-            !["WEIGHT_CHALLENGE_APP_VERSION_MISMATCH", "WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH"].includes(body?.code)) {
-          resetRemeasurement(); readyRef.current = false; setReady(false);
+        if (body.code === "WEIGHT_CONFIRMATION_CHANGED") changeRemeasurement(retryRemeasurement(remeasurementRef.current));
+        if ([403, 404, 409].includes(response.status) && body.code !== "WEIGHT_CONFIRMATION_CHANGED" &&
+            !["WEIGHT_CHALLENGE_APP_VERSION_MISMATCH", "WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH"].includes(body.code)) {
+          resetRemeasurement(); operationLifecycleRef.current.block(); readyRef.current = false; setReady(false);
         }
         if (response.status >= 500) {
-          resetRemeasurement(); saveUncertainRef.current = true; readyRef.current = false; setReady(false);
+          resetRemeasurement(); operationLifecycleRef.current.block(); readyRef.current = false; setReady(false);
           try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
         }
-        const detail = typeof body?.error === "string" && body.error.trim() ? `\n詳細：${body.error}` : "";
-        setMessage(detail ? `記録を保存できませんでした。${detail}` : `記録を保存できませんでした。\n${weightUpdateWarning}`);
+        setMessage(`記録を保存できませんでした。\n詳細：${body.error}`);
         return false;
       }
-      savedRecord = await response.json();
+      if (!isValidRecordSuccess(response.status, body, staff.staffId, nowWeightValue)) throw new Error("Invalid save response");
+      savedRecord = body;
+    } catch {
       if (!responseIsCurrent()) return false;
-      if (savedRecord?.ok !== true || savedRecord.staffId !== staff.staffId || savedRecord.lastWeight !== nowWeightValue ||
-          !Number.isFinite(savedRecord.lastWeight) || !Number.isFinite(savedRecord.ml)) {
-        throw new Error("Invalid save response");
-      }
-    } catch (error) {
-      if (!responseIsCurrent()) return false;
-      resetRemeasurement();
-      saveUncertainRef.current = true; readyRef.current = false; setReady(false);
-      try { clearRecordDraft(sessionStorage, staff.staffId); } catch { /* No automatic retry. */ }
-      setMessage(`保存結果を確認できませんでした。\n${weightUpdateWarning}`);
-      return false;
+      stopUnknown(); return false;
     }
 
     resetRemeasurement();
+    try {
+      clearPendingRecordOperation(sessionStorage, staff.staffId, operationId);
+      operationLifecycleRef.current.complete(staff.staffId, operationId);
+    } catch {
+      operationLifecycleRef.current.block(); cleanupFailedRef.current = true; readyRef.current = false; setReady(false);
+      setMessage("記録は保存されましたが、操作情報の削除を確認できません。再登録せず、管理者に確認してください。");
+      return true;
+    }
     // A confirmed POST remains successful even if draft cleanup fails.
     try { clearRecordDraft(sessionStorage, savedRecord.staffId); }
     catch {
       cleanupFailedRef.current = true; readyRef.current = false; setReady(false);
       setDraftNotice("記録は保存されましたが、一時入力を削除できませんでした。再登録せず、管理者に確認してください。");
+    }
+    if (savedRecord.replayed) {
+      // This is a historical acknowledgement, NOT the latest DB lastWeight. Do not
+      // roll back local staff, append history or play a second success animation.
+      readyRef.current = false; setReady(false); setWeightNow("");
+      setMessage("この操作は既に記録されています。再登録せず、ログインし直して最新情報を確認してください。");
+      return true;
     }
     try {
     if (currentRecordStaffId(localStorage) !== savedRecord.staffId) {
@@ -284,28 +315,20 @@ date: Timestamp.fromDate(jstNow),   // ← ★これが必須
     const updated = { ...staff, staffId: savedRecord.staffId, lastWeight: savedRecord.lastWeight };
     setStaff(updated);
     if (typeof window !== "undefined") {
-  localStorage.setItem("currentStaff", JSON.stringify(updated));
-  localStorage.setItem(`staff-${savedRecord.staffId}`, JSON.stringify(updated));
-  const history = JSON.parse(localStorage.getItem("history") || "[]");
-
-  const now = new Date();
-  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-  history.push({
-    staffId: savedRecord.staffId,
-    name: staff.name,
-    department: wardNameMap[staff.wardId] || staff.department,
-    wardId: staff.wardId,
-    ml: savedRecord.ml,
-    unit: "weight",
-    weightNow: nowWeightValue,
-weightPrev: staff.lastWeight,
-isBottleExchange: isBottleExchange,
-date: jstNow,   // ← ★ここが最重要（JSTで保存）
-  });
-
-  localStorage.setItem("history", JSON.stringify(history));
-}
+      localStorage.setItem("currentStaff", JSON.stringify(updated));
+      localStorage.setItem(`staff-${savedRecord.staffId}`, JSON.stringify(updated));
+      const history = JSON.parse(localStorage.getItem("history") || "[]");
+      const now = new Date();
+      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      if (!history.some(item => item?.recordId === savedRecord.recordId)) history.push({
+        recordId: savedRecord.recordId,
+        staffId: savedRecord.staffId, name: staff.name,
+        department: wardNameMap[staff.wardId] || staff.department, wardId: staff.wardId,
+        ml: savedRecord.ml, unit: "weight", weightNow: nowWeightValue,
+        weightPrev: staff.lastWeight, isBottleExchange, date: jstNow,
+      });
+      localStorage.setItem("history", JSON.stringify(history));
+    }
     } catch {
       readyRef.current = false; setReady(false);
       cleanupFailedRef.current = true;
@@ -502,6 +525,15 @@ if (
   const ok = remeasurementRef.current.phase !== "idle" || confirm(`${weightNow} g で登録してよろしいですか？`);
   if (!ok) {
     setIsSubmitting(false);
+    return;
+  }
+
+  try {
+    if (remeasurementRef.current.phase !== "idle" && !operationLifecycleRef.current.current()) throw new Error("Missing operation");
+    operationLifecycleRef.current.begin(staff.staffId);
+  } catch {
+    readyRef.current = false; setReady(false);
+    setMessage("記録操作を開始できません。記録は送信していません。管理者に確認してください。");
     return;
   }
 

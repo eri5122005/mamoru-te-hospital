@@ -11,6 +11,7 @@ import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, rec
 import { precheckWeightRemeasurement, WeightPrecheckReadError } from '../utils/precheckWeightRemeasurement.js';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
 import { prepareRecordOperation, createRecordOperationReceipt, resolveRecordOperationReceipt } from '../utils/server/recordOperationReceipt.js';
+import { createRecordOperationLifecycle, savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE } from '../utils/recordOperationClient.js';
 
 // Normalize CRLF only; preserve indentation, spaces, comments and executable code.
 const normalizeLineEndings = source => source.replace(/\r\n/g, '\n');
@@ -208,18 +209,22 @@ async function client(response, { network = false, storageFailure = false, excha
   let cleanups = 0;
   const uncertain = {current:false}, cleanupFailed = {current:false}, ready = {current:true};
   let pending = true;
+  const session = new Map();
   const result = await vm.runInNewContext(`${saveSource}\nsaveRecord(999, 190, ${exchange})`, {
     currentRecordStaffId: () => '0137',
     recordFlowRequest, acceptRemeasurementResponse, retryRemeasurement,
     remeasurementRef: {current:idleRemeasurement()}, requestScopeRef: {current:createRecordRequestScope()},
     resetRemeasurement(){}, changeRemeasurement(){}, clearMessageTimer(){}, setShowExchangeConfirm(){},
-    sessionStorage: {}, clearRecordDraft() { cleanups++; if(cleanupFailure) throw new Error('storage'); },
+    operationLifecycleRef: { current: createRecordOperationLifecycle(()=>'01234567-89ab-4cde-8fab-0123456789ab') },
+    savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE,
+    sessionStorage: { getItem:k=>session.get(k)??null, setItem:(k,v)=>session.set(k,v), removeItem:k=>session.delete(k) },
+    clearRecordDraft() { cleanups++; if(cleanupFailure) throw new Error('storage'); },
     readyRef: ready, saveUncertainRef: uncertain, cleanupFailedRef: cleanupFailed, setReady(){}, setDraftNotice(){},
     beginUpdateOperation: () => { operations++; return () => { operations--; }; }, ensureCurrentVersion: async () => version === 'current',
     requireAppUpdate: () => { updates++; }, getAppUpdateState: () => ({required:false}),
     getAppBuildId: () => 'test-build', staff: { staffId: '0137', lastWeight: 200, wardId: '6f' }, wardNameMap: { '6f': '6階' },
     Timestamp: { fromDate: value => value }, window: {}, messageTimerRef: {}, weightUpdateWarning: '再登録せず、管理者に確認してください。',
-    fetch: async () => { assert.equal(operations, 1); calls++; if (network) throw new Error('network'); pending = false; return updateResponse ? {ok:false,status:426,json:async()=>({code:'APP_UPDATE_REQUIRED'})} : response; },
+    fetch: async () => { assert.equal(operations, 1); calls++; if (network) throw new Error('network'); pending = false; return updateResponse ? {ok:false,status:426,json:async()=>({code:'APP_UPDATE_REQUIRED',error:'アプリが更新されました。'})} : response; },
     localStorage: {
       getItem: key => stored.get(key) ?? null,
       setItem: (key, value) => { assert.equal(operations, 1); assert.equal(pending, false); if (storageFailure) throw new Error('quota'); stored.set(key, value); },
@@ -232,7 +237,7 @@ async function client(response, { network = false, storageFailure = false, excha
   assert.equal(operations, 0);
   return { result, stored, states, messages, clears, calls, updates, cleanups, uncertain:uncertain.current, ready:ready.current };
 }
-const success = { ok: true, json: async () => ({ ok: true, recordId: 'new', staffId: '0137', ml: 11.47, lastWeight: 190 }) };
+const success = { ok: true, status:200, json: async () => ({ ok: true, replayed:false, recordId: 'new', staffId: '0137', ml: 11.47, lastWeight: 190 }) };
 for (const exchange of [false, true]) test(`client updates weights/history only after success, exchange=${exchange}`, async () => {
   const run = await client(success, { exchange });
   assert.equal(run.result, true);

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
 import { isActiveStaff } from '../utils/isActiveStaff.js';
+import { ensureNoPendingRecordOperation, PENDING_RECORD_OPERATION_KEY } from '../utils/recordOperationClient.js';
 const read=p=>fs.readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
 const strip=s=>s.replace(/^import .*;\n/gm,'').replace(/export /g,'');
 const src=strip(read('utils/recordUpdateDraft.js'))+'\n'+strip(read('utils/loadRecordContext.js'));
@@ -80,7 +81,9 @@ for(const fail of [false,true])test(`real screen startup waits for server, no ca
  vm.runInNewContext(startup,{
    useEffect:cb=>{cleanup=cb();},AbortController,setTimeout,clearTimeout,
    beginUpdateOperation:()=>{operations++;let ended=false;return()=>{if(!ended){ended=true;operations--;finish();}};},
-   currentRecordStaffId:h.currentRecordStaffId,loadRecordContext:h.loadRecordContext,localStorage:local,sessionStorage:s,
+   currentRecordStaffId:h.currentRecordStaffId,loadRecordContext:h.loadRecordContext,localStorage:local,
+   ensureNoPendingRecordOperation,
+   sessionStorage:{getItem:k=>k===PENDING_RECORD_OPERATION_KEY?null:s.getItem(k),setItem:(k,v)=>s.setItem(k,v),removeItem:k=>s.removeItem(k)},
    checkAppVersion:async()=>({status:'current'}),requestStaffWeightSettings:(url,opts)=>{assert.match(url,/staffId=0137/);assert.equal(opts.cache,'no-store');assert.equal(opts.method,undefined);return remote;},
    getAppUpdateState:()=>({required:false}),requireAppUpdate:()=>assert.fail(),
    currentIdRef:idRef,readyRef,setStaff:v=>states.push(v),setWeightNow:v=>weights.push(v),setDraftNotice:()=>{},setReady:v=>{readyRef.current=v;},setMessage:v=>messages.push(v),

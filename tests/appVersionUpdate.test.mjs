@@ -97,13 +97,14 @@ test('UI updates only on click, no expiry; controllerchange only notifies',()=>{
   assert.match(notice,/onClick=\{update\}/);assert.match(notice,/reloadUpdatedApp\(\(\) => window.location.reload/);assert.match(notice,/disabled=\{state.operations > 0 \|\| state.reloading\}/);
   assert.doesNotMatch(notice,/setTimeout|sessionStorage/);assert.match(notice,/入力した重量を確認してから/);
   assert.match(page,/if \(!await ensureCurrentVersion\(\) \|\| getAppUpdateState\(\).required\) return false/);
-  assert.match(page,/response.status === 426 && body\?\.code === "APP_UPDATE_REQUIRED"/);
+  assert.match(page,/response.status === 426 && body.code === "APP_UPDATE_REQUIRED"/);
 });
 for(const action of ['handleRecord','handleExchangeYes']) test(`version change before final POST blocks actual ${action} path`,async()=>{
   const block=page.slice(page.indexOf('  const saveRecord = async'),page.indexOf('  if (!staff) {',page.indexOf('const handleRecord =')));
   let checks=0, operations=0;
   const context={
     ...readyMocks,remeasurementRef:{current:{phase:'idle'}},staff:{lastWeight:action==='handleRecord'?200:100},weightNow:'190',
+    operationLifecycleRef:{current:{begin:()=> '01234567-89ab-4cde-8fab-0123456789ab'}},
     isSubmitting:action==='handleExchangeYes',recordLockRef:{current:false},exchangeLockRef:{current:false},
     EMPTY_WEIGHT:45,FULL_WEIGHT:263,ML_PER_GRAM:250/218,
     beginUpdateOperation:()=>{operations++;return ()=>operations--;},
