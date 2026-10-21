@@ -53,7 +53,7 @@ async function api(kind, body = { staffId: '0137', weight: '240', mode: 'weight'
   });
   return { res, db };
 }
-for (const kind of ['first-weight', 'change-mode']) {
+for (const kind of ['first-weight']) {
   for (const active of [true, undefined, null]) test(`${kind}: active ${active} succeeds`, async () => {
     const db = database({ 'staff/0137': { ...initial['staff/0137'], ...(active === undefined ? {} : { isActive: active }) } });
     const { res } = await api(kind, undefined, db);
@@ -115,18 +115,23 @@ test('first-weight syncs existing backup atomically, and never creates missing b
     if (backup) assert.deepEqual(db.docs.get('staffs/0137'), { keep: 'value', mode: 'weight', lastWeight: 240, emptyWeight: 46 });
   }
 });
-test('change-mode cm changes only mode, weight changes existing three fields; backup untouched', async () => {
-  for (const mode of ['cm', 'weight']) {
-    const original = { mode: 'weight', lastWeight: 100, emptyWeight: 46, name: 'Staff' };
-    const db = database({ 'staff/0137': original, 'staffs/0137': { mode: 'cm', lastWeight: 90 } });
-    const { res } = await api('change-mode', { staffId: '0137', mode, weight: 240 }, db);
-    assert.equal(res.code, 200);
-    assert.deepEqual(db.docs.get('staff/0137'), mode === 'cm' ? { ...original, mode } : { ...original, lastWeight: 240 });
-    assert.deepEqual(db.docs.get('staffs/0137'), { mode: 'cm', lastWeight: 90 });
-    assert.equal(db.reads.some(key => key.startsWith('staffs/')), false);
-  }
-  assert.equal((await api('change-mode', { staffId: '0137', mode: 'invalid' })).res.code, 400);
-});
+// Evaluate only the disabled route: no Firebase or shared settings helper is loaded.
+for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD', 'UNKNOWN']) {
+  for (const mode of ['cm', 'weight']) test(`disabled change-mode: ${method} ${mode} returns 410 without dependencies`, () => {
+    const source = read('pages/api/staff/change-mode.js').replace(/\r\n/g, '\n');
+    assert.doesNotMatch(source, /\bimport\b|\brequire\s*\(|handleStaffWeightSettings|firebase/);
+    const handler = vm.runInNewContext(source.replace('export default function', 'function') + '\nhandler', {});
+    const req = { method, body: { staffId: '0137', mode, weight: 250 }, query: { staffId: '0137' } };
+    const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      handler(req, res);
+      assert.equal(res.code, 410);
+      assert.deepEqual(JSON.parse(JSON.stringify(res.body)), {
+        error: 'MODE_CHANGE_DISABLED', message: '方式変更機能は現在使用できません。',
+      });
+    }
+  });
+}
 test('first-weight read checks latest status, disables caching, and never writes', async () => {
   const { res, db } = await api('first-weight', { staffId: '０１３７' }, database(), 'GET');
   assert.equal(res.code, 200);
