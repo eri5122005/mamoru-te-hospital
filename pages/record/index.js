@@ -9,6 +9,7 @@ import { getAppUpdateState, requireAppUpdate, setUpdateInput, beginUpdateOperati
 import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, blockConfirmationEnter, createRecordRequestScope } from "../../utils/recordRemeasurementState";
 import { subscribeAppUpdate } from "../../utils/appUpdateState";
 import { getAppBuildId } from "../../utils/getAppBuildId";
+import { createPendingRecordRecovery } from "../../utils/recoverPendingRecordOperation";
 import { createRecordOperationLifecycle, ensureNoPendingRecordOperation, savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE } from "../../utils/recordOperationClient";
 
 import {
@@ -57,6 +58,7 @@ const currentIdRef = useRef("");
 const saveUncertainRef = useRef(false);
 const cleanupFailedRef = useRef(false);
 const operationLifecycleRef = useRef(createRecordOperationLifecycle());
+const pendingRecoveryRef = useRef(createPendingRecordRecovery());
 const [draftNotice, setDraftNotice] = useState("");
 
 const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
@@ -101,8 +103,19 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
   const timer = setTimeout(() => controller.abort(), 10000);
   const load = async () => {
     try {
-      try { ensureNoPendingRecordOperation(sessionStorage); }
-      catch (error) { operationLifecycleRef.current.block(); saveUncertainRef.current = true; throw error; }
+      const recoveryStaffId = currentRecordStaffId(localStorage);
+      const recovery = await pendingRecoveryRef.current({
+        storage: sessionStorage, staffId: recoveryStaffId, fetchImpl: fetch,
+        isCurrent: () => !cancelled && currentRecordStaffId(localStorage) === recoveryStaffId,
+      });
+      if (cancelled) return;
+      if (recovery.status !== "none") {
+        // Even a confirmed historical receipt is not current staff state. Stop this
+        // mount; a deliberate reload must pass the normal latest-staff initialization.
+        operationLifecycleRef.current.block(); saveUncertainRef.current = true;
+        setMessage(recovery.message || "職員情報が変わりました。再登録せず、管理者に確認してください。");
+        return;
+      }
       const result = await loadRecordContext({
         readCurrentId: () => currentRecordStaffId(localStorage),
         storage: sessionStorage,

@@ -82,7 +82,7 @@ for(const fail of [false,true])test(`real screen startup waits for server, no ca
    useEffect:cb=>{cleanup=cb();},AbortController,setTimeout,clearTimeout,
    beginUpdateOperation:()=>{operations++;let ended=false;return()=>{if(!ended){ended=true;operations--;finish();}};},
    currentRecordStaffId:h.currentRecordStaffId,loadRecordContext:h.loadRecordContext,localStorage:local,
-   ensureNoPendingRecordOperation,
+   ensureNoPendingRecordOperation, pendingRecoveryRef:{current:async()=>({status:"none"})},
    sessionStorage:{getItem:k=>k===PENDING_RECORD_OPERATION_KEY?null:s.getItem(k),setItem:(k,v)=>s.setItem(k,v),removeItem:k=>s.removeItem(k)},
    checkAppVersion:async()=>({status:'current'}),requestStaffWeightSettings:(url,opts)=>{assert.match(url,/staffId=0137/);assert.equal(opts.cache,'no-store');assert.equal(opts.method,undefined);return remote;},
    getAppUpdateState:()=>({required:false}),requireAppUpdate:()=>assert.fail(),

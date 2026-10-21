@@ -252,7 +252,7 @@ test('app update during B parsing clears pending but never restores approval or 
  c.context.weightNow='154.08';await c.api.handleRecord();assert.equal(c.session.has(PENDING_RECORD_OPERATION_KEY),false);
  assert.equal(c.context.remeasurementRef.current.phase,'idle');assert.equal(c.stats.posts.length,1);assert.equal(c.stats.ids,1);
 });
-test('actual startup blocks a reload with pending and never invokes draft consumption, lookup API or POST',async()=>{
+test('actual startup remains blocked after unknown recovery without consuming draft or POST',async()=>{
  const startup=page.slice(page.indexOf(' useEffect(() => {\n  let cancelled'),page.indexOf('  useEffect(() => registerUpdatePreparation'));
  let cleanup,finish;const done=new Promise(r=>finish=r);const pending={staffId:'0137',operationId:'01234567-89ab-4cde-8fab-0123456789ab',savedAt:Date.now()};
  const raw=JSON.stringify(pending);const lifecycle=createRecordOperationLifecycle(()=>{throw Error('must not generate');});
@@ -260,7 +260,9 @@ test('actual startup blocks a reload with pending and never invokes draft consum
  const {ensureNoPendingRecordOperation}=await import('../utils/recordOperationClient.js');
  vm.runInNewContext(startup,{
   useEffect:cb=>{cleanup=cb();},AbortController,setTimeout,clearTimeout,
-  beginUpdateOperation:()=>finish,ensureNoPendingRecordOperation,operationLifecycleRef:{current:lifecycle},saveUncertainRef:uncertain,
+  beginUpdateOperation:()=>finish,ensureNoPendingRecordOperation,
+  fetch:()=>assert.fail("no POST"),localStorage:{},currentRecordStaffId:()=>"0137",pendingRecoveryRef:{current:async()=>({status:"unknown",message:RECORD_RESULT_UNKNOWN_MESSAGE})},
+  operationLifecycleRef:{current:lifecycle},saveUncertainRef:uncertain,
   sessionStorage:{getItem:k=>{assert.equal(k,PENDING_RECORD_OPERATION_KEY);return raw;},removeItem:()=>assert.fail('cannot clear pending')},
   loadRecordContext:()=>assert.fail('must not consume draft or fetch staff'),setMessage:m=>messages.push(m),readyRef,
  });
