@@ -116,3 +116,37 @@ test('short and long signature buffers rejected before timingSafeEqual',()=>{
  const [p]=issue().split('.');
  for(const length of [1,31,33,64])invalid(()=>verify(`${p}.${Buffer.alloc(length).toString('base64url')}`));
 });
+
+const operationId='01234567-89ab-4cde-8fab-0123456789ab';
+const otherOperationId='01234567-89ab-4cde-9fab-0123456789ab';
+for(const stage of ['remeasure','confirm'])test(`${stage}: signed operation ID cannot be omitted, replaced or stripped`,()=>{
+ const token=issue({...claims(stage),operationId});
+ assert.equal(verify(token,{expectedStage:stage,expectedOperationId:operationId}).operationId,operationId);
+ for(const expectedOperationId of [undefined,otherOperationId]) {
+  assert.throws(()=>verify(token,{expectedStage:stage,expectedOperationId}),e=>e.code==='WEIGHT_CHALLENGE_OPERATION_MISMATCH');
+ }
+ const [encoded,signature]=token.split('.');const p=JSON.parse(Buffer.from(encoded,'base64url').toString());delete p.operationId;
+ invalid(()=>verify(Buffer.from(JSON.stringify(p)).toString('base64url')+'.'+signature,{expectedStage:stage}));
+});
+for(const stage of ['remeasure','confirm'])test(`${stage}: legacy compatibility is explicit and cannot be upgraded`,()=>{
+ const token=issue(claims(stage));assert.equal('operationId'in verify(token,{expectedStage:stage}),false);
+ assert.throws(()=>verify(token,{expectedStage:stage,expectedOperationId:operationId}),e=>e.code==='WEIGHT_CHALLENGE_OPERATION_MISMATCH');
+ invalid(()=>verify(token,{expectedStage:stage,allowLegacy:false}));
+ invalid(()=>issue(claims(stage),{allowLegacy:false}));
+ assert.equal(verify(issue({...claims(stage),operationId},{allowLegacy:false}),
+  {expectedStage:stage,expectedOperationId:operationId,allowLegacy:false}).operationId,operationId);
+});
+for(const value of [null,'',[],{},123,operationId.toUpperCase(),operationId.replace('-4cde-','-1cde-'),
+ operationId.slice(0,19)+'7'+operationId.slice(20)])test(`operation ID schema rejects ${String(value)}`,()=>{
+ invalid(()=>issue({...claims(),operationId:value}));
+ const signed=signedRaw(JSON.stringify({...payload(),operationId:value}));
+ invalid(()=>verify(signed,{expectedOperationId:operationId}));
+ invalid(()=>verify(issue(),{expectedOperationId:value}));
+});
+test('operation-bound tokens preserve signature, expiry, stage and missing-secret checks',()=>{
+ const token=issue({...claims(),operationId});
+ invalid(()=>verify(token+'x',{expectedOperationId:operationId}));
+ assert.throws(()=>verify(token,{expectedOperationId:operationId,nowMs:nowMs+600000}),e=>e.code==='WEIGHT_CHALLENGE_EXPIRED');
+ assert.throws(()=>verify(token,{expectedOperationId:operationId,expectedStage:'confirm'}),e=>e.code==='WEIGHT_CHALLENGE_WRONG_STAGE');
+ assert.throws(()=>verify(token,{expectedOperationId:operationId,secret:null}),e=>e.code==='WEIGHT_CHALLENGE_UNAVAILABLE');
+});

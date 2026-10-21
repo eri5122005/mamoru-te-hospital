@@ -142,3 +142,49 @@ for(const [state,expected] of [
 test('unknown dependency failures reject rather than granting save permission',async()=>{
  const s=setup();s.deps.precheck=async()=>{throw new TypeError('contract error');};await assert.rejects(s.run(request()),TypeError);
 });
+
+const operationId='01234567-89ab-4cde-8fab-0123456789ab';
+const otherOperationId='01234567-89ab-4cde-9fab-0123456789ab';
+const boundDecode=(token,stage)=>verifyWeightChallenge(token,{secret,nowMs:start,expectedStage:stage,expectedOperationId:operationId});
+test('operation-aware A to changed remeasurement to B and confirmation preserves a single ID',async()=>{
+ const s=setup(),a=await s.run({...request(),operationId});
+ assert.equal(a.status,'remeasurement_required');assert.equal(boundDecode(a.challenge,'remeasure').operationId,operationId);
+ const b=await s.run({...staged('remeasure',a.challenge,110),operationId});
+ assert.equal(b.status,'confirmation_required');assert.equal(boundDecode(b.challenge,'confirm').operationId,operationId);
+ const saved=await s.run({...staged('confirm_remeasurement',b.challenge,110),operationId});
+ assert.equal(saved.status,'save_allowed_after_confirmation');assert.equal(saved.currentMl,110);
+ const normal=await s.run({...staged('remeasure',a.challenge,30),operationId});
+ assert.equal(normal.status,'save_allowed');assert.equal(normal.currentMl,30);
+});
+for(const operation of ['remeasure','confirm_remeasurement'])for(const [label,tokenId,requestId] of [
+ ['replacement',operationId,otherOperationId],['omission',operationId,undefined],['legacy upgrade',undefined,operationId],
+])test(`${operation}: ${label} fails before staff/history reads`,async()=>{
+ const s=setup();const stage=operation==='remeasure'?'remeasure':'confirm';
+ const token=signed(stage,tokenId===undefined?{}:{operationId:tokenId});
+ assert.equal((await s.run({...staged(operation,token),operationId:requestId})).status,'challenge_operation_mismatch');
+ assert.deepEqual(s.reads,[]);
+});
+test('legacy A produces legacy B, and strict migration switch rejects all missing IDs',async()=>{
+ const s=setup(),a=await s.run(request());const b=await s.run(staged('remeasure',a.challenge,110));
+ assert.equal('operationId'in decode(b.challenge,'confirm'),false);
+ s.deps.allowLegacy=false;s.reads.length=0;
+ assert.equal((await s.run(request())).status,'invalid_request');assert.deepEqual(s.reads,[]);
+ assert.equal((await s.run({...staged('remeasure',a.challenge),operationId})).status,'challenge_invalid');
+ const aware=await s.run({...request(),operationId});assert.equal(aware.status,'remeasurement_required');
+});
+test('malformed operation IDs fail before any reads, including initial normal requests',async()=>{
+ for(const value of [null,'',[],{},123,operationId.toUpperCase(),operationId.replace('-4cde-','-1cde-')]) {
+  const s=setup();assert.equal((await s.run({...request(30),operationId:value})).status,'invalid_request');assert.deepEqual(s.reads,[]);
+ }
+});
+for(const [changes,expected] of [
+ [{staffId:'other'},'challenge_staff_mismatch'],[{requestWeightPrev:249},'challenge_previous_weight_mismatch'],
+ [{isBottleExchange:true},'invalid_request'],
+])test(`aware token maintains ${expected}`,async()=>{
+ const s=setup(),token=signed('remeasure',{operationId});
+ assert.equal((await s.run({...staged('remeasure',token),operationId,...changes})).status,expected);assert.deepEqual(s.reads,[]);
+});
+for(const [field,value,expected] of [['appBuildId','old','challenge_app_version_mismatch'],['ruleVersion','old','challenge_rule_version_mismatch']])test(`aware token maintains ${field} binding`,async()=>{
+ const s=setup();assert.equal((await s.run({...staged('remeasure',signed('remeasure',{operationId,[field]:value})),operationId})).status,expected);
+ assert.deepEqual(s.reads,[]);
+});

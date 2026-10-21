@@ -28,6 +28,7 @@ function flowFailure(status) {
     challenge_unavailable: [503, "WEIGHT_CHALLENGE_UNAVAILABLE", "再測定の確認機能を利用できません。記録せず、管理者に確認してください。"],
     challenge_invalid: [400, "WEIGHT_CHALLENGE_INVALID", "再測定の確認情報が無効です。最初から入力し直してください。"],
     challenge_wrong_stage: [400, "WEIGHT_CHALLENGE_WRONG_STAGE", "再測定の確認手順が変わりました。最初から入力し直してください。"],
+    challenge_operation_mismatch: [409, "WEIGHT_CHALLENGE_OPERATION_MISMATCH", "記録操作の確認情報が一致しません。最初から入力し直してください。"],
     challenge_expired: [422, "WEIGHT_CHALLENGE_EXPIRED", "再測定の確認期限が切れました。最初から入力し直してください。"],
     challenge_staff_mismatch: [409, "WEIGHT_CHALLENGE_STAFF_MISMATCH", "職員情報が変わりました。ログインし直してください。"],
     challenge_previous_weight_mismatch: [409, "WEIGHT_CHALLENGE_PREVIOUS_WEIGHT_MISMATCH", "前回の重量が更新されています。再登録せず、管理者に確認してください。"],
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "記録操作が正しくありません。" });
     }
     const flowRequest = { db, staffId, requestWeightPrev: prevWeight, weightNow: nowWeight,
-      isBottleExchange: exchange, operation, challenge: body.challenge };
+      isBottleExchange: exchange, operation, challenge: body.challenge, operationId: body.operationId };
     try {
       // flow owns the only preflight staff/history reads. API does not run a second precheck.
       const decision = await evaluateWeightRemeasurementFlow(flowRequest, { appBuildId });

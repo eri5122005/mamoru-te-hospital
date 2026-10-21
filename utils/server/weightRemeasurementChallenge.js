@@ -2,6 +2,7 @@
 // Stateless: no consumption, one-time guarantee, authentication, or physical measurement proof.
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { normalizeStaffId } from '../normalizeStaffId.js';
+import { isRecordOperationId } from '../recordOperationId.js';
 
 export const WEIGHT_CHALLENGE_POLICY = Object.freeze({
   version: 1,
@@ -23,7 +24,7 @@ export class WeightChallengeError extends Error {
 const fail = kind => { throw new WeightChallengeError(kind); };
 const stages = ['remeasure', 'confirm'];
 const required = ['version','stage','staffId','previousWeight','weightNow','currentMl','appBuildId','ruleVersion','issuedAt','expiresAt'];
-const optional = ['matchedRules','personalMedianMl','baselineCount','personalRuleEvaluated','baselineDigest','flowExpiresAt'];
+const optional = ['matchedRules','personalMedianMl','baselineCount','personalRuleEvaluated','baselineDigest','flowExpiresAt','operationId'];
 const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
 const integerTime = n => Number.isSafeInteger(n) && n > 0;
 const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -45,6 +46,7 @@ function ttl(stage) {
 function schema(p) {
   if (!plain(p) || required.some(k=>!own(p,k)) || Object.keys(p).some(k=>!required.includes(k)&&!optional.includes(k))) fail('INVALID');
   if (p.version !== WEIGHT_CHALLENGE_POLICY.version || !stages.includes(p.stage) || !canonicalId(p.staffId)) fail('INVALID');
+  if (own(p,'operationId') && !isRecordOperationId(p.operationId)) fail('INVALID');
   if (!finite(p.previousWeight) || p.previousWeight < 45 || p.previousWeight > 263 ||
       !finite(p.weightNow) || p.weightNow <= 45 || p.weightNow > 263 ||
       !finite(p.currentMl) || p.currentMl < 0 || p.currentMl > 250) fail('INVALID');
@@ -73,10 +75,12 @@ const mac = (encodedPayload,secret) => createHmac('sha256',secret).update(encode
  * No ml recalculation, rule evaluation or baseline digest generation lives here.
  * flowExpiresAt can be passed by the future orchestrator to cap B at the original flow deadline.
  */
-export function issueWeightChallenge(claims, { nowMs = Date.now(), secret = process.env.WEIGHT_REMEASUREMENT_SIGNING_SECRET } = {}) {
+export function issueWeightChallenge(claims, { nowMs = Date.now(), secret = process.env.WEIGHT_REMEASUREMENT_SIGNING_SECRET, allowLegacy = true } = {}) {
   const key = secretKey(secret); // Only at call time; importing without a secret is safe.
   if (!integerTime(nowMs) || !plain(claims) || !stages.includes(claims.stage) ||
       Object.keys(claims).some(k=>!required.filter(k=>!['version','issuedAt','expiresAt'].includes(k)).includes(k)&&!optional.includes(k))) fail('INVALID');
+  // Temporary rollout compatibility only. Disable legacy issuance after UI/API migration.
+  if (!allowLegacy && !own(claims,'operationId')) fail('INVALID');
   const expiresAt = Math.min(nowMs+ttl(claims.stage), claims.flowExpiresAt ?? Infinity);
   const payload = { ...claims, version: WEIGHT_CHALLENGE_POLICY.version, issuedAt: nowMs, expiresAt };
   schema(payload);
@@ -89,7 +93,7 @@ export function issueWeightChallenge(claims, { nowMs = Date.now(), secret = proc
 /** expectedStage is mandatory. A verifies its initial weight but does not bind a future
  * re-entered weight. Returned B.weightNow must be matched by the future API, not this helper.
  */
-export function verifyWeightChallenge(token, { expectedStage, nowMs = Date.now(), secret = process.env.WEIGHT_REMEASUREMENT_SIGNING_SECRET } = {}) {
+export function verifyWeightChallenge(token, { expectedStage, expectedOperationId, nowMs = Date.now(), secret = process.env.WEIGHT_REMEASUREMENT_SIGNING_SECRET, allowLegacy = true } = {}) {
   if (typeof token !== 'string' || !token.length || token.length > WEIGHT_CHALLENGE_POLICY.maxTokenLength) fail('INVALID');
   const parts=token.split('.');
   if(parts.length!==2) fail('INVALID');
@@ -106,5 +110,14 @@ export function verifyWeightChallenge(token, { expectedStage, nowMs = Date.now()
   if(payload.issuedAt-nowMs > WEIGHT_CHALLENGE_POLICY.futureIssuedAtToleranceMs) fail('INVALID');
   if(nowMs >= payload.expiresAt) fail('EXPIRED'); // Exact expiration is invalid, no expiry grace.
   if(payload.stage!==expectedStage) fail('WRONG_STAGE');
+  if(expectedOperationId !== undefined && !isRecordOperationId(expectedOperationId)) fail('INVALID');
+  // Presence is signed: neither dropping the request ID nor attaching one to a legacy
+  // token can change its mode. No implicit upgrade/downgrade or token consumption.
+  if(own(payload,'operationId')) {
+    if(payload.operationId !== expectedOperationId) fail('OPERATION_MISMATCH');
+  } else {
+    if(!allowLegacy) fail('INVALID');
+    if(expectedOperationId !== undefined) fail('OPERATION_MISMATCH');
+  }
   return payload;
 }
