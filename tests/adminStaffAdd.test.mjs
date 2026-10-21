@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
 import { getWorkDays } from '../utils/getWorkDays.js';
+import { clearLoginIdentity } from '../utils/clearLoginIdentity.js';
 import { isActiveStaff } from '../utils/isActiveStaff.js';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -166,9 +167,9 @@ test('created staff reaches existing first-weight branch on login', async () => 
   const handler = page.slice(page.indexOf('  const handleLogin'), page.indexOf('\n  return ('));
   const routes = [];
   await vm.runInNewContext(`${handler}\nhandleLogin()`, {
-    staffId: '９８１５', normalizeStaffId, isActiveStaff, db: {}, doc: () => 'staff/9815',
+    staffId: '９８１５', normalizeStaffId, isActiveStaff, clearLoginIdentity, loginBusyRef:{current:false},loginActiveRef:{current:true},setLoginError(){}, db: {}, doc: () => 'staff/9815',
     getDoc: async () => ({ exists: () => true, data: () => data }),
-    localStorage: { setItem() {} }, router: { replace: route => routes.push(route) }, console,
+    localStorage: { getItem:()=>null,removeItem(){},setItem() {} }, router: { replace: route => routes.push(route) }, console,
   });
   assert.deepEqual(routes, ['/first-weight']);
 });

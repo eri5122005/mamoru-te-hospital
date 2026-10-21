@@ -1,6 +1,7 @@
 import { generateRecordOperationId, isRecordOperationId } from './recordOperationId.js';
 import { normalizeStaffId } from './normalizeStaffId.js';
 
+// Legacy source only. New operations MUST use pendingRecordOperationKey(staffId).
 export const PENDING_RECORD_OPERATION_KEY = 'mamoru-te:pending-record-operation:v1';
 export const RECORD_RESULT_UNKNOWN_MESSAGE = '登録結果を確認できませんでした。再登録せず、管理者に確認してください。';
 const validStaff = id => typeof id === 'string' && !!id && normalizeStaffId(id) === id &&
@@ -35,10 +36,14 @@ export function createRecordOperationLifecycle(generate = generateRecordOperatio
   };
 }
 
-// Never expire or delete unresolved operations automatically, including malformed data.
-export function readPendingRecordOperation(storage, now = Date.now()) {
-  const raw = storage.getItem(PENDING_RECORD_OPERATION_KEY);
-  if (raw === null) return null;
+// Explicit selection prevents a caller from falling back to another staff's evidence.
+export function pendingRecordOperationKey(staffId) {
+  if (typeof staffId !== 'string') throw new Error('INVALID_PENDING_STAFF');
+  const id = normalizeStaffId(staffId);
+  if (!validStaff(id)) throw new Error('INVALID_PENDING_STAFF');
+  return `mamoru-te:pending-record-operation:v2:${encodeURIComponent(id)}`;
+}
+function parsePending(raw, now) {
   let value;
   try { value = JSON.parse(raw); } catch { throw new Error('INVALID_PENDING_RECORD_OPERATION'); }
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -47,23 +52,52 @@ export function readPendingRecordOperation(storage, now = Date.now()) {
       !validTime(value.savedAt) || value.savedAt > now) throw new Error('INVALID_PENDING_RECORD_OPERATION');
   return value;
 }
-export function ensureNoPendingRecordOperation(storage) {
-  try { if (readPendingRecordOperation(storage) === null) return; } catch { /* Block, do not erase evidence. */ }
+const samePending = (a, b) => a.staffId === b.staffId && a.operationId === b.operationId && a.savedAt === b.savedAt;
+// Preserve v1 on every failure. Writing v2 first makes crash recovery repeatable.
+// Migration may move another staff's evidence, but never queries their result API.
+export function migratePendingRecordOperation(storage, now = Date.now()) {
+  const raw = storage.getItem(PENDING_RECORD_OPERATION_KEY);
+  if (raw === null) return;
+  const pending = parsePending(raw, now);
+  const key = pendingRecordOperationKey(pending.staffId);
+  const existing = storage.getItem(key);
+  if (existing !== null && !samePending(parsePending(existing, now), pending)) throw new Error('PENDING_MIGRATION_CONFLICT');
+  if (existing === null) storage.setItem(key, JSON.stringify({ staffId: pending.staffId, operationId: pending.operationId, savedAt: pending.savedAt }));
+  const saved = storage.getItem(key);
+  if (saved === null || !samePending(parsePending(saved, now), pending)) throw new Error('PENDING_MIGRATION_NOT_SAVED');
+  if (storage.getItem(PENDING_RECORD_OPERATION_KEY) !== raw) throw new Error('PENDING_MIGRATION_CHANGED');
+  storage.removeItem(PENDING_RECORD_OPERATION_KEY);
+  if (storage.getItem(PENDING_RECORD_OPERATION_KEY) !== null) throw new Error('PENDING_MIGRATION_NOT_CLEARED');
+}
+// No TTL. A malformed legacy item blocks all users; v2 reads only the selected owner.
+export function readPendingRecordOperation(storage, staffId, now = Date.now()) {
+  migratePendingRecordOperation(storage, now);
+  const key = pendingRecordOperationKey(staffId);
+  const raw = storage.getItem(key);
+  if (raw === null) return null;
+  const value = parsePending(raw, now);
+  if (value.staffId !== normalizeStaffId(staffId)) throw new Error('PENDING_RECORD_OPERATION_MISMATCH');
+  return value;
+}
+export function ensureNoPendingRecordOperation(storage, staffId) {
+  try { if (readPendingRecordOperation(storage, staffId) === null) return; } catch { /* Block, never erase evidence. */ }
   throw new Error(RECORD_RESULT_UNKNOWN_MESSAGE);
 }
 export function savePendingRecordOperation(storage, staffId, operationId, now = Date.now()) {
   if (!validStaff(staffId) || !isRecordOperationId(operationId) || !validTime(now)) throw new Error('INVALID_PENDING_RECORD_OPERATION');
-  if (storage.getItem(PENDING_RECORD_OPERATION_KEY) !== null) throw new Error('PENDING_RECORD_OPERATION_EXISTS');
+  if (readPendingRecordOperation(storage, staffId, now) !== null) throw new Error('PENDING_RECORD_OPERATION_EXISTS');
+  const key = pendingRecordOperationKey(staffId);
   const raw = JSON.stringify({ staffId, operationId, savedAt: now });
-  storage.setItem(PENDING_RECORD_OPERATION_KEY, raw);
-  if (storage.getItem(PENDING_RECORD_OPERATION_KEY) !== raw) throw new Error('PENDING_RECORD_OPERATION_NOT_SAVED');
+  storage.setItem(key, raw);
+  if (storage.getItem(key) !== raw) throw new Error('PENDING_RECORD_OPERATION_NOT_SAVED');
 }
 export function clearPendingRecordOperation(storage, staffId, operationId) {
-  const pending = readPendingRecordOperation(storage);
+  const pending = readPendingRecordOperation(storage, staffId);
   if (!pending) return;
   if (pending.staffId !== staffId || pending.operationId !== operationId) throw new Error('PENDING_RECORD_OPERATION_MISMATCH');
-  storage.removeItem(PENDING_RECORD_OPERATION_KEY);
-  if (storage.getItem(PENDING_RECORD_OPERATION_KEY) !== null) throw new Error('PENDING_RECORD_OPERATION_NOT_CLEARED');
+  const key = pendingRecordOperationKey(staffId);
+  storage.removeItem(key);
+  if (storage.getItem(key) !== null) throw new Error('PENDING_RECORD_OPERATION_NOT_CLEARED');
 }
 
 const failureCodes = {

@@ -14,7 +14,7 @@ export function createPendingRecordRecovery() {
   let lookup = null;
   return async function recover({ storage, staffId, fetchImpl, isCurrent = () => true, timeoutMs = 10000 }) {
     let pending;
-    try { pending = readPendingRecordOperation(storage); }
+    try { pending = readPendingRecordOperation(storage, staffId); }
     catch { return { status: 'malformed', message: RECOVERY_MESSAGES.malformed }; }
     if (!pending) return { status: 'none' };
     if (!staffId || staffId !== pending.staffId) return { status: 'mismatch', message: RECOVERY_MESSAGES.mismatch };
@@ -48,7 +48,7 @@ export function createPendingRecordRecovery() {
     if (status !== 'succeeded') return { status, message: RECOVERY_MESSAGES[status] };
     try {
       // Clear only the exact evidence we queried, never a replacement operation.
-      if (JSON.stringify(readPendingRecordOperation(storage)) !== key) throw new Error('PENDING_CHANGED');
+      if (JSON.stringify(readPendingRecordOperation(storage, staffId)) !== key) throw new Error('PENDING_CHANGED');
       clearPendingRecordOperation(storage, pending.staffId, pending.operationId);
     } catch { return { status: 'failed', message: RECOVERY_MESSAGES.failed }; }
     return { status: 'succeeded', message: RECOVERY_MESSAGES.succeeded };

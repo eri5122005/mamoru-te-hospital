@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { normalizeStaffId } from '../utils/normalizeStaffId.js';
+import { clearLoginIdentity } from '../utils/clearLoginIdentity.js';
 import { isActiveStaff } from '../utils/isActiveStaff.js';
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -16,11 +17,11 @@ function mocks(exists = true, data = {}) {
   const routes = [];
   const alerts = [];
   const context = {
-    normalizeStaffId, isActiveStaff, db: {}, console: { error() {} },
+    normalizeStaffId, isActiveStaff, clearLoginIdentity, loginBusyRef:{current:false}, loginActiveRef:{current:true}, setLoginError(){}, db: {}, console: { error() {} },
     alert: message => alerts.push(message),
     doc: (_, collection, id) => { reads.push([collection, id]); return id; },
     getDoc: async () => ({ exists: () => exists, data: () => data }),
-    localStorage: { setItem: (key, value) => stored.set(key, JSON.parse(value)) },
+    localStorage: { getItem:k=>stored.get(k)??null,removeItem:k=>stored.delete(k), setItem: (key, value) => stored.set(key, JSON.parse(value)) },
     router: { replace: (url) => routes.push(url) },
   };
   return { context, reads, stored, routes, alerts };
@@ -132,14 +133,14 @@ for (const input of ['9815', ' ９８１５ ', '０１３７']) {
     });
   }
 }
-test('retired rejection does not overwrite or clear existing localStorage', async () => {
+test('retired rejection clears old identity but preserves unrelated localStorage', async () => {
   for (const previousId of ['9815', 'other-active-user']) {
     const run = mocks(true, { isActive: false });
     run.stored.set('currentStaff', { staffId: previousId });
     run.stored.set('unrelated-setting', { value: 1 });
-    const before = JSON.stringify([...run.stored]);
     await vm.runInNewContext(`${loginSource}\nhandleLogin()`, { ...run.context, staffId: '９８１５' });
-    assert.equal(JSON.stringify([...run.stored]), before);
+    assert.equal(run.stored.has('currentStaff'),false);
+    assert.deepEqual(run.stored.get('unrelated-setting'),{value:1});
     assert.equal(run.alerts.length, 1);
     assert.deepEqual(run.routes, []);
   }

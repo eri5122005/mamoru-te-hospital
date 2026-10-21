@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, blockConfirmationEnter, createRecordRequestScope } from '../utils/recordRemeasurementState.js';
-import { createRecordOperationLifecycle, savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE, PENDING_RECORD_OPERATION_KEY } from '../utils/recordOperationClient.js';
+import { createRecordOperationLifecycle, savePendingRecordOperation, clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess, RECORD_RESULT_UNKNOWN_MESSAGE, pendingRecordOperationKey } from '../utils/recordOperationClient.js';
+const PENDING_RECORD_OPERATION_KEY=pendingRecordOperationKey('0137');
 const page=readFileSync(new URL('../pages/record/index.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const saveSource=page.slice(page.indexOf('  const saveRecord = async'),page.indexOf('// ★ 交換ダイアログ'));
 const handlerSource=page.slice(page.indexOf('const handleRemeasureAgain ='),page.indexOf('\n\n\n  if (!staff)'));
@@ -268,4 +269,10 @@ test('actual startup remains blocked after unknown recovery without consuming dr
  });
  await done;assert.equal(readyRef.current,false);assert.equal(uncertain.current,true);assert.equal(lifecycle.isBlocked(),true);
  assert.equal(messages[0],RECORD_RESULT_UNKNOWN_MESSAGE);cleanup();
+});
+test('own pending appearing before POST cannot be overwritten or bypassed with a new ID',async()=>{
+ const c=client(idleRemeasurement(),[]);
+ const raw=JSON.stringify({staffId:'0137',operationId:'01234567-89ab-4cde-9fab-0123456789ab',savedAt:1});
+ c.session.set(PENDING_RECORD_OPERATION_KEY,raw);c.context.weightNow='190';await c.api.handleRecord();
+ assert.equal(c.stats.posts.length,0);assert.equal(c.session.get(PENDING_RECORD_OPERATION_KEY),raw);assert.equal(c.lifecycle.isBlocked(),true);assert.equal(c.context.readyRef.current,false);
 });

@@ -1,19 +1,26 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "../../firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { normalizeStaffId } from "../../utils/normalizeStaffId";
 import { clearRecordDraft } from "../../utils/recordUpdateDraft";
+import { clearLoginIdentity } from "../../utils/clearLoginIdentity";
 import { isActiveStaff } from "../../utils/isActiveStaff";
 
 export default function Login() {
   const router = useRouter();
   const [staffId, setStaffId] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const loginBusyRef = useRef(false);
+  const loginActiveRef = useRef(true);
 
   useEffect(() => {
     try { clearRecordDraft(sessionStorage); } catch { /* Record startup fails closed if storage remains unavailable. */ }
+    loginActiveRef.current = true;
+    try { clearLoginIdentity(localStorage); } catch (error) { setLoginError(error.message); }
+    return () => { loginActiveRef.current = false; };
   }, []);
 
   // ★ ログイン画面を開いた瞬間にローカルストレージを強制クリア
@@ -37,6 +44,11 @@ export default function Login() {
 
   // ★ ログイン処理（ここだけ使う）
   const handleLogin = async () => {
+    if (loginBusyRef.current || !loginActiveRef.current) return;
+    loginBusyRef.current = true;
+    try {
+    try { clearLoginIdentity(localStorage); setLoginError(""); }
+    catch (error) { setLoginError(error.message); return; }
     try { clearRecordDraft(sessionStorage); } catch { /* Never restore another ID. */ }
     const normalizedStaffId = normalizeStaffId(staffId);
     if (!normalizedStaffId) return;
@@ -104,6 +116,7 @@ export default function Login() {
 try {
   const staffRef = doc(db, "staff", normalizedStaffId);
   const staffSnap = await getDoc(staffRef);
+  if (!loginActiveRef.current) return;
 
   // Firestore に存在しないスタッフだけ初回登録へ
   if (!staffSnap.exists()) {
@@ -153,6 +166,7 @@ try {
   console.error("スタッフ情報の取得に失敗しました", error);
   return;
 }
+    } finally { loginBusyRef.current = false; }
   };
 
   return (
@@ -205,6 +219,7 @@ try {
           }}
         />
 
+        {loginError && <p role="alert">{loginError}</p>}
         <button
           onClick={handleLogin}
           style={{

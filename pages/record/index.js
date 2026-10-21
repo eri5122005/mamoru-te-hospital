@@ -124,7 +124,7 @@ const [isExchangeProcessing, setIsExchangeProcessing] = useState(false);
         fetchStaff: id => requestStaffWeightSettings(`/api/staff/first-weight?staffId=${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }),
       });
       if (cancelled) return;
-      try { ensureNoPendingRecordOperation(sessionStorage); }
+      try { ensureNoPendingRecordOperation(sessionStorage, result.staff.staffId); }
       catch (error) { operationLifecycleRef.current.block(); saveUncertainRef.current = true; throw error; }
       if (currentRecordStaffId(localStorage) !== result.staff.staffId) throw new Error("職員情報が変わりました。ログインし直してください。");
       currentIdRef.current = result.staff.staffId;

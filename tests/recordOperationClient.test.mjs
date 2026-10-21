@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  createRecordOperationLifecycle, PENDING_RECORD_OPERATION_KEY as KEY, RECORD_RESULT_UNKNOWN_MESSAGE,
+  createRecordOperationLifecycle, pendingRecordOperationKey, RECORD_RESULT_UNKNOWN_MESSAGE,
   readPendingRecordOperation, ensureNoPendingRecordOperation, savePendingRecordOperation,
   clearPendingRecordOperation, isKnownRecordFailure, isValidRecordSuccess,
 } from '../utils/recordOperationClient.js';
+const KEY=pendingRecordOperationKey('0137');
 const id='01234567-89ab-4cde-8fab-0123456789ab', other='01234567-89ab-4cde-9fab-0123456789ab';
 const now=Date.now();
 const pending=(changes={})=>({staffId:'0137',operationId:id,savedAt:now,...changes});
@@ -39,26 +40,26 @@ test('pending contains exactly three fields and never overwrites a draft',()=>{
 });
 test('no TTL: old pending survives reload, guard never clears it or authorizes sending',()=>{
  const s=storage(JSON.stringify(pending({savedAt:1})));const before=s.getItem(KEY);
- assert.equal(readPendingRecordOperation(s,now).operationId,id);
- assert.throws(()=>ensureNoPendingRecordOperation(s),e=>e.message===RECORD_RESULT_UNKNOWN_MESSAGE);
- assert.equal(s.getItem(KEY),before);assert.throws(()=>ensureNoPendingRecordOperation(s));assert.equal(s.getItem(KEY),before);
+ assert.equal(readPendingRecordOperation(s,'0137',now).operationId,id);
+ assert.throws(()=>ensureNoPendingRecordOperation(s,'0137'),e=>e.message===RECORD_RESULT_UNKNOWN_MESSAGE);
+ assert.equal(s.getItem(KEY),before);assert.throws(()=>ensureNoPendingRecordOperation(s,'0137'));assert.equal(s.getItem(KEY),before);
 });
 for(const raw of ['broken','null','[]',JSON.stringify({...pending(),weightNow:'205'}),JSON.stringify({...pending(),challenge:'PRIVATE'}),
  JSON.stringify(pending({staffId:'9815',operationId:'bad'})),JSON.stringify(pending({savedAt:now+3600000})),
  JSON.stringify(pending({savedAt:NaN})),JSON.stringify(pending({savedAt:0}))])test(`corrupt pending is blocked and retained: ${raw.slice(0,22)}`,()=>{
- const s=storage(raw);assert.throws(()=>readPendingRecordOperation(s,now));assert.throws(()=>ensureNoPendingRecordOperation(s));assert.equal(s.getItem(KEY),raw);
+ const s=storage(raw);assert.throws(()=>readPendingRecordOperation(s,'0137',now));assert.throws(()=>ensureNoPendingRecordOperation(s,'0137'));assert.equal(s.getItem(KEY),raw);
 });
 test('pending for another staff is not erased or reused',()=>{
- const s=storage(JSON.stringify(pending()));assert.throws(()=>clearPendingRecordOperation(s,'9815',id));
- assert.throws(()=>clearPendingRecordOperation(s,'0137',other));assert.throws(()=>ensureNoPendingRecordOperation(s));assert.notEqual(s.getItem(KEY),null);
+ const s=storage(JSON.stringify(pending()));clearPendingRecordOperation(s,'9815',id);
+ assert.throws(()=>clearPendingRecordOperation(s,'0137',other));assert.throws(()=>ensureNoPendingRecordOperation(s,'0137'));assert.notEqual(s.getItem(KEY),null);
 });
 test('clear only removes the matching pending key, never unrelated storage',()=>{
  const s=storage(JSON.stringify(pending()));s.data.set('unrelated','keep');
  clearPendingRecordOperation(s,'0137',id);assert.equal(s.getItem(KEY),null);assert.equal(s.getItem('unrelated'),'keep');
- ensureNoPendingRecordOperation(s);clearPendingRecordOperation(s,'0137',id);
+ ensureNoPendingRecordOperation(s,'0137');clearPendingRecordOperation(s,'0137',id);
 });
 test('storage read/write/remove failures and silent failures cannot pass as success',()=>{
- assert.throws(()=>ensureNoPendingRecordOperation({getItem(){throw Error('PRIVATE');}}),e=>e.message===RECORD_RESULT_UNKNOWN_MESSAGE);
+ assert.throws(()=>ensureNoPendingRecordOperation({getItem(){throw Error('PRIVATE');}},'0137'),e=>e.message===RECORD_RESULT_UNKNOWN_MESSAGE);
  assert.throws(()=>savePendingRecordOperation({getItem:()=>null,setItem(){throw Error('quota');}},'0137',id,now));
  assert.throws(()=>savePendingRecordOperation({getItem:()=>null,setItem(){}},'0137',id,now));
  const s=storage(JSON.stringify(pending()));s.removeItem=()=>{};assert.throws(()=>clearPendingRecordOperation(s,'0137',id));

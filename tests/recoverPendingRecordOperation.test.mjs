@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {createPendingRecordRecovery,RECOVERY_MESSAGES} from '../utils/recoverPendingRecordOperation.js';
-import {PENDING_RECORD_OPERATION_KEY as KEY,createRecordOperationLifecycle} from '../utils/recordOperationClient.js';
+import {pendingRecordOperationKey,createRecordOperationLifecycle} from '../utils/recordOperationClient.js';
+const KEY=pendingRecordOperationKey('0137');
 const id='01234567-89ab-4cde-8fab-0123456789ab';
 const pending={staffId:'0137',operationId:id,savedAt:1};
 const success={ok:true,status:'succeeded',operationId:id,staffId:'0137',recordId:'record-1',lastWeight:190,ml:11.47};
@@ -19,7 +20,7 @@ test('valid old pending GET is no-store, resolves only after verified removal, t
  const f=fixture();const r=await createPendingRecordRecovery()(f.args);assert.equal(r.status,'succeeded');assert.equal(f.data.has(KEY),false);assert.equal(f.data.get('draft'),'unchanged');
  const {url,options}=f.requests[0];assert.equal(options.method,'GET');assert.equal(options.cache,'no-store');const q=new URL(url,'https://local').searchParams;assert.equal(q.get('operationId'),id);assert.equal(q.get('staffId'),'0137');assert.match(r.message,/保存済み/);assert.equal('lastWeight' in r,false);
 });
-test('other staff never queries or clears',async()=>{const f=fixture();f.args.staffId='9999';assert.equal((await createPendingRecordRecovery()(f.args)).status,'mismatch');assert.equal(f.calls(),0);assert.equal(f.data.has(KEY),true);});
+test('other staff v2 never queries or clears, and does not block current staff',async()=>{const f=fixture();f.args.staffId='9999';assert.equal((await createPendingRecordRecovery()(f.args)).status,'none');assert.equal(f.calls(),0);assert.equal(f.data.has(KEY),true);});
 for(const raw of ['broken','null','[]',JSON.stringify({...pending,operationId:'bad'}),JSON.stringify({...pending,staffId:'０１３７'}),JSON.stringify({...pending,savedAt:0}),JSON.stringify({...pending,savedAt:Date.now()+100000}),JSON.stringify({...pending,challenge:'forbidden'}),JSON.stringify({staffId:'0137'})])test(`malformed evidence retained: ${raw.slice(0,30)}`,async()=>{
  const f=fixture(raw);assert.equal((await createPendingRecordRecovery()(f.args)).status,'malformed');assert.equal(f.calls(),0);assert.equal(f.data.get(KEY),raw);
 });
