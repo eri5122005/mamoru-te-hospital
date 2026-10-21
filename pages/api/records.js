@@ -13,6 +13,10 @@ import { normalizeStaffId } from "../../utils/normalizeStaffId";
 import { isActiveStaff } from "../../utils/isActiveStaff";
 import { calculateWeightUsage } from "../../utils/calculateWeightUsage";
 import { evaluateWeightRemeasurementFlow, checkWeightFlowChallenge } from "../../utils/server/weightRemeasurementFlow";
+import { prepareRecordOperation, createRecordOperationReceipt, resolveRecordOperationReceipt } from "../../utils/server/recordOperationReceipt";
+
+// Temporary rollout compatibility. Require IDs here after the record UI migration.
+const ALLOW_LEGACY_RECORD_REQUESTS = true;
 
 // Fixed public responses only; never serialize errors, request bodies, or token payloads.
 function flowFailure(status) {
@@ -84,8 +88,40 @@ export default async function handler(req, res) {
     const flowRequest = { db, staffId, requestWeightPrev: prevWeight, weightNow: nowWeight,
       isBottleExchange: exchange, operation, challenge: body.challenge, operationId: body.operationId };
     try {
-      // flow owns the only preflight staff/history reads. API does not run a second precheck.
+      let operationContext = null;
+      if (body.operationId !== undefined) {
+        try { operationContext = prepareRecordOperation(body.operationId, body); }
+        catch { return res.status(400).json({ code: "INVALID_OPERATION_REQUEST", error: "記録操作IDまたは記録内容が正しくありません。" }); }
+      } else if (!ALLOW_LEGACY_RECORD_REQUESTS) {
+        return res.status(400).json({ code: "OPERATION_ID_REQUIRED", error: "記録操作IDが必要です。" });
+      }
+      const operationRef = operationContext ? doc(db, "recordOperations", operationContext.operationId) : null;
+      const readCompletedOperation = () => runTransaction(db, async transaction => {
+        const current = await transaction.get(doc(db, "staff", staffId));
+        if (!current.exists()) return flowFailure("staff_not_found");
+        if (!isActiveStaff(current.data())) return flowFailure("staff_inactive");
+        const saved = await transaction.get(operationRef);
+        return saved.exists() ? resolveRecordOperationReceipt(operationContext, saved.data()) : null;
+      });
+      if (operationContext) {
+        const completed = await readCompletedOperation();
+        if (completed) {
+          if (completed.status === 200) return res.status(200).json(completed.success);
+          const { status, ...response } = completed; return res.status(status).json(response);
+        }
+      }
+      // Flow owns the save precheck/history reads; receipt lookups independently check
+      // current staff status, but never run another history query.
       const decision = await evaluateWeightRemeasurementFlow(flowRequest, { appBuildId });
+      if (operationContext && !["save_allowed", "save_allowed_after_confirmation"].includes(decision.status)) {
+        // Another request can commit after our initial lookup and before/during precheck.
+        // Recheck before returning stale-weight/history/challenge errors or a new 422.
+        const completed = await readCompletedOperation();
+        if (completed) {
+          if (completed.status === 200) return res.status(200).json(completed.success);
+          const { status, ...response } = completed; return res.status(status).json(response);
+        }
+      }
       if (["remeasurement_required", "confirmation_required"].includes(decision.status)) {
         const confirmation = decision.status === "confirmation_required";
         return res.status(422).json({
@@ -108,6 +144,10 @@ export default async function handler(req, res) {
         if (!staffSnap.exists()) return { status: 404, error: "職員情報が見つかりません。管理者に確認してください。" };
         const staff = staffSnap.data();
         if (!isActiveStaff(staff)) return { status: 403, error: "この職員番号は現在利用できません。管理者に確認してください。" };
+        if (operationContext) {
+          const saved = await transaction.get(operationRef);
+          if (saved.exists()) return resolveRecordOperationReceipt(operationContext, saved.data());
+        }
         const dbWeight = parseWeight(staff.lastWeight);
         if (!Number.isFinite(dbWeight) || dbWeight < 45 || dbWeight > 263 || dbWeight !== prevWeight) {
           return { status: 409, error: "前回の重量が更新されているか、正しく設定されていません。再登録せず、管理者に確認してください。" };
@@ -140,16 +180,22 @@ export default async function handler(req, res) {
         if (body.amount !== undefined && body.amount !== null && body.amount !== "" && Number.isFinite(Number(body.amount))) {
           recordData.amount = Number(body.amount);
         }
+        let receipt = null;
+        if (operationContext) {
+          recordData.operationId = operationContext.operationId;
+          receipt = createRecordOperationReceipt(operationContext, { recordId: recordRef.id, ml, committedAt: recordData.date });
+        }
         transaction.set(recordRef, recordData);
         transaction.update(staffRef, { lastWeight: nowWeight });
         if (backup?.exists()) transaction.update(backupRef, { lastWeight: nowWeight });
-        return { status: 200, ml };
+        if (receipt) transaction.set(operationRef, receipt);
+        return receipt ? { status: 200, success: { ...receipt.result, replayed: false } } : { status: 200, ml };
       });
       if (result.status !== 200) {
         const { status, ...response } = result;
         return res.status(status).json(response);
       }
-      return res.status(200).json({ ok: true, recordId: recordRef.id, staffId, lastWeight: nowWeight, ml: result.ml });
+      return res.status(200).json(result.success ?? { ok: true, recordId: recordRef.id, staffId, lastWeight: nowWeight, ml: result.ml });
     } catch (error) {
       console.error("記録保存エラー: WEIGHT_RECORD_SAVE_FAILED");
       return res.status(500).json({ error: "記録の保存結果を確認できませんでした。再登録せず、管理者に確認してください。" });

@@ -10,6 +10,7 @@ import { evaluateWeightRemeasurementFlow, checkWeightFlowChallenge, WEIGHT_REMEA
 import { idleRemeasurement, acceptRemeasurementResponse, retryRemeasurement, recordFlowRequest, createRecordRequestScope } from '../utils/recordRemeasurementState.js';
 import { precheckWeightRemeasurement, WeightPrecheckReadError } from '../utils/precheckWeightRemeasurement.js';
 import { calculateWeightUsage } from '../utils/calculateWeightUsage.js';
+import { prepareRecordOperation, createRecordOperationReceipt, resolveRecordOperationReceipt } from '../utils/server/recordOperationReceipt.js';
 
 // Normalize CRLF only; preserve indentation, spaces, comments and executable code.
 const normalizeLineEndings = source => source.replace(/\r\n/g, '\n');
@@ -76,15 +77,19 @@ async function post(body = valid, db = database(), options = {}) {
     Date, db: {}, doc: db.doc, runTransaction: db.runTransaction,
     collection: (_, name) => name, Timestamp: { now: () => 'server-time' },
     normalizeStaffId, isActiveStaff, calculateWeightUsage, WeightPrecheckReadError,
+    prepareRecordOperation, createRecordOperationReceipt, resolveRecordOperationReceipt,
     checkWeightFlowChallenge: (args, context) => checkWeightFlowChallenge(args, { ...context, secret: options.secret === undefined ? 'fixture-integration-secret-at-least-32-bytes' : options.secret, nowMs: options.now ? options.now() : Date.now() }),
     evaluateWeightRemeasurementFlow: (args, context) => evaluateWeightRemeasurementFlow(args, {
       ...context, secret: options.secret === undefined ? 'fixture-integration-secret-at-least-32-bytes' : options.secret,
       now: options.now ?? Date.now,
-      precheck: input => precheckWeightRemeasurement(input, {
+      precheck: async input => {
+        if(options.beforePrecheck) await options.beforePrecheck(db);
+        return precheckWeightRemeasurement(input, {
       readStaff: async ({staffId}) => { staffReads++; if(options.staffError) throw options.staffError; return structuredClone(db.docs.get(`staff/${staffId}`) ?? null); },
       readHistory: async () => { historyReads++; if(options.historyError) throw options.historyError;
         return options.historyResult ?? {status:'insufficient',history:[]}; },
-      }),
+        });
+      },
     }).then(result => { if(options.afterPrecheck) options.afterPrecheck(db); return result; }),
     getAppBuildId: () => options.buildId === undefined ? "test-build" : options.buildId,
     req: { method: options.method ?? 'POST', body, headers: options.headers ?? { 'x-app-build-id': 'test-build' } }, res, console: { error(...args) {logs.push(args);} },
@@ -308,8 +313,8 @@ const baseline = (ml=25,n=3) => ({status:n===3?'complete':'insufficient',history
 }))});
 const usageBody = ml => ({...valid,weightPrev:250,weightNow:250-ml*218/250});
 const weightDb = () => database({'staff/0137':{lastWeight:250,isActive:true},'staffs/0137':{lastWeight:250}});
-function noWrites(db,before) {
-  assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,0);
+function noWrites(db,before,expectedTransactions=0) {
+  assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,expectedTransactions);
 }
 for(const [options,body,status] of [
  [{method:'OPTIONS'},valid,405],[{buildId:null},valid,503],[{headers:{'x-app-build-id':'old'}},valid,426],
@@ -371,10 +376,14 @@ test('preflight uses rounded currentMl at the 50mL threshold',async()=>{
  const r=await post(usageBody(49.999),weightDb(),{historyResult:baseline(25)});assert.equal(r.res.code,422);assert.equal(r.res.body.currentMl,50);
 });
 test('transaction callback has no external precheck/history/HTTP side effects',()=>{
- const start=apiSource.indexOf('async transaction => {');const end=apiSource.indexOf('if (result.status !== 200)',start);
- const callback=apiSource.slice(start,end);assert.doesNotMatch(callback,/precheckWeightRemeasurement|fetchRecentNormalWeightHistory|res\.status|res\.json/);
+ const lookupStart=apiSource.indexOf('const readCompletedOperation =');
+ const start=apiSource.indexOf('const result = await runTransaction');const end=apiSource.indexOf('if (result.status !== 200)',start);
+ assert.ok(lookupStart>=0 && start>lookupStart && end>start);
+ const lookup=apiSource.slice(lookupStart,apiSource.indexOf('\n      if (operationContext)',lookupStart));
+ const callback=apiSource.slice(start,end);
+ for(const source of [lookup,callback])assert.doesNotMatch(source,/precheckWeightRemeasurement|evaluateWeightRemeasurementFlow|fetchRecentNormalWeightHistory|issueWeightChallenge|res\.status|res\.json/);
  assert.match(callback,/calculateWeightUsage\(dbWeight, nowWeight, exchange\)/);
- assert.equal((callback.match(/transaction\.set\(/g)||[]).length,1);
+ assert.equal((callback.match(/transaction\.set\(/g)||[]).length,2);
 });
 
 for(const path of ['pages/record/index.js','pages/api/records.js'])test(`source normalization accepts LF/CRLF but preserves code and indentation: ${path}`,()=>{
@@ -475,7 +484,7 @@ test('challenge expiration on transaction RETRY is rechecked without new challen
 
 const boundOperationId='01234567-89ab-4cde-8fab-0123456789ab';
 const differentOperationId='01234567-89ab-4cde-9fab-0123456789ab';
-test('API passes operation ID through A/B and final transaction without persisting it',async()=>{
+test('API passes operation ID through A/B and atomically persists only successful operation',async()=>{
  const db=weightDb(),options=flowOptions,operationId=boundOperationId;
  const a=await post({...usageBody(100),operationId},db,options);assert.equal(a.res.code,422);assert.equal(db.commits.length,0);
  const b=await post({...usageBody(110),operation:'remeasure',challenge:a.res.body.challenge,operationId},db,options);
@@ -483,25 +492,25 @@ test('API passes operation ID through A/B and final transaction without persisti
  const p=verifyWeightChallenge(b.res.body.challenge,{secret:integrationSecret,nowMs:integrationNow,expectedStage:'confirm',expectedOperationId:operationId});
  assert.equal(p.operationId,operationId);
  const final=await post({...usageBody(110),operation:'confirm_remeasurement',challenge:b.res.body.challenge,operationId},db,options);
- assert.equal(final.res.code,200);assert.equal(final.res.body.ml,110);assert.equal(db.transactionCalls,1);
- const record=db.docs.get(`records/${final.res.body.recordId}`);assert.equal('operationId'in record,false);
- assert.equal([...db.docs.keys()].some(key=>key.startsWith('recordOperations/')),false);
+ assert.equal(final.res.code,200);assert.equal(final.res.body.ml,110);assert.equal(db.transactionCalls,6);
+ const record=db.docs.get(`records/${final.res.body.recordId}`);assert.equal(record.operationId,operationId);
+ assert.equal(db.docs.get(`recordOperations/${operationId}`).recordId,final.res.body.recordId);
 });
-for(const operation of ['remeasure','confirm_remeasurement'])for(const operationId of [undefined,differentOperationId])test(`API ${operation} bound ID ${operationId===undefined?'missing':'changed'} has zero reads/writes`,async()=>{
+for(const operation of ['remeasure','confirm_remeasurement'])for(const operationId of [undefined,differentOperationId])test(`API ${operation} bound ID ${operationId===undefined?'missing':'changed'} has no precheck/history reads or writes`,async()=>{
  const db=weightDb(),before=JSON.stringify([...db.docs]);
  const challenge=tokenFor(operation==='remeasure'?'remeasure':'confirm',{operationId:boundOperationId});
  const r=await post({...usageBody(100),operation,challenge,operationId},db,flowOptions);
  assert.equal(r.res.code,409);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_OPERATION_MISMATCH');
- assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before);
+ assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before,operationId===undefined?0:2);
 });
 test('API refuses legacy token upgrade, invalid ID and bound request with missing secret',async()=>{
  for(const [body,options,status,code] of [
   [{...usageBody(100),operation:'remeasure',challenge:tokenFor(),operationId:boundOperationId},flowOptions,409,'WEIGHT_CHALLENGE_OPERATION_MISMATCH'],
-  [{...usageBody(30),operationId:'bad'},flowOptions,400,undefined],
+  [{...usageBody(30),operationId:'bad'},flowOptions,400,'INVALID_OPERATION_REQUEST'],
   [{...usageBody(100),operationId:boundOperationId},{...flowOptions,secret:null},503,'WEIGHT_CHALLENGE_UNAVAILABLE'],
  ]) {
   const db=weightDb(),before=JSON.stringify([...db.docs]);const r=await post(body,db,options);
-  assert.equal(r.res.code,status);assert.equal(r.res.body.code,code);noWrites(db,before);
+  assert.equal(r.res.code,status);assert.equal(r.res.body.code,code);noWrites(db,before,status===400?0:2);
  }
 });
 for(const [exchange,now] of [[false,190],[false,200],[true,200]])test(`aware ordinary save remains valid: exchange ${exchange}, now ${now}`,async()=>{
@@ -512,7 +521,7 @@ test('bound confirmation still fails when expiry is reached on transaction retry
  let clock=integrationNow;const db=database({'staff/0137':{lastWeight:250,isActive:true}},false,false,()=>{clock=integrationNow+300000;});
  const r=await post({...usageBody(100),operation:'confirm_remeasurement',operationId:boundOperationId,
   challenge:tokenFor('confirm',{operationId:boundOperationId})},db,{...flowOptions,now:()=>clock});
- assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionAttempts,2);assert.equal(db.commits.length,0);
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionAttempts,3);assert.equal(db.commits.length,0);
 });
 test('operation-aware remeasurement may change weight and save a normal result',async()=>{
  const db=weightDb(),operationId=boundOperationId;
@@ -523,10 +532,175 @@ test('operation-aware remeasurement may change weight and save a normal result',
 for(const [change,status] of [[{isActive:false,lastWeight:250},403],[{lastWeight:240},409]])test(`aware confirmation transaction preserves ${status} safety check`,async()=>{
  const db=weightDb();const r=await post({...usageBody(100),operation:'confirm_remeasurement',operationId:boundOperationId,
   challenge:tokenFor('confirm',{operationId:boundOperationId})},db,{...flowOptions,afterPrecheck:d=>d.docs.set('staff/0137',change)});
- assert.equal(r.res.code,status);assert.equal(db.transactionCalls,1);assert.equal(db.commits.length,0);
+ assert.equal(r.res.code,status);assert.equal(db.transactionCalls,2);assert.equal(db.commits.length,0);
 });
 test('operation-aware B rejects edited weight before reads',async()=>{
  const db=weightDb();const r=await post({...usageBody(100),weightNow:usageBody(100).weightNow+1,
   operation:'confirm_remeasurement',operationId:boundOperationId,challenge:tokenFor('confirm',{operationId:boundOperationId})},db,flowOptions);
  assert.equal(r.res.code,409);assert.equal(r.res.body.code,'WEIGHT_CONFIRMATION_CHANGED');assert.equal(r.staffReads,0);assert.equal(db.commits.length,0);
+});
+
+const awareBody=(changes={})=>({...valid,operationId:boundOperationId,...changes});
+const recordCount=db=>[...db.docs.keys()].filter(key=>key.startsWith('records/')).length;
+const operationCount=db=>[...db.docs.keys()].filter(key=>key.startsWith('recordOperations/')).length;
+function sameSuccess(first,replay) {
+ assert.equal(first.res.code,200);assert.equal(replay.res.code,200);assert.equal(replay.res.body.replayed,true);
+ const {replayed:initialMarker,...initialResult}=first.res.body;
+ const {replayed:replayMarker,...replayResult}=replay.res.body;
+ assert.equal(initialMarker,false);assert.deepEqual(replayResult,initialResult);
+}
+test('aware normal replay returns original result before stale previousWeight/history validation',async()=>{
+ const db=database(),body=awareBody(),first=await post(body,db);
+ assert.equal(first.res.code,200);assert.equal(first.res.body.ml,11.47);assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);
+ assert.equal(db.commits[0].length,3);
+ const before=JSON.stringify([...db.docs]),commits=db.commits.length;
+ const replay=await post(body,db,{historyError:new Error('must not read'),staffError:new Error('must not precheck')});
+ sameSuccess(first,replay);assert.equal(replay.staffReads,0);assert.equal(replay.historyReads,0);
+ assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,commits);
+ assert.equal(db.docs.get('staff/0137').lastWeight,190);
+});
+for(const exchange of [false,true])test(`same-weight replay is one record, exchange=${exchange}`,async()=>{
+ const db=database({'staff/0137':{lastWeight:200},'staffs/0137':{lastWeight:200}});
+ const body=awareBody({weightNow:200,isBottleExchange:exchange}),first=await post(body,db),again=await post(body,db);
+ sameSuccess(first,again);assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);
+ assert.equal(first.res.body.ml,exchange?250:0);assert.equal(db.commits.length,1);
+ assert.equal(db.docs.get('staff/0137').lastWeight,200);assert.equal(db.docs.get('staffs/0137').lastWeight,200);
+});
+for(const exchange of [false,true])test(`different IDs permit two formal same-weight operations, exchange=${exchange}`,async()=>{
+ const db=database();const first=await post(awareBody({weightNow:200,isBottleExchange:exchange}),db);
+ const second=await post(awareBody({weightNow:200,isBottleExchange:exchange,operationId:differentOperationId}),db);
+ assert.equal(first.res.code,200);assert.equal(second.res.code,200);assert.notEqual(first.res.body.recordId,second.res.body.recordId);
+ assert.equal(recordCount(db),2);assert.equal(operationCount(db),2);
+ assert.equal(first.res.body.ml+second.res.body.ml,exchange?500:0);
+});
+for(const changes of [{weightNow:189},{weightPrev:201},{isBottleExchange:true},{operation:'remeasure'},
+ {operation:'confirm_remeasurement'},{name:'Changed'},{department:'外来'},{wardId:'gairai'},{unit:'cm'},{mintPoint:2},{amount:20}]) {
+ test(`same ID different saved request rejects ${Object.keys(changes)[0]} ${changes.operation??''}`,async()=>{
+  const db=database(),body=awareBody();await post(body,db);const before=JSON.stringify([...db.docs]);
+  const r=await post({...body,...changes},db);assert.equal(r.res.code,409);assert.equal(r.res.body.code,'OPERATION_ID_REUSED_WITH_DIFFERENT_REQUEST');
+  assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,1);assert.equal(r.historyReads,0);
+ });
+}
+test('same ID cannot be reused by a different existing staff member',async()=>{
+ const db=database({'staff/0137':{lastWeight:200},'staff/9815':{lastWeight:200}});await post(awareBody(),db);
+ const r=await post(awareBody({staffId:'9815'}),db);assert.equal(r.res.code,409);
+ assert.equal(r.res.body.code,'OPERATION_ID_REUSED_WITH_DIFFERENT_REQUEST');assert.equal(db.docs.get('staff/9815').lastWeight,200);assert.equal(recordCount(db),1);
+});
+for(const exchange of [false,true])test(`concurrent same-ID requests commit once, exchange=${exchange}`,async()=>{
+ const db=database(),body=awareBody({weightNow:200,isBottleExchange:exchange});
+ const [first,second]=await Promise.all([post(body,db),post(body,db)]);
+ assert.equal(first.res.code,200);assert.equal(second.res.code,200);assert.equal(first.res.body.recordId,second.res.body.recordId);
+ assert.equal(first.res.body.ml,second.res.body.ml);assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);assert.equal(db.commits.length,1);
+ assert.ok(db.transactionAttempts>db.transactionCalls);
+ const receipt=db.docs.get(`recordOperations/${body.operationId}`);
+ assert.equal(receipt.recordId,first.res.body.recordId);assert.equal(receipt.requestDigest,prepareRecordOperation(body.operationId,body).requestDigest);
+});
+test('precheck observes another completed request after initial missing lookup: replay rather than stale 409',async()=>{
+ const db=database(),body=awareBody();let first;
+ const r=await post(body,db,{beforePrecheck:async()=>{first=await post(body,db);}});
+ sameSuccess(first,r);assert.equal(recordCount(db),1);assert.equal(db.commits.length,1);assert.equal(r.historyReads,0);
+});
+test('receipt recheck also resolves a precheck history error after another request commits',async()=>{
+ const db=database(),body=awareBody({weightNow:200});let first;
+ const r=await post(body,db,{beforePrecheck:async()=>{first=await post(body,db);},historyError:new Error('offline')});
+ sameSuccess(first,r);assert.equal(db.commits.length,1);assert.equal(recordCount(db),1);
+});
+test('concurrent requests that reuse ID for different content cannot both commit',async()=>{
+ const db=database();const replies=await Promise.all([post(awareBody({weightNow:200}),db),post(awareBody({weightNow:199}),db)]);
+ assert.deepEqual(replies.map(r=>r.res.code).sort(),[200,409]);assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);
+ assert.equal(replies.find(r=>r.res.code===409).res.body.code,'OPERATION_ID_REUSED_WITH_DIFFERENT_REQUEST');
+});
+test('transaction failure leaves record, staff, backup and operation entirely unchanged',async()=>{
+ const db=database({'staff/0137':{lastWeight:200},'staffs/0137':{lastWeight:190}},true);
+ const before=JSON.stringify([...db.docs]);const r=await post(awareBody({weightNow:200,isBottleExchange:true}),db);
+ assert.equal(r.res.code,500);assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);assert.equal(operationCount(db),0);
+});
+test('transaction retry preserves generated record ID, result and digest atomically',async()=>{
+ const db=database(undefined,false,false,()=>{}),body=awareBody();const r=await post(body,db);
+ assert.equal(r.res.code,200);assert.equal(db.transactionAttempts,3);assert.equal(recordCount(db),1);
+ const receipt=db.docs.get(`recordOperations/${body.operationId}`);assert.equal(receipt.recordId,r.res.body.recordId);
+ assert.equal(receipt.result.recordId,r.res.body.recordId);assert.equal(receipt.requestDigest,prepareRecordOperation(body.operationId,body).requestDigest);
+});
+test('aware A to normal save replay is one record even after token expires',async()=>{
+ const db=weightDb(),operationId=boundOperationId;
+ const a=await post({...usageBody(100),operationId},db,flowOptions);assert.equal(a.res.code,422);assert.equal(operationCount(db),0);
+ const body={...usageBody(30),operationId,operation:'remeasure',challenge:a.res.body.challenge};
+ const first=await post(body,db,flowOptions),replay=await post(body,db,{...flowOptions,now:()=>integrationNow+3600000,secret:null});
+ sameSuccess(first,replay);assert.equal(recordCount(db),1);assert.equal(replay.historyReads,0);assert.equal(replay.staffReads,0);
+});
+test('aware A to B confirmation replay is one record and returns historical result without weight rollback',async()=>{
+ const db=weightDb(),operationId=boundOperationId;
+ const a=await post({...usageBody(100),operationId},db,flowOptions);
+ const b=await post({...usageBody(110),operationId,operation:'remeasure',challenge:a.res.body.challenge},db,flowOptions);
+ assert.equal(b.res.code,422);assert.equal(operationCount(db),0);assert.equal(recordCount(db),0);
+ const body={...usageBody(110),operationId,operation:'confirm_remeasurement',challenge:b.res.body.challenge};
+ const first=await post(body,db,flowOptions);db.docs.set('staff/0137',{lastWeight:100});const before=JSON.stringify([...db.docs]);
+ const replay=await post(body,db,{...flowOptions,now:()=>integrationNow+3600000});
+ sameSuccess(first,replay);assert.equal(JSON.stringify([...db.docs]),before);assert.equal(recordCount(db),1);assert.equal(db.docs.get('staff/0137').lastWeight,100);
+});
+for(const [method,changes,options,status] of [
+ ['version',null,{headers:{'x-app-build-id':'old'}},426],
+ ['inactive',{lastWeight:190,isActive:false},{},403],['missing',null,{},404],
+])test(`completed receipt does not bypass ${method}`,async()=>{
+ const db=database(),body=awareBody();await post(body,db);
+ if(method==='inactive')db.docs.set('staff/0137',changes);if(method==='missing')db.docs.delete('staff/0137');
+ const before=JSON.stringify([...db.docs]);const r=await post(body,db,options);
+ assert.equal(r.res.code,status);assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,1);
+ if(status===426)assert.equal(r.db.transactionCalls,2);
+});
+test('uncommitted expired bound challenge still rejects without any receipt',async()=>{
+ const db=weightDb(),before=JSON.stringify([...db.docs]);const body={...usageBody(100),operationId:boundOperationId,
+  operation:'confirm_remeasurement',challenge:tokenFor('confirm',{operationId:boundOperationId})};
+ const r=await post(body,db,{...flowOptions,now:()=>integrationNow+600000});
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');noWrites(db,before,2);
+});
+test('canonical equivalent requests replay despite key order, full-width ID and ignored client fields',async()=>{
+ const db=database(),body=awareBody();const first=await post(body,db);
+ const shuffled=Object.fromEntries(Object.entries({...body,staffId:' ０１３７ ',weightPrev:'200.00',weightNow:'190.0',mintPoint:'1',ml:9999,date:'ignored'}).reverse());
+ sameSuccess(first,await post(shuffled,db));assert.equal(db.commits.length,1);
+});
+test('success receipt stores only minimal result and digest; legacy data has no fabricated ID',async()=>{
+ const db=database(),body=awareBody({secret:'PRIVATE',arbitrary:{hidden:'PRIVATE'}});const r=await post(body,db);
+ assert.equal(r.res.code,200);const receipt=db.docs.get(`recordOperations/${body.operationId}`);
+ assert.deepEqual(Object.keys(receipt).sort(),['schemaVersion','resultVersion','staffId','requestDigest','recordId','result','committedAt'].sort());
+ assert.deepEqual(Object.keys(receipt.result).sort(),['ok','recordId','staffId','lastWeight','ml'].sort());
+ for(const word of ['PRIVATE','name','department','challenge','secret','weightPrev','body'])assert.equal(JSON.stringify(receipt).includes(word),false);
+ assert.equal(db.docs.get(`records/${r.res.body.recordId}`).operationId,body.operationId);
+ const legacy=database();const saved=await post(valid,legacy);assert.equal(saved.res.code,200);
+ assert.equal('operationId'in legacy.docs.get(`records/${saved.res.body.recordId}`),false);assert.equal(operationCount(legacy),0);
+});
+test('corrupt saved receipt fails closed and is never overwritten or leaked',async()=>{
+ const db=database(),body=awareBody();await post(body,db);
+ const ref=`recordOperations/${body.operationId}`;db.docs.set(ref,{...db.docs.get(ref),result:{ok:true,secret:'PRIVATE'}});
+ const before=JSON.stringify([...db.docs]);const r=await post(body,db);
+ assert.equal(r.res.code,503);assert.equal(r.res.body.code,'OPERATION_RESULT_UNAVAILABLE');
+ assert.equal(JSON.stringify(r.res.body).includes('PRIVATE'),false);assert.equal(JSON.stringify([...db.docs]),before);assert.equal(recordCount(db),1);
+});
+test('receipt read failure stops safely; legacy requests never access the new collection',async()=>{
+ const db=database(),original=db.runTransaction;
+ db.runTransaction=(dbArg,callback)=>original(dbArg,transaction=>callback({...transaction,get:async ref=>{
+  if(ref.key.startsWith('recordOperations/'))throw new Error('PRIVATE read failure');
+  return transaction.get(ref);
+ }}));
+ const before=JSON.stringify([...db.docs]),failed=await post(awareBody(),db);
+ assert.equal(failed.res.code,500);assert.equal(JSON.stringify(failed.res.body).includes('PRIVATE'),false);
+ assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);
+ const legacy=await post(valid,db);assert.equal(legacy.res.code,200);assert.equal(operationCount(db),0);
+});
+test('retirement on aware commit retry prevents record and operation document together',async()=>{
+ const db=database(undefined,false,true);const r=await post(awareBody(),db);
+ assert.equal(r.res.code,403);assert.equal(recordCount(db),0);assert.equal(operationCount(db),0);assert.equal(db.commits.length,0);
+ assert.equal(db.docs.get('staff/0137').lastWeight,200);assert.equal(db.transactionAttempts,3);
+});
+test('same-ID normal decreasing concurrent requests both get the same original result',async()=>{
+ const db=database(),body=awareBody();const replies=await Promise.all([post(body,db),post(body,db)]);
+ assert.deepEqual(replies.map(r=>r.res.code),[200,200]);assert.equal(replies[0].res.body.recordId,replies[1].res.body.recordId);
+ assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);assert.equal(db.docs.get('staff/0137').lastWeight,190);
+});
+test('bound final confirmation concurrent replay returns one successful record to both callers',async()=>{
+ const db=weightDb(),body={...usageBody(100),operation:'confirm_remeasurement',operationId:boundOperationId,
+  challenge:tokenFor('confirm',{operationId:boundOperationId})};
+ const replies=await Promise.all([post(body,db,flowOptions),post(body,db,flowOptions)]);
+ assert.deepEqual(replies.map(r=>r.res.code),[200,200]);assert.equal(replies[0].res.body.recordId,replies[1].res.body.recordId);
+ assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);assert.equal(db.commits.length,1);
 });
