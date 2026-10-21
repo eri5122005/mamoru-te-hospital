@@ -165,7 +165,7 @@ async function screen(first, response, { network = false, quota = false, mode = 
   return { stored, states, messages, routes, calls, ref };
 }
 const success = { ok: true, json: async () => ({ ok: true, staff: { staffId: '0137', mode: 'weight', lastWeight: 240, emptyWeight: 46 } }) };
-for (const first of [true, false]) {
+for (const first of [true]) {
   test(`screen ${first ? 'first-weight' : 'change-mode'} successful state follows API response`, async () => {
     const run = await screen(first, success);
     assert.equal(run.calls.length, 1);
@@ -192,10 +192,12 @@ for (const first of [true, false]) {
     }
   });
 }
-test('change-mode cm screen preserves local weights', async () => {
-  const run = await screen(false, { ok: true, json: async () => ({ ok: true, staff: { staffId: '0137', mode: 'cm' } }) }, { mode: 'cm' });
-  assert.equal(JSON.parse(run.stored.get('currentStaff')).lastWeight, null);
-  assert.equal(run.calls[0][1].mode, 'cm');
+test('disabled change-mode page only displays retirement notice and a static home link', () => {
+  assert.match(modePage, /方式変更機能は現在使用していません。/);
+  assert.match(modePage, /<a href="\/home"[^>]*>ホームへ戻る<\/a>/);
+  assert.doesNotMatch(modePage, /<input\b|<button\b|<form\b|<select\b|切り替える|cm方式/);
+  assert.doesNotMatch(modePage, /\bimport\b|\brequire\s*\(|\bfetch\s*\(|\/api\/|firebase|Firestore|requestStaffWeightSettings/);
+  assert.doesNotMatch(modePage, /localStorage|sessionStorage|useEffect|useState|onClick|onSubmit|lastWeight|emptyWeight|saveMode/);
 });
 test('first-weight startup never redirects a retired cached staff to record', async () => {
   const start = firstPage.indexOf('    const load = async');
