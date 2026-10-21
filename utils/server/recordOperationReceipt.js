@@ -30,16 +30,23 @@ const hasExactKeys = (value, keys) => value !== null && typeof value === 'object
 const unavailable = () => ({ status: 503, code: 'OPERATION_RESULT_UNAVAILABLE',
   error: '保存済み操作の情報を安全に確認できません。再登録せず、管理者に確認してください。' });
 
-// Caller must already verify current staff existence/active status. A receipt is not
-// authorization. Corrupt/unknown receipts NEVER fall through to a new record save.
-export function resolveRecordOperationReceipt(context, receipt) {
+// Structural validation shared by POST replay and read-only result lookup. This does
+// not prove request equality, ownership, current staff status, or receipt authenticity.
+export function isValidRecordOperationReceipt(receipt) {
   if (!hasExactKeys(receipt, receiptKeys) || receipt.schemaVersion !== 1 || receipt.resultVersion !== 1 ||
       !hasExactKeys(receipt.result, resultKeys) || receipt.committedAt == null ||
       typeof receipt.staffId !== 'string' || typeof receipt.recordId !== 'string' || !receipt.recordId || receipt.recordId.includes('/') ||
       typeof receipt.requestDigest !== 'string' || !/^[0-9a-f]{64}$/.test(receipt.requestDigest) || receipt.requestDigest.length !== 64 ||
       receipt.result.ok !== true || receipt.result.recordId !== receipt.recordId || receipt.result.staffId !== receipt.staffId ||
       !Number.isFinite(receipt.result.lastWeight) || receipt.result.lastWeight <= 45 || receipt.result.lastWeight > 263 ||
-      !Number.isFinite(receipt.result.ml) || receipt.result.ml < 0) return unavailable();
+      !Number.isFinite(receipt.result.ml) || receipt.result.ml < 0) return false;
+  return true;
+}
+
+// Caller must already verify current staff existence/active status. A receipt is not
+// authorization. Corrupt/unknown receipts NEVER fall through to a new record save.
+export function resolveRecordOperationReceipt(context, receipt) {
+  if (!isValidRecordOperationReceipt(receipt)) return unavailable();
   const candidate = { operationId: context.operationId, staffId: context.canonicalRequest.staffId, requestDigest: context.requestDigest };
   const completed = { operationId: context.operationId, staffId: receipt.staffId, requestDigest: receipt.requestDigest };
   if (!isSameRecordOperation(completed, candidate)) return {
