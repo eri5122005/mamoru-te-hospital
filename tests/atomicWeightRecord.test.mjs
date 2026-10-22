@@ -18,7 +18,9 @@ const normalizeLineEndings = source => source.replace(/\r\n/g, '\n');
 const read = path => normalizeLineEndings(fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'));
 const apiSource = read('pages/api/records.js').replace(/import[\s\S]*?from\s+["'][^"']+["'];\s*/g, '').replace('export default ', '');
 const page = read('pages/record/index.js');
-const valid = { staffId: '0137', name: 'Staff', wardId: '6f', department: '6階', weightPrev: 200, weightNow: 190, isBottleExchange: false, ml: 999, mintPoint: 1 };
+const boundOperationId='01234567-89ab-4cde-8fab-0123456789ab';
+const differentOperationId='01234567-89ab-4cde-9fab-0123456789ab';
+const valid = { operationId: boundOperationId, staffId: '0137', name: 'Staff', wardId: '6f', department: '6階', weightPrev: 200, weightNow: 190, isBottleExchange: false, ml: 999, mintPoint: 1 };
 
 // Atomic staged writes, with version-based retries to model Firestore transactions.
 function database(initial = { 'staff/0137': { lastWeight: 200, isActive: true } }, failure = false, retireBeforeCommit = false, retryBeforeCommit = null) {
@@ -168,7 +170,7 @@ test('canonical retired ID rejects full-width direct POST', async () => {
 });
 test('concurrent old previousWeight requests produce one record', async () => {
   const db = database();
-  const result = await Promise.all([post(valid, db), post(valid, db)]);
+  const result = await Promise.all([post(valid, db), post({...valid,operationId:differentOperationId}, db)]);
   assert.deepEqual(result.map(r => r.res.code).sort(), [200, 409]);
   assert.equal(db.commits.length, 1);
 });
@@ -180,10 +182,10 @@ test('retirement committed during a record transaction is detected on retry', as
   assert.equal(db.docs.get('staff/0137').isActive, false);
   assert.equal(db.commits.length, 0);
 });
-test('same-weight zero usage remains a known idempotency limitation', async () => {
+test('distinct formal same-weight zero usage operations remain valid', async () => {
   const db = database();
   const body = { ...valid, weightNow: 200 };
-  const result = await Promise.all([post(body, db), post(body, db)]);
+  const result = await Promise.all([post(body, db), post({...body,operationId:differentOperationId}, db)]);
   assert.deepEqual(result.map(r => r.res.code), [200, 200]);
   assert.equal(db.commits.length, 2);
 });
@@ -318,7 +320,7 @@ const baseline = (ml=25,n=3) => ({status:n===3?'complete':'insufficient',history
 }))});
 const usageBody = ml => ({...valid,weightPrev:250,weightNow:250-ml*218/250});
 const weightDb = () => database({'staff/0137':{lastWeight:250,isActive:true},'staffs/0137':{lastWeight:250}});
-function noWrites(db,before,expectedTransactions=0) {
+function noWrites(db,before,expectedTransactions=2) {
   assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,expectedTransactions);
 }
 for(const [options,body,status] of [
@@ -326,11 +328,11 @@ for(const [options,body,status] of [
  [{}, {...valid,weightNow:45},400],
 ])test(`prechecks preserve early ${status} with no staff/history reads`,async()=>{
  const db=database(),before=JSON.stringify([...db.docs]);const run=await post(body,db,options);
- assert.equal(run.res.code,status);assert.equal(run.staffReads,0);assert.equal(run.historyReads,0);noWrites(db,before);
+ assert.equal(run.res.code,status);assert.equal(run.staffReads,0);assert.equal(run.historyReads,0);noWrites(db,before,0);
 });
-for(const [staff,status] of [[null,404],[{lastWeight:250,isActive:false},403],[{lastWeight:249},409],[{lastWeight:null},409]])test(`staff ${status} takes priority over B, no history or transaction`,async()=>{
+for(const [staff,status] of [[null,404],[{lastWeight:250,isActive:false},403],[{lastWeight:249},409],[{lastWeight:null},409]])test(`staff ${status} takes priority over B, no history or write`,async()=>{
  const db=database(staff?{'staff/0137':staff}:{}),before=JSON.stringify([...db.docs]);const r=await post(usageBody(150),db);
- assert.equal(r.res.code,status);assert.equal(r.staffReads,1);assert.equal(r.historyReads,0);noWrites(db,before);
+ assert.equal(r.res.code,status);assert.equal(r.staffReads,status===409?1:0);assert.equal(r.historyReads,0);noWrites(db,before,status===409?2:1);
 });
 for(const [ml,m,code,matched] of [[49.99,20,200,[]],[50,25,422,['A']],[50,25.01,200,[]],[60,30,422,['A']],[149.99,100,200,[]],[150,25,422,['B']]])test(`API rounded boundary ${ml}, median ${m}`,async()=>{
  const db=weightDb(),before=JSON.stringify([...db.docs]);const r=await post(usageBody(ml),db,{historyResult:baseline(m)});
@@ -340,7 +342,7 @@ for(const [ml,m,code,matched] of [[49.99,20,200,[]],[50,25,422,['A']],[50,25.01,
    assert.equal(r.res.body.currentMl,ml);assert.equal(r.res.body.personalRuleEvaluated,ml<150);
    assert.equal(r.res.body.personalMedianMl,ml<150?m:null);
    assert.deepEqual(Object.keys(r.res.body).sort(),['code','error','challenge','previousWeight','weightNow','currentMl','personalMedianMl','personalRuleEvaluated','matchedRules'].sort());
- }else{assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,2);assert.equal(r.res.body.ml,ml);}
+ }else{assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,3);assert.equal(r.res.body.ml,ml);}
 });
 for(const n of [0,1,2])test(`API exhausted insufficient ${n} still saves under B`,async()=>{
  const db=weightDb();const r=await post(usageBody(100),db,{historyResult:baseline(10,n)});
@@ -360,14 +362,14 @@ for(const [change,status] of [
  [db=>db.docs.delete('staff/0137'),404],
 ])test(`transaction rechecks changed staff after preflight: ${status}`,async()=>{
  const db=weightDb();const r=await post(usageBody(30),db,{historyResult:baseline(25),afterPrecheck:change});
- assert.equal(r.res.code,status);assert.equal(db.commits.length,0);assert.equal([...db.docs.keys()].some(k=>k.startsWith('records/')),false);assert.equal(db.transactionCalls,1);
+ assert.equal(r.res.code,status);assert.equal(db.commits.length,0);assert.equal([...db.docs.keys()].some(k=>k.startsWith('records/')),false);assert.equal(db.transactionCalls,2);
 });
 test('transaction retry does not repeat preflight/history and commits one record reference',async()=>{
  const db=database({'staff/0137':{lastWeight:200,isActive:true}},false,true);
- const r=await post(valid,db);assert.equal(r.res.code,403);assert.equal(r.staffReads,1);assert.equal(r.historyReads,1);assert.equal(db.transactionAttempts,2);assert.equal(db.commits.length,0);
+ const r=await post(valid,db);assert.equal(r.res.code,403);assert.equal(r.staffReads,1);assert.equal(r.historyReads,1);assert.equal(db.transactionAttempts,3);assert.equal(db.commits.length,0);
 });
 test('concurrent transaction retry still commits only one record and history never runs inside callback',async()=>{
- const db=database();const r=await Promise.all([post(valid,db),post(valid,db)]);
+ const db=database();const r=await Promise.all([post(valid,db),post({...valid,operationId:differentOperationId},db)]);
  assert.deepEqual(r.map(x=>x.res.code).sort(),[200,409]);assert.equal(db.commits.length,1);
  assert.ok(db.transactionAttempts>db.transactionCalls);assert.equal(r.reduce((n,x)=>n+x.historyReads,0),2);
 });
@@ -375,7 +377,7 @@ test('exchange even above 150 keeps existing formula, no history, atomic existin
  const db=database({'staff/0137':{lastWeight:250},'staffs/0137':{lastWeight:100}});
  const r=await post({...valid,weightPrev:250,weightNow:200,isBottleExchange:true},db);
  assert.equal(r.res.code,200);assert.ok(r.res.body.ml>150);assert.equal(r.historyReads,0);assert.equal(r.staffReads,1);
- assert.equal(db.commits[0].length,3);assert.equal(db.docs.get('staffs/0137').lastWeight,200);
+ assert.equal(db.commits[0].length,4);assert.equal(db.docs.get('staffs/0137').lastWeight,200);
 });
 test('preflight uses rounded currentMl at the 50mL threshold',async()=>{
  const r=await post(usageBody(49.999),weightDb(),{historyResult:baseline(25)});assert.equal(r.res.code,422);assert.equal(r.res.body.currentMl,50);
@@ -405,17 +407,19 @@ for(const path of ['pages/record/index.js','pages/api/records.js'])test(`source 
 const integrationSecret='fixture-integration-secret-at-least-32-bytes';
 const integrationNow=Date.UTC(2026,9,21);
 const flowOptions={historyResult:baseline(25),now:()=>integrationNow};
-const tokenFor=(stage='remeasure',changes={})=>issueWeightChallenge({stage,staffId:'0137',previousWeight:250,weightNow:usageBody(100).weightNow,currentMl:100,
+const tokenFor=(stage='remeasure',changes={})=>issueWeightChallenge({stage,operationId:boundOperationId,staffId:'0137',previousWeight:250,weightNow:usageBody(100).weightNow,currentMl:100,
  appBuildId:'test-build',ruleVersion:WEIGHT_REMEASUREMENT_RULE_VERSION,matchedRules:['A'],personalMedianMl:25,baselineCount:3,personalRuleEvaluated:true,...changes},
  {secret:integrationSecret,nowMs:integrationNow});
+const legacyTokenFor=()=>{const payload=verifyWeightChallenge(tokenFor(),{secret:integrationSecret,nowMs:integrationNow,expectedStage:'remeasure',expectedOperationId:boundOperationId});
+ const {operationId,version,issuedAt,expiresAt,...claims}=payload;return issueWeightChallenge(claims,{secret:integrationSecret,nowMs:integrationNow});};
 test('completed API flow: first A and then B write nothing, explicit confirmation saves atomically',async()=>{
  const db=weightDb(),before=JSON.stringify([...db.docs]);
  const a=await post({...usageBody(100),operation:'normal'},db,flowOptions);assert.equal(a.res.code,422);noWrites(db,before);
- assert.equal(verifyWeightChallenge(a.res.body.challenge,{secret:integrationSecret,nowMs:integrationNow,expectedStage:'remeasure'}).stage,'remeasure');
+ assert.equal(verifyWeightChallenge(a.res.body.challenge,{secret:integrationSecret,nowMs:integrationNow,expectedStage:'remeasure',expectedOperationId:boundOperationId}).stage,'remeasure');
  const b=await post({...usageBody(110),operation:'remeasure',challenge:a.res.body.challenge},db,flowOptions);assert.equal(b.res.code,422);
- assert.equal(b.res.body.code,'WEIGHT_REMEASUREMENT_CONFIRMATION_REQUIRED');noWrites(db,before);
+ assert.equal(b.res.body.code,'WEIGHT_REMEASUREMENT_CONFIRMATION_REQUIRED');noWrites(db,before,4);
  const saved=await post({...usageBody(110),operation:'confirm_remeasurement',challenge:b.res.body.challenge},db,flowOptions);
- assert.equal(saved.res.code,200);assert.equal(saved.res.body.ml,110);assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,2);
+ assert.equal(saved.res.code,200);assert.equal(saved.res.body.ml,110);assert.equal(db.commits.length,1);assert.equal(db.commits[0].length,3);
  assert.equal(db.docs.get('staff/0137').lastWeight,usageBody(110).weightNow);
 });
 test('A permits a changed normal remeasurement, which saves without a second confirmation',async()=>{
@@ -434,11 +438,12 @@ for(const operation of ['remeasure','confirm_remeasurement'])for(const [label,ch
  ['previous',{weightPrev:249},409,'WEIGHT_CHALLENGE_PREVIOUS_WEIGHT_MISMATCH'],
  ['app',{challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm',{appBuildId:'different'})},409,'WEIGHT_CHALLENGE_APP_VERSION_MISMATCH'],
  ['rule',{challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm',{ruleVersion:'different'})},409,'WEIGHT_CHALLENGE_RULE_VERSION_MISMATCH'],
- ['exchange',{isBottleExchange:true},400,undefined],
-])test(`${operation} ${label} rejected with zero reads/writes`,async()=>{
- const db=weightDb(),before=JSON.stringify([...db.docs]);
+ ['exchange',{isBottleExchange:true},400,'INVALID_OPERATION_REQUEST'],
+])test(`${operation} ${label} rejected with zero precheck/history reads and writes`,async()=>{
+ const db=weightDb();if(label==='staff')db.docs.set('staff/other',{lastWeight:250});
+ const before=JSON.stringify([...db.docs]);
  const r=await post({...usageBody(100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm'),...changes},db,flowOptions);
- assert.equal(r.res.code,expected);assert.equal(r.res.body.code,code);assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before);
+ assert.equal(r.res.code,expected);assert.equal(r.res.body.code,code);assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before,label==='exchange'?0:2);
 });
 for(const operation of ['remeasure','confirm_remeasurement'])test(`${operation} expired before reads`,async()=>{
  const db=weightDb(),r=await post({...usageBody(100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm')},db,{...flowOptions,now:()=>integrationNow+600000});
@@ -452,16 +457,17 @@ test('A cannot be used for immediate confirmation and B cannot confirm a differe
 });
 for(const [changed,expected] of [[{lastWeight:250,isActive:false},403],[{lastWeight:240},409]])test(`confirmation transaction rechecks changed staff: ${expected}`,async()=>{
  const db=weightDb(),r=await post({...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')},db,{...flowOptions,afterPrecheck:d=>d.docs.set('staff/0137',changed)});
- assert.equal(r.res.code,expected);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,1);
+ assert.equal(r.res.code,expected);assert.equal(db.commits.length,0);assert.equal(db.transactionCalls,2);
 });
 for(const operation of ['remeasure','confirm_remeasurement'])test(`${operation}: expiration between flow and transaction prevents all writes`,async()=>{
  let clock=integrationNow;const db=weightDb();const r=await post({...usageBody(operation==='remeasure'?30:100),operation,challenge:tokenFor(operation==='remeasure'?'remeasure':'confirm')},db,
  {...flowOptions,now:()=>clock,afterPrecheck:()=>{clock=integrationNow+600000;}});
- assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionCalls,1);assert.equal(db.commits.length,0);
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionCalls,2);assert.equal(db.commits.length,0);
 });
 test('concurrent final confirmations: transaction retry never reruns flow/history or duplicates record',async()=>{
  const db=weightDb(),body={...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')};
- const r=await Promise.all([post(body,db,flowOptions),post(body,db,flowOptions)]);assert.deepEqual(r.map(x=>x.res.code).sort(),[200,409]);
+ const otherBody={...body,operationId:differentOperationId,challenge:tokenFor('confirm',{operationId:differentOperationId})};
+ const r=await Promise.all([post(body,db,flowOptions),post(otherBody,db,flowOptions)]);assert.deepEqual(r.map(x=>x.res.code).sort(),[200,409]);
  assert.equal(db.commits.length,1);assert.ok(db.transactionAttempts>db.transactionCalls);assert.equal(r.reduce((n,x)=>n+x.historyReads,0),2);
 });
 test('unknown operation rejected and raw exception details never logged',async()=>{
@@ -483,12 +489,10 @@ test('challenge expiration on transaction RETRY is rechecked without new challen
  let clock=integrationNow;
  const db=database({'staff/0137':{lastWeight:250,isActive:true}},false,false,()=>{clock=integrationNow+300000;});
  const r=await post({...usageBody(100),operation:'confirm_remeasurement',challenge:tokenFor('confirm')},db,{...flowOptions,now:()=>clock});
- assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionAttempts,2);
+ assert.equal(r.res.code,422);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_EXPIRED');assert.equal(db.transactionAttempts,3);
  assert.equal(r.staffReads,1);assert.equal(r.historyReads,1);assert.equal(db.commits.length,0);assert.equal(db.docs.get('staff/0137').lastWeight,250);
 });
 
-const boundOperationId='01234567-89ab-4cde-8fab-0123456789ab';
-const differentOperationId='01234567-89ab-4cde-9fab-0123456789ab';
 test('API passes operation ID through A/B and atomically persists only successful operation',async()=>{
  const db=weightDb(),options=flowOptions,operationId=boundOperationId;
  const a=await post({...usageBody(100),operationId},db,options);assert.equal(a.res.code,422);assert.equal(db.commits.length,0);
@@ -505,12 +509,12 @@ for(const operation of ['remeasure','confirm_remeasurement'])for(const operation
  const db=weightDb(),before=JSON.stringify([...db.docs]);
  const challenge=tokenFor(operation==='remeasure'?'remeasure':'confirm',{operationId:boundOperationId});
  const r=await post({...usageBody(100),operation,challenge,operationId},db,flowOptions);
- assert.equal(r.res.code,409);assert.equal(r.res.body.code,'WEIGHT_CHALLENGE_OPERATION_MISMATCH');
+ assert.equal(r.res.code,operationId===undefined?400:409);assert.equal(r.res.body.code,operationId===undefined?'OPERATION_ID_REQUIRED':'WEIGHT_CHALLENGE_OPERATION_MISMATCH');
  assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before,operationId===undefined?0:2);
 });
 test('API refuses legacy token upgrade, invalid ID and bound request with missing secret',async()=>{
  for(const [body,options,status,code] of [
-  [{...usageBody(100),operation:'remeasure',challenge:tokenFor(),operationId:boundOperationId},flowOptions,409,'WEIGHT_CHALLENGE_OPERATION_MISMATCH'],
+  [{...usageBody(100),operation:'remeasure',challenge:legacyTokenFor(),operationId:boundOperationId},flowOptions,409,'WEIGHT_CHALLENGE_OPERATION_MISMATCH'],
   [{...usageBody(30),operationId:'bad'},flowOptions,400,'INVALID_OPERATION_REQUEST'],
   [{...usageBody(100),operationId:boundOperationId},{...flowOptions,secret:null},503,'WEIGHT_CHALLENGE_UNAVAILABLE'],
  ]) {
@@ -664,15 +668,15 @@ test('canonical equivalent requests replay despite key order, full-width ID and 
  const shuffled=Object.fromEntries(Object.entries({...body,staffId:' ０１３７ ',weightPrev:'200.00',weightNow:'190.0',mintPoint:'1',ml:9999,date:'ignored'}).reverse());
  sameSuccess(first,await post(shuffled,db));assert.equal(db.commits.length,1);
 });
-test('success receipt stores only minimal result and digest; legacy data has no fabricated ID',async()=>{
+test('success receipt stores only minimal result and digest; missing ID cannot create legacy data',async()=>{
  const db=database(),body=awareBody({secret:'PRIVATE',arbitrary:{hidden:'PRIVATE'}});const r=await post(body,db);
  assert.equal(r.res.code,200);const receipt=db.docs.get(`recordOperations/${body.operationId}`);
  assert.deepEqual(Object.keys(receipt).sort(),['schemaVersion','resultVersion','staffId','requestDigest','recordId','result','committedAt'].sort());
  assert.deepEqual(Object.keys(receipt.result).sort(),['ok','recordId','staffId','lastWeight','ml'].sort());
  for(const word of ['PRIVATE','name','department','challenge','secret','weightPrev','body'])assert.equal(JSON.stringify(receipt).includes(word),false);
  assert.equal(db.docs.get(`records/${r.res.body.recordId}`).operationId,body.operationId);
- const legacy=database();const saved=await post(valid,legacy);assert.equal(saved.res.code,200);
- assert.equal('operationId'in legacy.docs.get(`records/${saved.res.body.recordId}`),false);assert.equal(operationCount(legacy),0);
+ const legacy=database();const saved=await post({...valid,operationId:undefined},legacy);assert.equal(saved.res.code,400);
+ assert.equal(saved.res.body.code,'OPERATION_ID_REQUIRED');assert.equal(recordCount(legacy),0);assert.equal(operationCount(legacy),0);assert.equal(legacy.transactionCalls,0);
 });
 test('corrupt saved receipt fails closed and is never overwritten or leaked',async()=>{
  const db=database(),body=awareBody();await post(body,db);
@@ -681,7 +685,7 @@ test('corrupt saved receipt fails closed and is never overwritten or leaked',asy
  assert.equal(r.res.code,503);assert.equal(r.res.body.code,'OPERATION_RESULT_UNAVAILABLE');
  assert.equal(JSON.stringify(r.res.body).includes('PRIVATE'),false);assert.equal(JSON.stringify([...db.docs]),before);assert.equal(recordCount(db),1);
 });
-test('receipt read failure stops safely; legacy requests never access the new collection',async()=>{
+test('receipt read failure stops safely; missing ID cannot bypass receipt failure',async()=>{
  const db=database(),original=db.runTransaction;
  db.runTransaction=(dbArg,callback)=>original(dbArg,transaction=>callback({...transaction,get:async ref=>{
   if(ref.key.startsWith('recordOperations/'))throw new Error('PRIVATE read failure');
@@ -690,7 +694,7 @@ test('receipt read failure stops safely; legacy requests never access the new co
  const before=JSON.stringify([...db.docs]),failed=await post(awareBody(),db);
  assert.equal(failed.res.code,500);assert.equal(JSON.stringify(failed.res.body).includes('PRIVATE'),false);
  assert.equal(JSON.stringify([...db.docs]),before);assert.equal(db.commits.length,0);
- const legacy=await post(valid,db);assert.equal(legacy.res.code,200);assert.equal(operationCount(db),0);
+ const calls=db.transactionCalls;const legacy=await post({...valid,operationId:undefined},db);assert.equal(legacy.res.code,400);assert.equal(legacy.res.body.code,'OPERATION_ID_REQUIRED');assert.equal(db.transactionCalls,calls);assert.equal(operationCount(db),0);
 });
 test('retirement on aware commit retry prevents record and operation document together',async()=>{
  const db=database(undefined,false,true);const r=await post(awareBody(),db);
@@ -708,4 +712,38 @@ test('bound final confirmation concurrent replay returns one successful record t
  const replies=await Promise.all([post(body,db,flowOptions),post(body,db,flowOptions)]);
  assert.deepEqual(replies.map(r=>r.res.code),[200,200]);assert.equal(replies[0].res.body.recordId,replies[1].res.body.recordId);
  assert.equal(recordCount(db),1);assert.equal(operationCount(db),1);assert.equal(db.commits.length,1);
+});
+
+// Require an operation ID at the existing request-validation boundary. No server
+// generation, receipt lookup, precheck, or save is allowed for a missing/invalid ID.
+for(const [label,changes] of [
+ ['normal',{}],['zero',{weightNow:200}],['exchange',{weightNow:200,isBottleExchange:true}],
+ ['initial anomaly',{weightNow:60}],
+ ['remeasure',{operation:'remeasure',challenge:'must-not-be-verified'}],
+ ['final confirmation',{operation:'confirm_remeasurement',challenge:'must-not-be-verified'}],
+])for(const omitted of [true,false])test(`required ID: ${label}, ${omitted?'omitted':'undefined'} rejects before all Firestore access`,async()=>{
+ const body={...valid,...changes};if(omitted)delete body.operationId;else body.operationId=undefined;
+ const db=database(),before=JSON.stringify([...db.docs]);const r=await post(body,db);
+ assert.equal(r.res.code,400);assert.equal(r.res.body.code,'OPERATION_ID_REQUIRED');
+ assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);assert.equal(db.reads,0);
+ noWrites(db,before,0);assert.equal(recordCount(db),0);assert.equal(operationCount(db),0);
+});
+for(const operationId of [null,'','bad',123,[],{},boundOperationId.toUpperCase(),
+ boundOperationId.replace('-4cde-','-1cde-'),boundOperationId.replace('-8fab-','-7fab-')])test(`invalid operation ID ${JSON.stringify(operationId)} never becomes legacy or a generated ID`,async()=>{
+ const db=database(),before=JSON.stringify([...db.docs]);const r=await post({...valid,operationId},db);
+ assert.equal(r.res.code,400);assert.equal(r.res.body.code,'INVALID_OPERATION_REQUEST');
+ assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);assert.equal(db.reads,0);noWrites(db,before,0);
+});
+for(const operationId of [undefined,null,'','bad'])for(const [label,options,status,code] of [
+ ['server build unavailable',{buildId:null},503,'APP_VERSION_UNAVAILABLE'],
+ ['client build missing',{headers:{}},426,'APP_UPDATE_REQUIRED'],
+ ['client build mismatch',{headers:{'x-app-build-id':'old'}},426,'APP_UPDATE_REQUIRED'],
+])test(`${label} precedes operation ID error ${JSON.stringify(operationId)}`,async()=>{
+ const db=database(),before=JSON.stringify([...db.docs]);const r=await post({...valid,operationId},db,options);
+ assert.equal(r.res.code,status);assert.equal(r.res.body.code,code);assert.equal(db.reads,0);
+ assert.equal(r.staffReads,0);assert.equal(r.historyReads,0);noWrites(db,before,0);
+});
+for(const initial of [{},{'staff/0137':{lastWeight:200,isActive:false}}])test('missing ID is a request error before staff existence/retirement reads',async()=>{
+ const db=database(initial),before=JSON.stringify([...db.docs]);const r=await post({...valid,operationId:undefined},db);
+ assert.equal(r.res.code,400);assert.equal(r.res.body.code,'OPERATION_ID_REQUIRED');assert.equal(db.reads,0);noWrites(db,before,0);
 });

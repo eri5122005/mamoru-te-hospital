@@ -16,7 +16,7 @@ import { evaluateWeightRemeasurementFlow, checkWeightFlowChallenge } from "../..
 import { prepareRecordOperation, createRecordOperationReceipt, resolveRecordOperationReceipt } from "../../utils/server/recordOperationReceipt";
 
 // Temporary rollout compatibility. Require IDs here after the record UI migration.
-const ALLOW_LEGACY_RECORD_REQUESTS = true;
+const ALLOW_LEGACY_RECORD_REQUESTS = false;
 
 // Fixed public responses only; never serialize errors, request bodies, or token payloads.
 function flowFailure(status) {
