@@ -18,5 +18,8 @@
     "react-dom": "^18.3.1",
     "server-only": "0.0.1",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "firebase-tools": "15.34.1"
   }
 }
