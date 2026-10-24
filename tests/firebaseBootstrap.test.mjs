@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
-import { validateServerFirebaseConfig as validate, createMockServerFirebaseBootstrap as bootstrap } from '../utils/server/firebaseBootstrap.js';
+import { validateServerFirebaseConfig as validate, createMockServerFirebaseBootstrap as bootstrap } from '../utils/server/firebaseBootstrapCore.js';
 
 const config = () => ({ mode: 'emulator', projectId: 'demo-mamoru-te-test',
   firestoreEmulatorHost: '127.0.0.1:8080', authEmulatorHost: 'localhost:9099' });
-const source = readFileSync(new URL('../utils/server/firebaseBootstrap.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const source = readFileSync(new URL('../utils/server/firebaseBootstrapCore.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 function harness(extra = {}) {
   // Evaluate declarations only, with no module loader. An unexpected import fails.
   const declarations = source.replace(/^import \{ createHash \} from 'node:crypto';\n/m, '').replace(/^export /gm, '');
